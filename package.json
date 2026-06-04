@@ -10,6 +10,7 @@
     "format": "biome format --write .",
     "lint": "biome lint --write .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.19.19",
+    "@vitest/coverage-v8": "^4.1.8",
     "lefthook": "^1.13.6",
     "typescript": "^5.9.3",
     "vitest": "^4.1.8"
