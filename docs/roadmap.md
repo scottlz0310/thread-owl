@@ -1,69 +1,69 @@
-# Roadmap
+# ロードマップ
 
-## Phase 0 — Repository Initialization ✓
+## Phase 0 — リポジトリ初期化 ✓
 
-Development baseline: TypeScript, pnpm, Biome, Vitest, lefthook, Renovate, CI, Docker skeleton.
+開発基盤の整備: TypeScript・pnpm・Biome・Vitest・lefthook・Renovate・CI・Docker スケルトン。
 
-**Done when:** `pnpm install --frozen-lockfile && pnpm run check && pnpm test && pnpm run build` passes in CI.
+**完了条件:** `pnpm install --frozen-lockfile && pnpm run check && pnpm test && pnpm run build` が CI で通ること。
 
-## Phase 1 — GitHub App Authentication MVP
+## Phase 1 — GitHub App 認証 MVP
 
-- GitHub App JWT generation (RS256)
-- `installation_id` resolution from owner/repo
-- Installation token issuance
-- Token cache with expiry tracking
-- Env schema validation (zod)
-- Health endpoint
-- Minimal CLI or internal API
+- GitHub App JWT 生成（RS256）
+- owner/repo から `installation_id` を解決
+- Installation token 発行
+- 有効期限管理付き token キャッシュ
+- 環境変数バリデーション（zod）
+- Health エンドポイント
+- 最小限の CLI または internal API
 
-**Done when:** private key → App JWT → installation token → read target repo basic info works end-to-end.
+**完了条件:** private key → App JWT → installation token → 対象リポジトリの基本情報取得がエンドツーエンドで動作すること。
 
-## Phase 2 — Review Operations MVP
+## Phase 2 — レビュー操作 MVP
 
-- PR info fetch (title, body, draft status, head/base SHAs)
-- Changed files fetch
-- Review threads list (GraphQL)
-- Summary comment post
-- Inline review comment post
-- Review thread reply
-- Review thread resolve
-- Allowlist + permission checks on all write operations
+- PR 情報取得（タイトル・本文・draft 状態・head/base SHA）
+- 変更ファイル取得
+- レビュースレッド一覧取得（GraphQL）
+- summary コメント投稿
+- インラインレビューコメント投稿
+- レビュースレッド返信
+- レビュースレッド resolve
+- 全 write 操作への allowlist・権限チェック
 
-**Done when:** reviewer personal account can be removed as org member / collaborator.
+**完了条件:** レビュー用個人アカウントを org member / collaborator から外せること。
 
-## Phase 3 — MCP Integration
+## Phase 3 — MCP 統合
 
-- MCP server with stdio transport
-- `get_pr`, `list_review_threads`, `post_summary_comment`, `post_inline_comment`, `reply_review_thread`, `resolve_review_thread` tools
-- `token-source` endpoint for MCP clients that need direct token access
-- Migration guide from existing `copilot-review-mcp` usage
+- stdio transport での MCP server 実装
+- `get_pr`・`list_review_threads`・`post_summary_comment`・`post_inline_comment`・`reply_review_thread`・`resolve_review_thread` tools 実装
+- 直接 token アクセスが必要な MCP クライアント向け `token-source` エンドポイント
+- 既存 `copilot-review-mcp` からの移行ガイド
 
-**Done when:** Claude Desktop / ChatGPT Project can perform semi-automated reviews via MCP tools.
+**完了条件:** Claude Desktop / ChatGPT Project から MCP tools 経由で半自動レビューができること。
 
-## Phase 4 — Webhook Receiver
+## Phase 4 — Webhook 受信
 
-- Hono-based HTTP server
-- Signature verification, delivery dedup, bot loop prevention
-- `pull_request`, `issue_comment`, `pull_request_review`, `pull_request_review_comment` handlers
-- Review candidate queue
+- Hono ベースの HTTP サーバー
+- 署名検証・delivery 重複排除・bot ループ防止
+- `pull_request`・`issue_comment`・`pull_request_review`・`pull_request_review_comment` ハンドラ
+- レビュー候補キュー
 
-**Done when:** PR open / push events reliably enter the review queue.
+**完了条件:** PR の open / push イベントがレビューキューに確実に入ること。
 
-## Phase 5 — Subscribe Notifications
+## Phase 5 — subscribe 通知
 
-- MCP subscription endpoint
-- Review-ready, re-review, stale-thread notifications
-- Queue status notifications
+- MCP subscription エンドポイント
+- レビュー準備完了・再レビュー・stale スレッド通知
+- キューステータス通知
 
-**Done when:** MCP clients receive notifications without polling.
+**完了条件:** MCP クライアントがポーリングなしで通知を受け取れること。
 
-## Phase 6 — Controlled Automation
+## Phase 6 — 制御付き自動化
 
-- Per-repo config (label trigger, draft skip, skip label)
-- `dry-run` mode, `require-human-approval` mode, `summary-only` mode
+- per-repo 設定（label トリガー・draft スキップ・スキップ label）
+- `dry-run` モード・`require-human-approval` モード・`summary-only` モード
 
-## Phase 7 — API LLM Worker (opt-in)
+## Phase 7 — API LLM ワーカー（opt-in）
 
-- LLM provider abstraction (OpenAI / Anthropic)
-- Diff chunking, review severity classification
-- Posting policy, retry/budget control, audit log
+- LLM プロバイダー抽象化（OpenAI / Anthropic）
+- diff チャンキング・レビュー重大度分類
+- 投稿ポリシー・リトライ/予算制御・監査ログ

@@ -1,33 +1,33 @@
-# Operations
+# 運用ガイド
 
-## Environment Variables
+## 環境変数
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GITHUB_APP_ID` | Yes | GitHub App numeric ID |
-| `GITHUB_APP_PRIVATE_KEY` | Yes | PEM-formatted private key (newlines as `\n`) |
-| `GITHUB_WEBHOOK_SECRET` | Yes (Phase 4+) | HMAC secret for webhook signature verification |
-| `ALLOWED_REPOS` | Yes | Comma-separated list of `owner/repo` |
-| `PORT` | No (default: 3000) | HTTP server port |
-| `LOG_LEVEL` | No (default: `info`) | Log level: `debug`, `info`, `warn`, `error` |
+| 変数名 | 必須 | 説明 |
+|--------|------|------|
+| `GITHUB_APP_ID` | 必須 | GitHub App の数値 ID |
+| `GITHUB_APP_PRIVATE_KEY` | 必須 | PEM 形式の private key（改行を `\n` に置換したもの） |
+| `GITHUB_WEBHOOK_SECRET` | 必須（Phase 4 以降） | Webhook 署名検証用 HMAC シークレット |
+| `ALLOWED_REPOS` | 必須 | `owner/repo` 形式をカンマ区切りで列挙 |
+| `PORT` | 任意（デフォルト: 3000） | HTTP サーバーポート |
+| `LOG_LEVEL` | 任意（デフォルト: `info`） | ログレベル: `debug` / `info` / `warn` / `error` |
 
-## Running Locally
+## ローカル実行
 
 ```bash
 pnpm install
 cp .env.example .env
-# Fill in .env
+# .env を編集して認証情報を記入する
 pnpm run build
 node dist/index.js
 ```
 
-## Running with Docker
+## Docker で実行
 
 ```bash
 docker compose up --build
 ```
 
-## Health Check
+## ヘルスチェック
 
 ```
 GET /health
@@ -35,6 +35,8 @@ GET /health
 ```
 
 ## Token Source
+
+allowlist 登録済みリポジトリの installation token を取得する:
 
 ```
 POST /token-source
@@ -44,15 +46,13 @@ Content-Type: application/json
 → { "token": "ghs_...", "expiresAt": "2026-01-01T00:00:00Z" }
 ```
 
-Requires the repository to be on the allowlist.
+## ログ
 
-## Logs
+- レビュー操作はすべて `owner`・`repo`・`prNumber`・`action` を含めて記録する
+- token および private key はログに出力しない
+- ログフォーマット: JSON（構造化ログ）
 
-- All review operations are logged with `owner`, `repo`, `prNumber`, and `action`
-- Tokens and private keys are never logged
-- Log format: JSON (structured)
+## Allowlist の更新
 
-## Updating the Allowlist
-
-Set `ALLOWED_REPOS` to a comma-separated list of `owner/repo` strings and restart the service.
-There is no hot-reload in Phase 1; a restart is required.
+`ALLOWED_REPOS` を新しい `owner/repo` のカンマ区切りリストに設定してサービスを再起動する。
+Phase 1 ではホットリロードに対応していないため、再起動が必要である。

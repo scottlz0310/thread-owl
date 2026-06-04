@@ -1,57 +1,57 @@
-# GitHub App Setup
+# GitHub App セットアップ
 
-## 1. Create the GitHub App
+## 1. GitHub App を作成する
 
-1. Go to **Settings → Developer settings → GitHub Apps → New GitHub App**
-2. Fill in:
-   - **GitHub App name**: `Thread Owl` (or your preferred name)
-   - **Homepage URL**: your repository URL
-   - **Webhook URL**: `https://<your-host>/webhook` (can be set later)
-   - **Webhook secret**: generate a random secret and note it
+1. **Settings → Developer settings → GitHub Apps → New GitHub App** を開く
+2. 以下を入力する:
+   - **GitHub App name**: `Thread Owl`（任意の名前でよい）
+   - **Homepage URL**: リポジトリの URL
+   - **Webhook URL**: `https://<ホスト名>/webhook`（後で設定しても可）
+   - **Webhook secret**: ランダムな文字列を生成して控えておく
 
-## 2. Configure Permissions
+## 2. 権限を設定する
 
-Under **Repository permissions**:
+**Repository permissions** で以下を設定する:
 
-| Permission | Level |
-|-----------|-------|
-| Metadata | Read-only |
-| Contents | Read-only |
-| Pull requests | Read & write |
-| Issues | Read & write |
+| 権限 | レベル |
+|------|--------|
+| Metadata | 読み取りのみ |
+| Contents | 読み取りのみ |
+| Pull requests | 読み取り・書き込み |
+| Issues | 読み取り・書き込み |
 
-Do not grant any additional permissions at this stage.
+この段階ではこれ以上の権限を付与しない。
 
-## 3. Subscribe to Webhook Events
+## 3. Webhook イベントを購読する
 
-Enable these events (Phase 4):
+以下のイベントを有効化する（Phase 4 で使用）:
 
 - `Pull request`
 - `Issue comment`
 - `Pull request review`
 - `Pull request review comment`
 
-## 4. Generate a Private Key
+## 4. Private key を生成する
 
-1. Scroll to **Private keys** → **Generate a private key**
-2. Download the `.pem` file
-3. Store it securely — do NOT commit to git
+1. **Private keys** → **Generate a private key** をクリックする
+2. `.pem` ファイルをダウンロードする
+3. 安全な場所に保管する — git にコミットしてはならない
 
-## 5. Install the App
+## 5. App をインストールする
 
-1. Go to **Install App** tab
-2. Install on the target organization or specific repositories
-3. Note the **Installation ID** from the URL after install
+1. **Install App** タブに移動する
+2. 対象の organization またはリポジトリにインストールする
+3. インストール後の URL に含まれる **Installation ID** を控えておく
 
-## 6. Configure Environment
+## 6. 環境変数を設定する
 
-Copy `.env.example` to `.env` and fill in:
+`.env.example` を `.env` にコピーして記入する:
 
 ```env
-GITHUB_APP_ID=<your-app-id>
-GITHUB_APP_PRIVATE_KEY=<contents-of-.pem-file-on-one-line>
-GITHUB_WEBHOOK_SECRET=<your-webhook-secret>
+GITHUB_APP_ID=<App の数値 ID>
+GITHUB_APP_PRIVATE_KEY=<.pem ファイルの内容を1行にまとめたもの>
+GITHUB_WEBHOOK_SECRET=<Webhook secret>
 ALLOWED_REPOS=owner/repo1,owner/repo2
 ```
 
-For `GITHUB_APP_PRIVATE_KEY`, replace newlines with `\n` or use a multi-line env var depending on your deployment method.
+`GITHUB_APP_PRIVATE_KEY` の改行は `\n` に置換するか、デプロイ環境に応じた複数行環境変数の記法を使用する。

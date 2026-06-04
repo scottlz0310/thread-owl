@@ -1,53 +1,53 @@
-# Security
+# セキュリティ
 
-## Threat Model
+## 脅威モデル
 
-Thread Owl handles GitHub App private keys and installation tokens.
-The primary risks are:
+Thread Owl は GitHub App の private key と installation token を扱う。
+主なリスクは以下の通り。
 
-1. **Private key exposure** — enables impersonating the App on all installed repos
-2. **Token leakage** — short-lived but must not appear in logs
-3. **Unauthorized operations** — posting/resolving comments on repos outside the allowlist
-4. **Webhook spoofing** — processing forged webhook payloads
-5. **Bot loop** — App reacting to its own comments, causing infinite loops
+1. **Private key の漏洩** — インストール済みの全リポジトリで App を偽装可能になる
+2. **Token の漏洩** — 短命ではあるが、ログに出力してはならない
+3. **不正操作** — allowlist 外のリポジトリへのコメント投稿・resolve
+4. **Webhook スプーフィング** — 偽のペイロードを処理してしまう
+5. **Bot ループ** — App が自分自身のコメントに反応し無限ループに陥る
 
-## Mitigations
+## 対策
 
-### Private Key Management
+### Private Key 管理
 
-- Private key is loaded from environment variable or secret store only
-- Never committed to the repository (`.gitignore` includes `*.pem`)
-- Key rotation requires restarting the service with a new env var
+- Private key は環境変数または secret store からのみ読み込む
+- リポジトリにコミットしない（`.gitignore` に `*.pem` を含める）
+- key ローテーションは新しい環境変数を設定してサービスを再起動する
 
-### Token Handling
+### Token 管理
 
-- Installation tokens have a 1-hour lifetime; treat them as short-lived secrets
-- Tokens are never logged (even at debug level)
-- Token cache evicts entries before expiry
+- Installation token は有効期限 1 時間。短命の秘密情報として扱う
+- Token はいかなるログレベルでも出力しない
+- Token キャッシュは有効期限前にエントリを破棄する
 
-### Allowlist Enforcement
+### Allowlist 適用
 
-- `ALLOWED_REPOS` must be explicitly set; empty list blocks all operations
-- Allowlist check runs before any GitHub API call
-- Allowlist is validated at startup
+- `ALLOWED_REPOS` は必ず明示的に設定する。空の場合は全操作をブロックする
+- allowlist チェックはすべての GitHub API 呼び出しの前に実行する
+- allowlist はサービス起動時にバリデーションする
 
-### Webhook Signature Verification
+### Webhook 署名検証
 
-- All incoming webhooks are verified with HMAC-SHA256 using `GITHUB_WEBHOOK_SECRET`
-- Requests with missing or invalid signatures are rejected with 401
-- Verification uses constant-time comparison to prevent timing attacks
+- 受信した Webhook はすべて `GITHUB_WEBHOOK_SECRET` を使った HMAC-SHA256 で検証する
+- 署名が無効または欠落したリクエストは 401 で拒否する
+- タイミング攻撃を防ぐため、比較には定数時間比較を使用する
 
-### Delivery Deduplication
+### Delivery 重複排除
 
-- GitHub may deliver the same webhook event multiple times
-- Delivery IDs are tracked in a time-bounded set to suppress duplicates
+- GitHub は同じ Webhook イベントを複数回配信することがある
+- Delivery ID を時間制限付きセットで追跡し、重複を抑止する
 
-### Bot Loop Prevention
+### Bot ループ防止
 
-- Before processing any event, the sender login is checked against the App's slug
-- Events originating from the App itself are dropped before handler dispatch
+- イベント処理前に送信者ログインを App の slug と照合する
+- App 自身が発信したイベントはハンドラに渡す前に破棄する
 
-### Destructive Operations
+### 破壊的操作
 
-- No delete, close, or merge operations are implemented in Phase 0–3
-- Any future destructive operation requires explicit allowlist and policy check
+- Phase 0〜3 では delete・close・merge 操作を実装しない
+- 将来的に破壊的操作を追加する場合は、明示的な allowlist とポリシーチェックを必須とする
