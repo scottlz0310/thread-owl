@@ -1,0 +1,17 @@
+# Codecov 設定
+# 段階開発中はスタブが多くプロジェクト全体カバレッジは低いため、
+# project は informational（情報提供のみ・CI を落とさない）、
+# patch（PR で追加・変更された行）に閾値を設けて新規コードの品質を担保する。
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: false

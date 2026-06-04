@@ -8,6 +8,7 @@
 - plan.md をルートから docs/plan.md に移動
 
 ### Added
+- Codecov によるカバレッジ測定（vitest v8 coverage・CI で lcov アップロード）
 - 環境変数バリデーションと設定スキーマ（zod ベース、fail-fast）
 - 構造化 JSON ロガー（予約フィールド保護付き）
 - `.gitattributes` による改行コード正規化（LF）
