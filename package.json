@@ -1,0 +1,33 @@
+{
+  "name": "thread-owl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A GitHub App backend for AI-assisted pull request review threads.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "check": "biome check .",
+    "format": "biome format --write .",
+    "lint": "biome lint --write .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@octokit/auth-app": "^7.1.1",
+    "@octokit/graphql": "^8.1.2",
+    "@octokit/rest": "^21.0.2",
+    "hono": "^4.7.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.0.0",
+    "lefthook": "^1.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
