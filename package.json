@@ -13,18 +13,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "@octokit/auth-app": "^7.1.1",
-    "@octokit/graphql": "^8.1.2",
-    "@octokit/rest": "^21.0.2",
-    "hono": "^4.7.0",
-    "zod": "^3.24.0"
+    "@modelcontextprotocol/sdk": "^1.12.3",
+    "@octokit/auth-app": "^7.1.5",
+    "@octokit/graphql": "^8.2.2",
+    "@octokit/rest": "^21.1.1",
+    "hono": "^4.7.11",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.0.0",
-    "lefthook": "^1.10.0",
-    "typescript": "^5.7.0",
+    "@types/node": "^22.0.3",
+    "lefthook": "^1.10.11",
+    "typescript": "^5.7.3",
     "vitest": "^3.1.0"
   },
   "engines": {

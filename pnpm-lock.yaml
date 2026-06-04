@@ -9,35 +9,35 @@ importers:
   .:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^1.12.0
+        specifier: ^1.12.3
         version: 1.29.0(zod@3.25.76)
       '@octokit/auth-app':
-        specifier: ^7.1.1
+        specifier: ^7.1.5
         version: 7.2.2
       '@octokit/graphql':
-        specifier: ^8.1.2
+        specifier: ^8.2.2
         version: 8.2.2
       '@octokit/rest':
-        specifier: ^21.0.2
+        specifier: ^21.1.1
         version: 21.1.1
       hono:
-        specifier: ^4.7.0
+        specifier: ^4.7.11
         version: 4.12.23
       zod:
-        specifier: ^3.24.0
+        specifier: ^3.24.4
         version: 3.25.76
     devDependencies:
       '@biomejs/biome':
         specifier: ^1.9.4
         version: 1.9.4
       '@types/node':
-        specifier: ^22.0.0
+        specifier: ^22.0.3
         version: 22.19.19
       lefthook:
-        specifier: ^1.10.0
+        specifier: ^1.10.11
         version: 1.13.6
       typescript:
-        specifier: ^5.7.0
+        specifier: ^5.7.3
         version: 5.9.3
       vitest:
         specifier: ^3.1.0
