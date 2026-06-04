@@ -1,0 +1,7 @@
+# すべてのテキストファイルを LF で正規化する
+* text=auto eol=lf
+
+# バイナリファイルは変換しない
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,23 +1,23 @@
-// Application configuration schema
-// TODO: define with zod in Phase 1
+import { z } from "zod";
 
-export interface AppConfig {
-  github: {
-    appId: string;
-    privateKey: string;
-    webhookSecret: string;
-  };
-  policy: {
-    allowedRepos: string[];
-  };
-  server: {
-    port: number;
-  };
-  logging: {
-    level: string;
-  };
-}
+export const appConfigSchema = z.object({
+  github: z.object({
+    appId: z.string().min(1, "GITHUB_APP_ID is required"),
+    privateKey: z.string().min(1, "GITHUB_APP_PRIVATE_KEY is required"),
+    webhookSecret: z.string().min(1, "GITHUB_WEBHOOK_SECRET is required"),
+  }),
+  policy: z.object({
+    allowedRepos: z.array(
+      z.string().regex(/^[^/]+\/[^/]+$/, "allowedRepos entries must be in 'owner/repo' format"),
+    ),
+  }),
+  server: z.object({
+    port: z.number().int().min(1).max(65535),
+    host: z.string().default("127.0.0.1"),
+  }),
+  logging: z.object({
+    level: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
+  }),
+});
 
-export function parseConfig(_env: Record<string, string | undefined>): AppConfig {
-  throw new Error("not implemented");
-}
+export type AppConfig = z.infer<typeof appConfigSchema>;
