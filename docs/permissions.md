@@ -1,41 +1,40 @@
-# Permissions
+# 権限設計
 
-## GitHub App Permissions
+## GitHub App 権限
 
-### Initial (Phase 1–3)
+### 初期権限（Phase 1〜3）
 
-| Scope | Level | Reason |
-|-------|-------|--------|
-| Metadata | Read | Required for all API access |
-| Contents | Read | Read PR diff and file contents |
-| Pull requests | Read & Write | Post review comments, reply to threads, resolve |
-| Issues | Read & Write | Post summary comments (issue comment endpoint) |
+| スコープ | レベル | 理由 |
+|---------|--------|------|
+| Metadata | 読み取り | すべての API アクセスに必要 |
+| Contents | 読み取り | PR diff とファイル内容の参照 |
+| Pull requests | 読み取り・書き込み | レビューコメント投稿・スレッド返信・resolve |
+| Issues | 読み取り・書き込み | summary コメント投稿（issue comment エンドポイント使用） |
 
-### Added as needed (Phase 4+)
+### 必要に応じて追加する権限（Phase 4 以降）
 
-| Scope | Level | Reason |
-|-------|-------|--------|
-| Checks | Read | Monitor CI status on PR |
-| Actions | Read | Monitor workflow runs |
-| Commit statuses | Read | Check commit status |
+| スコープ | レベル | 理由 |
+|---------|--------|------|
+| Checks | 読み取り | PR の CI ステータス確認 |
+| Actions | 読み取り | ワークフロー実行状況の確認 |
+| Commit statuses | 読み取り | コミットステータスの確認 |
 
-### Never granted
+### 付与しない権限
 
-- Any `admin` permission
-- `Members` permission
+- `admin` 系の権限（いかなるもの）
+- `Members`
 - `Organization administration`
-- Anything outside the review workflow scope
+- レビューワークフローのスコープ外のもの
 
-## Principle of Least Privilege
+## 最小権限の原則
 
-Thread Owl starts with the minimum permissions required for Phase 1–3.
-Additional permissions are only requested when a concrete use case requires them,
-and are explicitly documented here with justification.
+Thread Owl は Phase 1〜3 に必要な最小限の権限からスタートする。
+追加権限は、具体的なユースケースが生じた場合にのみリクエストし、
+その理由をこのドキュメントに明記する。
 
-## Repository Allowlist
+## リポジトリ Allowlist
 
-Even with permissions granted via GitHub App installation, Thread Owl enforces
-an additional allowlist via `ALLOWED_REPOS` environment variable.
+GitHub App installation で権限が付与されていても、Thread Owl は
+環境変数 `ALLOWED_REPOS` による追加の allowlist を適用する。
 
-Any operation targeting a repository not on the allowlist is rejected before
-the GitHub API is called.
+Allowlist に含まれないリポジトリへの操作は、GitHub API 呼び出しの前に拒否される。
