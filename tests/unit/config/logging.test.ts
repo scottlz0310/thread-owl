@@ -47,4 +47,18 @@ describe("createLogger", () => {
 
     spy.mockRestore();
   });
+
+  it("data の level/msg/time フィールドが logger の予約フィールドを上書きできない", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logger = createLogger("info");
+
+    logger.info("real msg", { level: "error", msg: "injected", time: "1970-01-01T00:00:00.000Z" });
+
+    const entry = JSON.parse(spy.mock.calls[0][0] as string);
+    expect(entry.level).toBe("info");
+    expect(entry.msg).toBe("real msg");
+    expect(entry.time).not.toBe("1970-01-01T00:00:00.000Z");
+
+    spy.mockRestore();
+  });
 });

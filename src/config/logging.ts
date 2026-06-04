@@ -18,7 +18,7 @@ export interface Logger {
 export function createLogger(level: LogLevel): Logger {
   const log = (target: LogLevel, message: string, data?: Record<string, unknown>) => {
     if (LEVEL_VALUES[level] <= LEVEL_VALUES[target]) {
-      const entry = { level: target, time: new Date().toISOString(), msg: message, ...data };
+      const entry = { ...data, level: target, time: new Date().toISOString(), msg: message };
       // eslint-disable-next-line no-console
       console.log(JSON.stringify(entry));
     }

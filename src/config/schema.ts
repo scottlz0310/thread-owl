@@ -7,7 +7,9 @@ export const appConfigSchema = z.object({
     webhookSecret: z.string().min(1, "GITHUB_WEBHOOK_SECRET is required"),
   }),
   policy: z.object({
-    allowedRepos: z.array(z.string()),
+    allowedRepos: z.array(
+      z.string().regex(/^[^/]+\/[^/]+$/, "allowedRepos entries must be in 'owner/repo' format"),
+    ),
   }),
   server: z.object({
     port: z.number().int().min(1).max(65535),

@@ -59,6 +59,12 @@ describe("loadEnv", () => {
     expect(config.policy.allowedRepos).toEqual(["owner/repo1", "owner/repo2"]);
   });
 
+  it("ALLOWED_REPOS に owner/repo 形式でないエントリが含まれる場合はエラーを throw する", () => {
+    expect(() => loadEnv({ ...VALID_ENV, ALLOWED_REPOS: "owner/repo,bad-entry" })).toThrow(
+      "Invalid configuration",
+    );
+  });
+
   describe("必須変数が欠落している場合はエラーを throw する", () => {
     it.each([["GITHUB_APP_ID"], ["GITHUB_APP_PRIVATE_KEY"], ["GITHUB_WEBHOOK_SECRET"]] as const)(
       "%s が欠落",
