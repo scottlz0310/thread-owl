@@ -25,7 +25,7 @@
     "@types/node": "^22.0.3",
     "lefthook": "^1.10.11",
     "typescript": "^5.7.3",
-    "vitest": "^3.1.0"
+    "vitest": "^4.0.0"
   },
   "engines": {
     "node": ">=20.0.0"
