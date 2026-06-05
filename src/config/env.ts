@@ -16,7 +16,9 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
     },
     server: {
       port: env.PORT !== undefined ? Number(env.PORT) : 3000,
-      host: env.HOST,
+      // 空文字列は schema の default が効かないため undefined に正規化する。
+      // 空 HOST のまま serve すると Node が :: にバインドし localhost 境界が破れるのを防ぐ。
+      host: env.HOST || undefined,
     },
     logging: {
       level: env.LOG_LEVEL,

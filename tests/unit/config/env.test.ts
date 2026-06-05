@@ -37,6 +37,11 @@ describe("loadEnv", () => {
     expect(config.server.host).toBe("127.0.0.1");
   });
 
+  it("HOST が空文字列の場合も 127.0.0.1 にフォールバックする", () => {
+    const config = loadEnv({ ...VALID_ENV, HOST: "" });
+    expect(config.server.host).toBe("127.0.0.1");
+  });
+
   it("LOG_LEVEL 未設定の場合は info をデフォルトにする", () => {
     const { LOG_LEVEL: _, ...env } = VALID_ENV;
     const config = loadEnv(env);
