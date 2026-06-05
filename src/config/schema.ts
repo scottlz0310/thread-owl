@@ -13,7 +13,7 @@ export const appConfigSchema = z.object({
   }),
   server: z.object({
     port: z.number().int().min(1).max(65535),
-    host: z.string().default("127.0.0.1"),
+    host: z.string().min(1).default("127.0.0.1"),
   }),
   logging: z.object({
     level: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
