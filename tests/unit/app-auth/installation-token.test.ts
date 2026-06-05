@@ -1,25 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import { getInstallationToken } from "../../../src/app-auth/installation-token.js";
 
-function makeClient(data: { token: string; expires_at: string } & Record<string, unknown>) {
-  const createInstallationAccessToken = vi.fn().mockResolvedValue({ data });
-  return {
-    createInstallationAccessToken,
-    client: { rest: { apps: { createInstallationAccessToken } } },
-  };
-}
-
 describe("getInstallationToken", () => {
-  it("App JWT と repositoryNames scope で installation access token を発行する", async () => {
-    const { client, createInstallationAccessToken } = makeClient({
+  it("@octokit/auth-app 互換 auth で repositoryNames scope 付き installation access token を発行する", async () => {
+    const auth = vi.fn().mockResolvedValue({
       token: "ghs_example",
-      expires_at: "2026-06-05T12:34:56Z",
-    });
-
-    const token = await getInstallationToken("app-jwt", {
+      expiresAt: "2026-06-05T12:34:56Z",
       installationId: 12345,
       repositoryNames: ["octo-repo"],
-      client,
+    });
+
+    const token = await getInstallationToken({
+      appId: "123456",
+      privateKey: "private-key",
+      installationId: 12345,
+      repositoryNames: ["octo-repo"],
+      auth,
     });
 
     expect(token).toEqual({
@@ -28,46 +24,54 @@ describe("getInstallationToken", () => {
       installationId: 12345,
       repositoryNames: ["octo-repo"],
     });
-    expect(createInstallationAccessToken).toHaveBeenCalledWith({
-      installation_id: 12345,
-      repositories: ["octo-repo"],
+    expect(auth).toHaveBeenCalledWith({
+      type: "installation",
+      installationId: 12345,
+      repositoryNames: ["octo-repo"],
     });
   });
 
-  it("repositoryIds scope を昇順で REST に渡して token に保持する", async () => {
-    const { client, createInstallationAccessToken } = makeClient({
+  it("repositoryIds scope を昇順で auth-app に渡して token に保持する", async () => {
+    const auth = vi.fn().mockResolvedValue({
       token: "ghs_example",
-      expires_at: "2026-06-05T12:34:56Z",
+      expiresAt: "2026-06-05T12:34:56Z",
+      installationId: 12345,
     });
 
-    const token = await getInstallationToken("app-jwt", {
+    const token = await getInstallationToken({
+      appId: "123456",
+      privateKey: "private-key",
       installationId: 12345,
       repositoryIds: [222, 111],
-      client,
+      auth,
     });
 
     expect(token.repositoryIds).toEqual([111, 222]);
     expect(token.repositoryNames).toBeUndefined();
-    expect(createInstallationAccessToken).toHaveBeenCalledWith({
-      installation_id: 12345,
-      repository_ids: [111, 222],
+    expect(auth).toHaveBeenCalledWith({
+      type: "installation",
+      installationId: 12345,
+      repositoryIds: [111, 222],
     });
   });
 
-  it("レスポンスの余剰 repository 情報ではなく要求スコープを token に保持する", async () => {
-    // GitHub は repositories 配列を返すが、TokenCache の set/get キー対称性のため
-    // token には要求スコープのみを保持する（要求が name のみなら id を埋めない）。
-    const { client } = makeClient({
+  it("auth が返す実スコープではなく要求スコープを token に保持する", async () => {
+    // auth-app は要求が name のみでも repositoryIds/Names を両方返すため、TokenCache の
+    // set/get キーが一致するよう要求スコープのみを保持する（要求が name なら id を埋めない）。
+    const auth = vi.fn().mockResolvedValue({
       token: "ghs_example",
-      expires_at: "2026-06-05T12:34:56Z",
-      repository_selection: "selected",
-      repositories: [{ id: 999, name: "other-repo" }],
+      expiresAt: "2026-06-05T12:34:56Z",
+      installationId: 12345,
+      repositoryIds: [999],
+      repositoryNames: ["octo-repo", "other-repo"],
     });
 
-    const token = await getInstallationToken("app-jwt", {
+    const token = await getInstallationToken({
+      appId: "123456",
+      privateKey: "private-key",
       installationId: 12345,
       repositoryNames: ["octo-repo"],
-      client,
+      auth,
     });
 
     expect(token.repositoryIds).toBeUndefined();
@@ -75,26 +79,29 @@ describe("getInstallationToken", () => {
   });
 
   it("repository scope 未指定の場合は installation-wide token を発行しない", async () => {
-    const { client, createInstallationAccessToken } = makeClient({
-      token: "ghs_example",
-      expires_at: "2026-06-05T12:34:56Z",
-    });
+    const auth = vi.fn();
 
     await expect(
-      getInstallationToken("app-jwt", { installationId: 12345, client }),
+      getInstallationToken({
+        appId: "123456",
+        privateKey: "private-key",
+        installationId: 12345,
+        auth,
+      }),
     ).rejects.toThrow("repositoryIds or repositoryNames is required");
-    expect(createInstallationAccessToken).not.toHaveBeenCalled();
+    expect(auth).not.toHaveBeenCalled();
   });
 
-  it("REST API のエラーを呼び出し元に伝播する", async () => {
-    const createInstallationAccessToken = vi.fn().mockRejectedValue(new Error("Bad credentials"));
-    const client = { rest: { apps: { createInstallationAccessToken } } };
+  it("auth-app のエラーを呼び出し元に伝播する", async () => {
+    const auth = vi.fn().mockRejectedValue(new Error("Bad credentials"));
 
     await expect(
-      getInstallationToken("bad-jwt", {
+      getInstallationToken({
+        appId: "123456",
+        privateKey: "bad-private-key",
         installationId: 12345,
         repositoryNames: ["octo-repo"],
-        client,
+        auth,
       }),
     ).rejects.toThrow("Bad credentials");
   });

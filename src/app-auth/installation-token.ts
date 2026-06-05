@@ -1,10 +1,18 @@
 // GitHub App installation access token issuance
 
-import { Octokit } from "@octokit/rest";
+import { createAppAuth } from "@octokit/auth-app";
 
 export interface InstallationToken {
   token: string;
   expiresAt: Date;
+  installationId: number;
+  repositoryIds?: number[];
+  repositoryNames?: string[];
+}
+
+interface InstallationTokenAuthentication {
+  token: string;
+  expiresAt: string;
   installationId: number;
   repositoryIds?: number[];
   repositoryNames?: string[];
@@ -15,43 +23,43 @@ export interface InstallationTokenRepositoryScope {
   repositoryNames?: readonly string[];
 }
 
-interface CreateInstallationAccessTokenClient {
-  rest: {
-    apps: {
-      createInstallationAccessToken(options: {
-        installation_id: number;
-        repository_ids?: number[];
-        repositories?: string[];
-      }): Promise<{ data: { token: string; expires_at: string } }>;
-    };
-  };
-}
+type InstallationTokenAuth = (options: {
+  type: "installation";
+  installationId: number;
+  repositoryIds?: number[];
+  repositoryNames?: string[];
+}) => Promise<InstallationTokenAuthentication>;
 
 export interface GetInstallationTokenOptions extends InstallationTokenRepositoryScope {
+  appId: string;
+  privateKey: string;
   installationId: number;
-  client?: CreateInstallationAccessTokenClient;
+  auth?: InstallationTokenAuth;
 }
 
-// generateAppJwt() が発行した App JWT を使い回して installation access token を取得する。
-// 返す token には GitHub のレスポンス内容ではなく「要求スコープ」を保持する。
-// TokenCache は要求スコープでキャッシュキーを引くため、set/get のキーを対称に保つ必要がある。
 export async function getInstallationToken(
-  appJwt: string,
   options: GetInstallationTokenOptions,
 ): Promise<InstallationToken> {
   const scope = normalizeRepositoryScope(options);
-  const client = options.client ?? new Octokit({ auth: appJwt });
-
-  const response = await client.rest.apps.createInstallationAccessToken({
-    installation_id: options.installationId,
-    ...(scope.repositoryIds ? { repository_ids: scope.repositoryIds } : {}),
-    ...(scope.repositoryNames ? { repositories: scope.repositoryNames } : {}),
+  const auth =
+    options.auth ??
+    createAppAuth({
+      appId: options.appId,
+      privateKey: options.privateKey,
+      installationId: options.installationId,
+    });
+  const authentication = await auth({
+    type: "installation",
+    installationId: options.installationId,
+    ...scope,
   });
 
   return {
-    token: response.data.token,
-    expiresAt: new Date(response.data.expires_at),
-    installationId: options.installationId,
+    token: authentication.token,
+    expiresAt: new Date(authentication.expiresAt),
+    installationId: authentication.installationId,
+    // auth-app は要求が name のみでも repositoryIds/Names を両方返すため、TokenCache の
+    // set/get キー対称性が崩れないよう、レスポンス値ではなく要求スコープを保持する。
     ...(scope.repositoryIds ? { repositoryIds: scope.repositoryIds } : {}),
     ...(scope.repositoryNames ? { repositoryNames: scope.repositoryNames } : {}),
   };
