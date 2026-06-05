@@ -1,5 +1,6 @@
 // GitHub App installation access token issuance
-// TODO: implement with @octokit/auth-app in Phase 1
+
+import { createAppAuth } from "@octokit/auth-app";
 
 export interface InstallationToken {
   token: string;
@@ -7,9 +8,42 @@ export interface InstallationToken {
   installationId: number;
 }
 
+interface InstallationTokenAuthentication {
+  token: string;
+  expiresAt: string;
+  installationId: number;
+}
+
+type InstallationTokenAuth = (options: {
+  type: "installation";
+  installationId: number;
+}) => Promise<InstallationTokenAuthentication>;
+
+export interface GetInstallationTokenOptions {
+  appId: string;
+  privateKey: string;
+  installationId: number;
+  auth?: InstallationTokenAuth;
+}
+
 export async function getInstallationToken(
-  _appJwt: string,
-  _installationId: number,
+  options: GetInstallationTokenOptions,
 ): Promise<InstallationToken> {
-  throw new Error("not implemented");
+  const auth =
+    options.auth ??
+    createAppAuth({
+      appId: options.appId,
+      privateKey: options.privateKey,
+      installationId: options.installationId,
+    });
+  const authentication = await auth({
+    type: "installation",
+    installationId: options.installationId,
+  });
+
+  return {
+    token: authentication.token,
+    expiresAt: new Date(authentication.expiresAt),
+    installationId: authentication.installationId,
+  };
 }
