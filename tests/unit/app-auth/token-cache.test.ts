@@ -14,7 +14,7 @@ function makeToken(overrides: Partial<InstallationToken> = {}): InstallationToke
 
 describe("createTokenCache", () => {
   it("installation_id と repository scope ごとに token を保存して取得する", () => {
-    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:58:00Z") });
+    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:50:00Z") });
     const token = makeToken();
 
     cache.set(token);
@@ -25,7 +25,7 @@ describe("createTokenCache", () => {
   });
 
   it("repository scope は順序に依存せず同じ cache entry として扱う", () => {
-    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:58:00Z") });
+    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:50:00Z") });
     const token = makeToken({ repositoryNames: ["z-repo", "a-repo"] });
 
     cache.set(token);
@@ -34,7 +34,7 @@ describe("createTokenCache", () => {
   });
 
   it("repositoryIds scope でも token を保存して取得する", () => {
-    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:58:00Z") });
+    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:50:00Z") });
     const token = makeToken({ repositoryNames: undefined, repositoryIds: [222, 111] });
 
     cache.set(token);
@@ -53,8 +53,8 @@ describe("createTokenCache", () => {
     expect(cache.get({ installationId: 12345, repositoryNames: ["octo-repo"] })).toBeUndefined();
   });
 
-  it("デフォルトでは期限 60 秒前から token を期限切れ扱いにする", () => {
-    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:59:00Z") });
+  it("デフォルトでは期限 5 分前から token を期限切れ扱いにする", () => {
+    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:55:00Z") });
     const token = makeToken();
 
     cache.set(token);
@@ -75,7 +75,7 @@ describe("createTokenCache", () => {
   });
 
   it("invalidate で token を明示的に削除する", () => {
-    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:58:00Z") });
+    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:50:00Z") });
     const token = makeToken();
 
     cache.set(token);
@@ -85,7 +85,7 @@ describe("createTokenCache", () => {
   });
 
   it("repository scope 未指定の cache entry は拒否する", () => {
-    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:58:00Z") });
+    const cache = createTokenCache({ now: () => new Date("2026-06-05T11:50:00Z") });
 
     expect(() => cache.get({ installationId: 12345 })).toThrow(
       "repositoryIds or repositoryNames is required",

@@ -21,7 +21,9 @@ export interface TokenCacheOptions {
   expiryBufferSeconds?: number;
 }
 
-const DEFAULT_EXPIRY_BUFFER_SECONDS = 60;
+// installation token の有効期限は 1 時間。期限の 5 分前を safety margin として
+// stale 扱いし、期限ギリギリのトークンで API 呼び出しが失敗するのを避ける。
+const DEFAULT_EXPIRY_BUFFER_SECONDS = 300;
 
 export function createTokenCache(options: TokenCacheOptions = {}): TokenCache {
   const tokens = new Map<string, InstallationToken>();
