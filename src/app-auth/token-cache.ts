@@ -1,6 +1,10 @@
 // Short-lived installation token cache with expiry management
 
-import type { InstallationToken, InstallationTokenRepositoryScope } from "./installation-token.js";
+import {
+  type InstallationToken,
+  type InstallationTokenRepositoryScope,
+  normalizeRepositoryScope,
+} from "./installation-token.js";
 
 export interface InstallationTokenCacheKey extends InstallationTokenRepositoryScope {
   installationId: number;
@@ -47,19 +51,14 @@ export function createTokenCache(options: TokenCacheOptions = {}): TokenCache {
   };
 }
 
+// get は呼び出し元の要求スコープ、set は getInstallationToken が要求スコープを保持した token を
+// 渡すため、両者のキーは一致する。normalizeRepositoryScope で scope 必須・順序非依存を担保する。
 function makeCacheKey(key: InstallationTokenCacheKey): string {
-  const repositoryIds = key.repositoryIds ? [...key.repositoryIds].sort((a, b) => a - b) : [];
-  const repositoryNames = key.repositoryNames ? [...key.repositoryNames].sort() : [];
-
-  if (repositoryIds.length === 0 && repositoryNames.length === 0) {
-    throw new Error(
-      "repositoryIds or repositoryNames is required to scope installation token cache entries",
-    );
-  }
+  const scope = normalizeRepositoryScope(key);
 
   return JSON.stringify({
     installationId: key.installationId,
-    repositoryIds,
-    repositoryNames,
+    repositoryIds: scope.repositoryIds ?? [],
+    repositoryNames: scope.repositoryNames ?? [],
   });
 }
