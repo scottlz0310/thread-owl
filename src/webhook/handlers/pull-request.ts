@@ -1,7 +1,15 @@
-// pull_request webhook event handler
-
+import type { Logger } from "../../config/logging.js";
+import type { ReviewQueue } from "../../queue/review-queue.js";
 import type { NormalizedEvent } from "../normalize-event.js";
 
-export async function handlePullRequestEvent(_event: NormalizedEvent): Promise<void> {
-  throw new Error("not implemented");
+export interface PullRequestHandlerDeps {
+  queue: ReviewQueue;
+  logger: Logger;
+}
+
+export async function handlePullRequestEvent(
+  _event: NormalizedEvent,
+  _deps: PullRequestHandlerDeps,
+): Promise<void> {
+  // implemented in #46
 }

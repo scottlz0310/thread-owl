@@ -1,7 +1,13 @@
-// issue_comment webhook event handler
-
+import type { Logger } from "../../config/logging.js";
 import type { NormalizedEvent } from "../normalize-event.js";
 
-export async function handleIssueCommentEvent(_event: NormalizedEvent): Promise<void> {
-  throw new Error("not implemented");
+export interface IssueCommentHandlerDeps {
+  logger: Logger;
+}
+
+export async function handleIssueCommentEvent(
+  _event: NormalizedEvent,
+  _deps: IssueCommentHandlerDeps,
+): Promise<void> {
+  // implemented in #48
 }

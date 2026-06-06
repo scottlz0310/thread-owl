@@ -19,7 +19,10 @@ import { createMcpServer } from "./mcp/server.js";
 import { buildToolDeps } from "./mcp/tool-deps.js";
 import { startMcpHttpServer, startMcpStdioServer } from "./mcp/transports.js";
 import { RepositoryNotAllowedError } from "./policy/allowlist.js";
+import { createDeliveryDedup } from "./queue/delivery-dedup.js";
+import { createReviewQueue } from "./queue/review-queue.js";
 import { resolveAppMode } from "./startup/mode.js";
+import { createWebhookReceiver } from "./webhook/receiver.js";
 
 const VERSION = "0.1.0";
 
@@ -82,7 +85,7 @@ if (mode === "mcp-stdio") {
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
-} else {
+} else if (mode === "internal-api") {
   const startedAt = new Date();
 
   const tokenQuerySchema = z.object({
@@ -134,6 +137,31 @@ if (mode === "mcp-stdio") {
   serve({ fetch: app.fetch, hostname: config.server.host, port: config.server.port });
   logger.info("server.started", {
     event: "server.started",
+    host: config.server.host,
+    port: config.server.port,
+  });
+} else {
+  // mode === "webhook"
+  const webhookSecret = config.github.webhookSecret;
+  if (!webhookSecret) {
+    throw new Error("GITHUB_WEBHOOK_SECRET is required for --webhook mode");
+  }
+
+  const webhookApp = new Hono();
+  webhookApp.get("/health", (c) => c.json(getHealth()));
+  webhookApp.route(
+    "/",
+    createWebhookReceiver({
+      secret: webhookSecret,
+      dedup: createDeliveryDedup(),
+      queue: createReviewQueue(),
+      logger,
+    }),
+  );
+
+  serve({ fetch: webhookApp.fetch, hostname: config.server.host, port: config.server.port });
+  logger.info("webhook.server.started", {
+    event: "webhook.server.started",
     host: config.server.host,
     port: config.server.port,
   });

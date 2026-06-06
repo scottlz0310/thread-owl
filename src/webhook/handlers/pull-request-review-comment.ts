@@ -1,7 +1,13 @@
-// pull_request_review_comment webhook event handler
-
+import type { Logger } from "../../config/logging.js";
 import type { NormalizedEvent } from "../normalize-event.js";
 
-export async function handlePullRequestReviewCommentEvent(_event: NormalizedEvent): Promise<void> {
-  throw new Error("not implemented");
+export interface PullRequestReviewCommentHandlerDeps {
+  logger: Logger;
+}
+
+export async function handlePullRequestReviewCommentEvent(
+  _event: NormalizedEvent,
+  _deps: PullRequestReviewCommentHandlerDeps,
+): Promise<void> {
+  // implemented in #48
 }
