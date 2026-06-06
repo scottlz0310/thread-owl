@@ -76,9 +76,14 @@ describe("loadEnv", () => {
     expect(config.policy.allowedRepos).toEqual(["owner/repo1", "owner/repo2"]);
   });
 
+  it("ALLOWED_REPOS を小文字に正規化し重複を除去する", () => {
+    const config = loadEnv({ ...VALID_ENV, ALLOWED_REPOS: "Owner/Repo,owner/repo" });
+    expect(config.policy.allowedRepos).toEqual(["owner/repo"]);
+  });
+
   it("ALLOWED_REPOS に owner/repo 形式でないエントリが含まれる場合はエラーを throw する", () => {
     expect(() => loadEnv({ ...VALID_ENV, ALLOWED_REPOS: "owner/repo,bad-entry" })).toThrow(
-      "Invalid configuration",
+      "owner/repo' format",
     );
   });
 

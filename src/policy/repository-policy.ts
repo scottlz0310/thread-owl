@@ -1,5 +1,7 @@
 // Per-repository operation policy
 
+import { isAllowed } from "./allowlist.js";
+
 export interface RepositoryPolicy {
   owner: string;
   repo: string;
@@ -20,9 +22,24 @@ export function getDefaultPolicy(owner: string, repo: string): RepositoryPolicy 
   };
 }
 
-export async function loadRepositoryPolicy(
-  _owner: string,
-  _repo: string,
-): Promise<RepositoryPolicy> {
-  throw new Error("not implemented");
+export function getReadOnlyPolicy(owner: string, repo: string): RepositoryPolicy {
+  return {
+    owner,
+    repo,
+    allowInlineComments: false,
+    allowSummaryComments: false,
+    allowResolve: false,
+    requireHumanApproval: false,
+  };
+}
+
+// allowlist に含まれれば write 操作を許可し、含まれなければ read-only にする（fail-closed）。
+export function resolveRepositoryPolicy(
+  allowedRepos: readonly string[],
+  owner: string,
+  repo: string,
+): RepositoryPolicy {
+  return isAllowed(allowedRepos, owner, repo)
+    ? getDefaultPolicy(owner, repo)
+    : getReadOnlyPolicy(owner, repo);
 }
