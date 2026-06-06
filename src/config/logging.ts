@@ -15,12 +15,15 @@ export interface Logger {
   debug(message: string, data?: Record<string, unknown>): void;
 }
 
-export function createLogger(level: LogLevel): Logger {
+// write のデフォルトは stdout。MCP stdio モードでは stdout が JSON-RPC 専用のため stderr を渡す。
+export function createLogger(
+  level: LogLevel,
+  write: (line: string) => void = (line) => console.log(line),
+): Logger {
   const log = (target: LogLevel, message: string, data?: Record<string, unknown>) => {
     if (LEVEL_VALUES[level] <= LEVEL_VALUES[target]) {
       const entry = { ...data, level: target, time: new Date().toISOString(), msg: message };
-      // eslint-disable-next-line no-console
-      console.log(JSON.stringify(entry));
+      write(JSON.stringify(entry));
     }
   };
 
