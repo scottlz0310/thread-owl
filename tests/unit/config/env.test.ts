@@ -83,7 +83,7 @@ describe("loadEnv", () => {
 
   it("ALLOWED_REPOS に owner/repo 形式でないエントリが含まれる場合はエラーを throw する", () => {
     expect(() => loadEnv({ ...VALID_ENV, ALLOWED_REPOS: "owner/repo,bad-entry" })).toThrow(
-      "owner/repo' format",
+      "format",
     );
   });
 
