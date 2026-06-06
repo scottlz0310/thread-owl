@@ -75,10 +75,10 @@ node dist/index.js --mcp
 | `post_summary_comment` | PR サマリーコメント投稿 |
 | `post_inline_comment` | インラインレビューコメント投稿 |
 | `reply_review_thread` | レビュースレッドへ返信 |
-| `resolve_review_thread` | レビュースレッドを resolve |
 
 - 各 tool は `owner`/`repo` から installation token を都度発行する（allowlist ゲートが token 発行時に効くため、allowlist 外リポジトリは read/write とも拒否される）
 - MCP stdio モードではログを stderr に出力する（stdout は JSON-RPC 専用のため）
+- review thread の resolve は、PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review` 等で行う
 
 Claude Desktop の設定例（`claude_desktop_config.json`）:
 
@@ -122,21 +122,22 @@ Claude Desktop の設定例（`claude_desktop_config.json`）:
    - `GET /token?owner=...&repo=...` が allowlist 内リポジトリで `200` + installation token を返す。
    - `node dist/index.js --mcp` が起動し、MCP クライアントから tools が見える。
    - `get_pr` / `list_review_threads` で PR・レビュースレッドが取得できる。
-   - `post_summary_comment` / `post_inline_comment` / `reply_review_thread` / `resolve_review_thread` が **App 権限で**投稿・返信・resolve できる（コメント author が `<app-slug>[bot]` になる）。
+   - `post_summary_comment` / `post_inline_comment` / `reply_review_thread` が **App 権限で**投稿・返信できる（コメント author が `<app-slug>[bot]` になる）。
 4. **allowlist 外の拒否確認**: allowlist 外リポジトリへの write が拒否される（`403` / `RepositoryNotAllowedError`）ことを確認する。
 5. **レビュー用個人アカウントを外す**: 上記が確認できたら、レビュー用個人アカウントを対象リポジトリ／organization の member / collaborator から外す。
 6. **PAT の無効化**: そのアカウントが使っていた Personal Access Token を GitHub の **Settings → Developer settings → Personal access tokens** から revoke する。
 7. **半自動レビューの動作確認**: レビュー用個人アカウントを外した状態で、MCP クライアント（Claude Desktop / ChatGPT Project 等）経由のレビュー運用が成立することを確認する。
 
-> 注: レビューの「判断」を行う human / LLM レビュアーは引き続き必要だが、GitHub への「投稿主体」は Thread Owl (App) に一本化される。レビュー用個人アカウントを外す前に、必ず手順 3-4 で App 権限による投稿・resolve が成立することを確認すること（fail-closed のため allowlist 設定漏れがあると write が拒否される）。
+> 注: レビューの「判断」を行う human / LLM レビュアーは引き続き必要だが、GitHub へのレビュー投稿主体は Thread Owl (App) に一本化される。レビュー用個人アカウントを外す前に、必ず手順 3-4 で App 権限による投稿・返信が成立することを確認すること（fail-closed のため allowlist 設定漏れがあると write が拒否される）。resolve は修正側の権限で行う。
 
 ## Claude Code skill / copilot-review-mcp との責務整理
 
 | コンポーネント | 役割 |
 |---------------|------|
-| **Thread Owl (MCP server)** | GitHub App 権限での review 操作（PR/スレッド取得・コメント投稿・返信・resolve）を MCP tools として提供。認証・権限（allowlist）・監査ログを担う。LLM は内蔵しない |
+| **Thread Owl (MCP server)** | レビュアー側 GitHub App 権限での review 操作（PR/スレッド取得・コメント投稿・返信）を MCP tools として提供。認証・権限（allowlist）・監査ログを担う。LLM は内蔵しない |
 | **`pr-review-subscribe`（Claude Code skill）** | PR レビューサイクルの管理（レビュー取得 → スレッド分類 → 修正 → reply → resolve → サマリ）。acquisition provider（copilot-review / codex / external / existing）を抽象化する |
-| **`copilot-review-mcp`** | GitHub Copilot のレビュー取得経路。契約・可用性に応じて `pr-review-subscribe` の acquisition provider の1つとして使う |
+| **`github-mcp` / `copilot-review`** | 修正側のユーザー権限で review thread への返信・resolve を行う。`copilot-review` は acquisition provider としてレビュー取得にも使う |
 
 - Thread Owl は「GitHub への安全な read/write」、`pr-review-subscribe` は「いつ・どのレビューを取得し、どう処理するか」のワークフローを担当し、責務が分離している。
+- Thread Owl はレビュアー側としてスレッドを resolve しない。修正完了の判断と resolve は修正側 MCP の責務とする。
 - レビューの判断（指摘内容の生成や合否）は MCP クライアント側の LLM / human が行う。

@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Logger } from "../../../src/config/logging.js";
 import type { GitHubClient } from "../../../src/github/client.js";
-import {
-  listOpenThreads,
-  replyToThread,
-  resolveThread,
-} from "../../../src/github/review-threads.js";
+import { listOpenThreads, replyToThread } from "../../../src/github/review-threads.js";
 import type { WriteContext } from "../../../src/github/write-context.js";
 import { RepositoryNotAllowedError } from "../../../src/policy/allowlist.js";
 
@@ -99,44 +95,5 @@ describe("replyToThread", () => {
     };
 
     await expect(replyToThread(ctx, "missing", "x")).rejects.toThrow("not found");
-  });
-});
-
-describe("resolveThread", () => {
-  it("threadId の所属 repo が allowlist 内なら resolve し監査ログを残す", async () => {
-    const graphql = vi
-      .fn()
-      .mockResolvedValueOnce(THREAD_REPO_RESPONSE)
-      .mockResolvedValueOnce({
-        resolveReviewThread: { thread: { id: "PRRT_1", isResolved: true } },
-      });
-    const logger = makeLogger();
-    const ctx: WriteContext = {
-      client: { graphql } as unknown as GitHubClient,
-      allowedRepos: ["o/r"],
-      logger,
-    };
-
-    await resolveThread(ctx, "PRRT_1");
-
-    expect(graphql).toHaveBeenCalledTimes(2);
-    expect(logger.info).toHaveBeenCalledWith(
-      "review.thread_resolve",
-      expect.objectContaining({ owner: "o", repo: "r", threadId: "PRRT_1" }),
-    );
-  });
-
-  it("threadId の所属 repo が allowlist 外なら throw し mutation を呼ばない", async () => {
-    const graphql = vi
-      .fn()
-      .mockResolvedValueOnce({ node: { repository: { name: "repo", owner: { login: "evil" } } } });
-    const ctx: WriteContext = {
-      client: { graphql } as unknown as GitHubClient,
-      allowedRepos: ["o/r"],
-      logger: makeLogger(),
-    };
-
-    await expect(resolveThread(ctx, "PRRT_1")).rejects.toThrow(RepositoryNotAllowedError);
-    expect(graphql).toHaveBeenCalledTimes(1);
   });
 });

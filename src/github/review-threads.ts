@@ -2,12 +2,7 @@
 
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
-import {
-  addReviewThreadReply,
-  getThreadRepository,
-  listReviewThreads,
-  resolveReviewThread,
-} from "./graphql.js";
+import { addReviewThreadReply, getThreadRepository, listReviewThreads } from "./graphql.js";
 import type { ReviewThread } from "./graphql.js";
 import { type WriteContext, auditWrite } from "./write-context.js";
 
@@ -53,11 +48,4 @@ export async function replyToThread(
     commentId,
     bodyLength: body.length,
   });
-}
-
-// スレッドを resolve する（threadId の所属 repo を allowlist 照合 + 監査ログ付き）。
-export async function resolveThread(ctx: WriteContext, threadId: string): Promise<void> {
-  const { owner, repo } = await assertThreadWritable(ctx, threadId);
-  await resolveReviewThread(ctx.client, threadId);
-  auditWrite(ctx.logger, "thread_resolve", { owner, repo, threadId });
 }

@@ -34,7 +34,7 @@ GitHub Webhook
   → review-queue（レビュー候補キューに投入）
 
 MCP クライアント / LLM フロントエンド
-  → MCP tool 呼び出し（get_pr / list_review_threads / post_* / reply_* / resolve_*）
+  → MCP tool 呼び出し（get_pr / list_review_threads / post_* / reply_*）
   → policy チェック（allowlist + repository-policy）
   → app-auth（token-cache → 期限切れなら installation-token を再取得）
   → github/rest または github/graphql
@@ -63,3 +63,4 @@ App private key（環境変数）
 - **LLM を内蔵しない**: Thread Owl はプロキシであり、AI システムではない
 - **スタブでは `unknown` を使用**: Phase 1 以降で実際の Octokit 型に置き換える
 - **Allowlist をハードゲートとする**: GitHub API 呼び出し前に必ず allowlist チェックを行う
+- **resolve は修正側の責務とする**: Thread Owl はレビュアー側 GitHub App であり、スレッドの resolve は PR author または repository write access を持つ修正側の MCP が行う

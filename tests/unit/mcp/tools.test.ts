@@ -15,7 +15,6 @@ import { listReviewThreadsTool } from "../../../src/mcp/tools/list-review-thread
 import { postInlineCommentTool } from "../../../src/mcp/tools/post-inline-comment.js";
 import { postSummaryTool } from "../../../src/mcp/tools/post-summary.js";
 import { replyThreadTool } from "../../../src/mcp/tools/reply-thread.js";
-import { resolveThreadTool } from "../../../src/mcp/tools/resolve-thread.js";
 
 const client = {} as GitHubClient;
 const ctx = { client, allowedRepos: ["o/r"], logger: {} } as unknown as WriteContext;
@@ -95,15 +94,5 @@ describe("MCP tools", () => {
 
     expect(deps.getWriteContext).toHaveBeenCalledWith("o", "r");
     expect(reviewThreads.replyToThread).toHaveBeenCalledWith(ctx, "T1", "b");
-  });
-
-  it("resolve_review_thread: threadId を resolve する", async () => {
-    const deps = makeDeps();
-    vi.mocked(reviewThreads.resolveThread).mockResolvedValue();
-
-    await resolveThreadTool(deps, { owner: "o", repo: "r", threadId: "T1" });
-
-    expect(deps.getWriteContext).toHaveBeenCalledWith("o", "r");
-    expect(reviewThreads.resolveThread).toHaveBeenCalledWith(ctx, "T1");
   });
 });

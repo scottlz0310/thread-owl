@@ -15,7 +15,7 @@ describe("createMcpServer", () => {
     expect(typeof server.connect).toBe("function");
   });
 
-  it("6 つの review tool を登録する", () => {
+  it("5 つの review tool を登録する", () => {
     const spy = vi.spyOn(McpServer.prototype, "registerTool");
 
     createMcpServer(makeDeps(), { name: "thread-owl", version: "0.1.0" });
@@ -27,7 +27,6 @@ describe("createMcpServer", () => {
       "post_summary_comment",
       "post_inline_comment",
       "reply_review_thread",
-      "resolve_review_thread",
     ]);
 
     spy.mockRestore();

@@ -164,22 +164,6 @@ export async function addReviewThreadReply(
   return res.addPullRequestReviewThreadReply.comment.id;
 }
 
-// スレッドの resolve（GraphQL mutation）。
-export async function resolveReviewThread(client: GitHubClient, threadId: string): Promise<void> {
-  const mutation = `
-    mutation ($threadId: ID!) {
-      resolveReviewThread(input: { threadId: $threadId }) {
-        thread {
-          id
-          isResolved
-        }
-      }
-    }
-  `;
-
-  await client.graphql(mutation, { threadId });
-}
-
 // review thread が属するリポジトリを取得する（write 前の allowlist 照合に使う）。
 // mutation は threadId のみで対象を決めるため、引数の owner/repo ではなく実 repo で判定する。
 export async function getThreadRepository(

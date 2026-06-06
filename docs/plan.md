@@ -4,7 +4,7 @@
 
 Thread Owl は、AI 支援による Pull Request レビュー運用を安定化するための GitHub App backend である。
 
-主目的は、レビューコメント投稿・スレッド返信・resolve・summary 投稿などの GitHub 上の操作主体を、個人アカウントから GitHub App に移行することである。
+主目的は、レビューコメント投稿・スレッド返信・summary 投稿などの GitHub 上の操作主体を、個人アカウントから GitHub App に移行することである。
 
 これにより、レビュー専用の別 GitHub 個人アカウントを organization member または private repository collaborator として維持する必要を減らし、シート課金・認証管理・ログイン状態依存を解消する。
 
@@ -21,7 +21,7 @@ Thread Owl は、初期段階では LLM API による完全自動レビューを
 * PAT や gh login の管理が煩雑になる
 * メインアカウントとレビュー用アカウントの権限境界が曖昧になる
 * ChatGPT / Claude / Codex など複数エージェント間で投稿主体が揺れる
-* 再レビュー、返信、resolve、summary 投稿などの操作を統一しづらい
+* 再レビュー、返信、summary 投稿などの操作を統一しづらい
 * 将来の Webhook / subscribe / 自動化に拡張しにくい
 
 Thread Owl は、これらを GitHub App を中心とした設計に置き換える。
@@ -39,10 +39,11 @@ Thread Owl は GitHub App として対象 repository に install される。
 * PR review comment 投稿
 * PR summary comment 投稿
 * 既存 review thread への reply
-* review thread の resolve
 * review 状態の取得
 * PR diff / files / commits / checks の参照
 * 再レビュー依頼用コメントの投稿
+
+review thread の resolve は Thread Owl の責務に含めない。PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review` 等で行う。
 
 これにより、レビュー Bot 用の別個人アカウントを不要にする。
 
@@ -70,7 +71,7 @@ Thread Owl は、LLM の推論処理ではなく、GitHub App としての認証
 * 別個人アカウントの廃止
 * MCP tool / subscribe からの利用
 * 人間承認付きレビュー投稿
-* review thread の再取得・返信・resolve の安定化
+* review thread の再取得・返信の安定化
 
 完全自動レビューは、後続フェーズで opt-in 機能として検討する。
 
@@ -114,7 +115,6 @@ Thread Owl
   │   ├─ list review threads
   │   ├─ post inline comment
   │   ├─ reply to thread
-  │   ├─ resolve thread
   │   └─ post summary comment
   │
   ├─ Webhook Receiver
@@ -262,7 +262,6 @@ thread-owl/
         post-summary.ts
         post-inline-comment.ts
         reply-thread.ts
-        resolve-thread.ts
       subscriptions/
         listen.ts
         notify.ts
@@ -358,7 +357,6 @@ list_review_threads
 post_summary_comment
 post_inline_comment
 reply_review_thread
-resolve_review_thread
 get_review_status
 ```
 
@@ -428,7 +426,6 @@ review_stale
 * summary comment 投稿
 * inline review comment 投稿
 * review thread reply
-* review thread resolve
 * permission / allowlist check
 
 完了条件:
@@ -574,7 +571,7 @@ Thread Owl は初期段階では以下を目指さない。
 初期成功条件は以下。
 
 * GitHub App の installation token でレビュー操作できる
-* 別個人アカウントなしで review comment / reply / resolve / summary 投稿ができる
+* 別個人アカウントなしで review comment / reply / summary 投稿ができる
 * MCP client から半自動レビューできる
 * repo allowlist により対象 repo を制御できる
 * private key / token / webhook secret の管理が安全である
@@ -584,7 +581,7 @@ Thread Owl は初期段階では以下を目指さない。
 
 Thread Owl の将来像は、AI エージェント時代の Pull Request review thread coordinator である。
 
-人間、ChatGPT、Claude、Codex、API LLM worker など複数のレビュー主体が存在しても、GitHub 上での投稿主体・スレッド管理・再レビュー依頼・resolve 操作を Thread Owl に集約する。
+人間、ChatGPT、Claude、Codex、API LLM worker など複数のレビュー主体が存在しても、GitHub 上でのレビュー投稿主体・スレッド取得・再レビュー依頼を Thread Owl に集約する。修正完了の判断と resolve は修正側の権限境界に残す。
 
 これにより、疑似チーム開発におけるレビュー運用を、個人アカウント依存から Bot/App ベースの安定した権限境界へ移行する。
 
@@ -597,7 +594,7 @@ Thread Owl の将来像は、AI エージェント時代の Pull Request review 
 #5 Add PR read operations
 #6 Add review thread read operations
 #7 Add summary comment posting
-#8 Add inline/reply/resolve review operations
+#8 Add inline/reply review operations
 #9 Add MCP tool interface
 #10 Document migration from reviewer account to GitHub App
 
@@ -652,7 +649,9 @@ MCP client / ChatGPT / Claude に通知する
 ↓
 人間またはLLMがレビューする
 ↓
-Thread Owl が App 権限で投稿・返信・resolveする
+Thread Owl がレビュアー App 権限で投稿・返信する
+↓
+修正側が変更を反映し、自身の権限で resolve する
 ```
 
 この流れになるので、`thread-owl` という名前もかなり活きます。

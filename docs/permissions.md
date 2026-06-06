@@ -8,7 +8,7 @@
 |---------|--------|------|
 | Metadata | 読み取り | すべての API アクセスに必要 |
 | Contents | 読み取り | PR diff とファイル内容の参照 |
-| Pull requests | 読み取り・書き込み | レビューコメント投稿・スレッド返信・resolve |
+| Pull requests | 読み取り・書き込み | レビューコメント投稿・スレッド返信 |
 | Issues | 読み取り・書き込み | summary コメント投稿（issue comment エンドポイント使用） |
 
 ### 必要に応じて追加する権限（Phase 4 以降）
