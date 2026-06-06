@@ -27,25 +27,45 @@ interface CommentNode {
   url: string;
 }
 
+interface PageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface CommentConnection {
+  pageInfo: PageInfo;
+  nodes: CommentNode[];
+}
+
 interface ThreadNode {
   id: string;
   isResolved: boolean;
   isOutdated: boolean;
   path: string | null;
   line: number | null;
-  comments: { nodes: CommentNode[] };
+  comments: CommentConnection;
 }
 
 interface ListResponse {
   repository: {
     pullRequest: {
       reviewThreads: {
-        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        pageInfo: PageInfo;
         nodes: ThreadNode[];
       };
     };
   };
 }
+
+const COMMENT_FIELDS = `
+  id
+  body
+  author {
+    login
+  }
+  createdAt
+  url
+`;
 
 const THREAD_FIELDS = `
   id
@@ -54,26 +74,59 @@ const THREAD_FIELDS = `
   path
   line
   comments(first: 100) {
-    nodes {
-      id
-      body
-      author {
-        login
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {${COMMENT_FIELDS}}
+  }
+`;
+
+const THREAD_COMMENTS_QUERY = `
+  query ($threadId: ID!, $cursor: String) {
+    node(id: $threadId) {
+      ... on PullRequestReviewThread {
+        comments(first: 100, after: $cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {${COMMENT_FIELDS}}
+        }
       }
-      createdAt
-      url
     }
   }
 `;
 
-function mapThread(node: ThreadNode): ReviewThread {
+async function paginateThreadComments(
+  client: GitHubClient,
+  threadId: string,
+  initialConnection: CommentConnection,
+): Promise<CommentNode[]> {
+  const comments = [...initialConnection.nodes];
+  let cursor = initialConnection.pageInfo.hasNextPage ? initialConnection.pageInfo.endCursor : null;
+
+  while (cursor !== null) {
+    const res = (await client.graphql(THREAD_COMMENTS_QUERY, {
+      threadId,
+      cursor,
+    })) as { node: { comments: CommentConnection } };
+    const connection = res.node.comments;
+    comments.push(...connection.nodes);
+    cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
+  }
+
+  return comments;
+}
+
+function mapThread(node: ThreadNode, comments: CommentNode[]): ReviewThread {
   return {
     id: node.id,
     isResolved: node.isResolved,
     isOutdated: node.isOutdated,
     path: node.path,
     line: node.line,
-    comments: node.comments.nodes.map((comment) => ({
+    comments: comments.map((comment) => ({
       id: comment.id,
       body: comment.body,
       // author が null になるのは削除済みユーザー等のケース
@@ -117,7 +170,8 @@ export async function listReviewThreads(
     })) as ListResponse;
     const connection = res.repository.pullRequest.reviewThreads;
     for (const node of connection.nodes) {
-      threads.push(mapThread(node));
+      const comments = await paginateThreadComments(client, node.id, node.comments);
+      threads.push(mapThread(node, comments));
     }
     cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
   } while (cursor !== null);
@@ -138,7 +192,11 @@ export async function getReviewThread(
   `;
 
   const res = (await client.graphql(query, { threadId })) as { node: ThreadNode | null };
-  return res.node ? mapThread(res.node) : null;
+  if (!res.node) {
+    return null;
+  }
+  const comments = await paginateThreadComments(client, res.node.id, res.node.comments);
+  return mapThread(res.node, comments);
 }
 
 // スレッドへの返信（GraphQL mutation）。作成された comment node id を返す。
