@@ -43,7 +43,7 @@ Thread Owl は GitHub App として対象 repository に install される。
 * PR diff / files / commits / checks の参照
 * 再レビュー依頼用コメントの投稿
 
-review thread の resolve は Thread Owl の責務に含めない。PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review` 等で行う。
+review thread の resolve は Thread Owl の責務に含めない。PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review-mcp`（MCP server 登録名: `copilot-review`）等で行う。
 
 これにより、レビュー Bot 用の別個人アカウントを不要にする。
 
