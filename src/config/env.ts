@@ -1,3 +1,4 @@
+import { parseAllowlist } from "../policy/allowlist.js";
 import { loadGitHubAppPrivateKey } from "./private-key.js";
 import { appConfigSchema } from "./schema.js";
 import type { AppConfig } from "./schema.js";
@@ -13,7 +14,8 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
       webhookSecret: env.GITHUB_WEBHOOK_SECRET,
     },
     policy: {
-      allowedRepos: parseAllowedRepos(env.ALLOWED_REPOS),
+      // ALLOWED_REPOS の正規化・形式検証は parseAllowlist に集約する（policy/allowlist.ts 参照）
+      allowedRepos: parseAllowlist(env.ALLOWED_REPOS ?? "").repos,
     },
     server: {
       port: env.PORT !== undefined ? Number(env.PORT) : 3000,
@@ -31,12 +33,4 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
     throw new Error(`Invalid configuration:\n${result.error.message}`);
   }
   return result.data;
-}
-
-function parseAllowedRepos(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
 }
