@@ -1,6 +1,6 @@
 // GitHub App JWT generation (RS256, 10-minute lifetime)
 
-import { createPrivateKey } from "node:crypto";
+import { type KeyObject, createPrivateKey } from "node:crypto";
 import { SignJWT } from "jose";
 
 export interface AppJwtOptions {
@@ -20,9 +20,7 @@ const CLOCK_DRIFT_SECONDS = 60;
 const JWT_LIFETIME_SECONDS = 600;
 
 export async function generateAppJwt(options: AppJwtOptions): Promise<AppJwt> {
-  // GitHub App の秘密鍵は PKCS#1（BEGIN RSA PRIVATE KEY）で配布される。
-  // createPrivateKey は PKCS#1 / PKCS#8 を自動判別するため両形式に対応できる。
-  const key = createPrivateKey(options.privateKey);
+  const key = importPrivateKey(options.privateKey);
   const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
   const iat = now - CLOCK_DRIFT_SECONDS;
   const exp = now + JWT_LIFETIME_SECONDS;
@@ -35,4 +33,26 @@ export async function generateAppJwt(options: AppJwtOptions): Promise<AppJwt> {
     .sign(key);
 
   return { token, expiresAt: new Date(exp * 1000) };
+}
+
+// GitHub App の秘密鍵は PKCS#1（BEGIN RSA PRIVATE KEY）で配布される。
+// createPrivateKey は PKCS#1 / PKCS#8 を自動判別するため両形式に対応できる。
+function importPrivateKey(privateKey: string): KeyObject {
+  try {
+    return createPrivateKey(privateKey);
+  } catch (cause) {
+    throw new Error(
+      [
+        "GitHub App private key could not be parsed.",
+        "Common causes:",
+        "- PEM line breaks were replaced with spaces",
+        "- GITHUB_APP_PRIVATE_KEY was copied as a single line without \\n escapes",
+        "- The key file path points to the wrong file",
+        "Recommended:",
+        "- Use GITHUB_APP_PRIVATE_KEY_FILE, or",
+        "- Use GITHUB_APP_PRIVATE_KEY_B64 for Bitwarden/dsx-based injection",
+      ].join("\n"),
+      { cause },
+    );
+  }
 }

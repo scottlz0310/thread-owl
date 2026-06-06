@@ -1,3 +1,4 @@
+import { loadGitHubAppPrivateKey } from "./private-key.js";
 import { appConfigSchema } from "./schema.js";
 import type { AppConfig } from "./schema.js";
 
@@ -7,8 +8,8 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
   const raw = {
     github: {
       appId: env.GITHUB_APP_ID,
-      // PEM キーの \n エスケープを実際の改行に戻す（環境変数での一行渡しに対応）
-      privateKey: env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      // 秘密鍵は FILE > B64 > raw の優先順位で解決する（private-key.ts 参照）
+      privateKey: loadGitHubAppPrivateKey(env),
       webhookSecret: env.GITHUB_WEBHOOK_SECRET,
     },
     policy: {

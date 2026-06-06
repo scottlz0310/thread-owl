@@ -37,6 +37,14 @@
 2. `.pem` ファイルをダウンロードする
 3. 安全な場所に保管する — git にコミットしてはならない
 
+### `.pem` の推奨置場
+
+リポジトリ**外**のユーザー専用ディレクトリに置く。`.gitignore` 済み（`*.pem`）でも、リポジトリ内に置くとバックアップ・クラウド同期・誤操作で流出するリスクが残るため。
+
+- 推奨パス: `~/.config/thread-owl/github-app.pem`
+  - Windows: `%USERPROFILE%\.config\thread-owl\github-app.pem`
+- Bitwarden / dsx には**鍵本体ではなくパスだけ**を保存し、`.pem` はローカルファイルとして置く（後述の `*_B64` を使う場合を除く）
+
 ## 5. App をインストールする
 
 1. **Install App** タブに移動する
@@ -49,9 +57,36 @@
 
 ```env
 GITHUB_APP_ID=<App の数値 ID>
-GITHUB_APP_PRIVATE_KEY=<.pem ファイルの内容を1行にまとめたもの>
 GITHUB_WEBHOOK_SECRET=<Webhook secret>
 ALLOWED_REPOS=owner/repo1,owner/repo2
 ```
 
-`GITHUB_APP_PRIVATE_KEY` の改行は `\n` に置換するか、デプロイ環境に応じた複数行環境変数の記法を使用する。
+### 秘密鍵の渡し方（3形式）
+
+`.pem` は改行が意味を持つ secret のため、受け取り形式を選べる。解決の優先順位は **FILE > B64 > raw**。いずれか1つを設定する。
+
+| 環境変数 | 用途 | 推奨度 |
+|---|---|---|
+| `GITHUB_APP_PRIVATE_KEY_FILE` | `.pem` のファイルパスを指定 | **ローカル開発の第一推奨** |
+| `GITHUB_APP_PRIVATE_KEY_B64` | `.pem` を base64 化した1行 secret | **Bitwarden / dsx 注入の本命** |
+| `GITHUB_APP_PRIVATE_KEY` | 改行を `\n` でエスケープした1行 | 後方互換（脆弱・非推奨） |
+
+**ローカル開発（FILE）:**
+
+```env
+GITHUB_APP_PRIVATE_KEY_FILE=C:\Users\<you>\.config\thread-owl\github-app.pem
+```
+
+**Bitwarden / dsx 注入（B64）:**
+
+base64 生成（PowerShell）:
+
+```powershell
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content -Raw .\github-app.pem)))
+```
+
+```env
+GITHUB_APP_PRIVATE_KEY_B64=LS0tLS1CRUdJTi...
+```
+
+> `\n` エスケープ形式（`GITHUB_APP_PRIVATE_KEY`）は、注入過程で `\n` がスペースに置換されると `createPrivateKey` が `error:1E08010C:DECODER routines::unsupported` で失敗する。後方互換としてのみ残しており、新規運用では FILE / B64 を使う。
