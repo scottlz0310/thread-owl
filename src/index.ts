@@ -15,18 +15,20 @@ import { createLogger } from "./config/logging.js";
 import { getHealth } from "./internal-api/health.js";
 import { getStatus } from "./internal-api/status.js";
 import { type IssueTokenDeps, issueToken } from "./internal-api/token-source.js";
-import { createMcpServer, startMcpServer } from "./mcp/server.js";
+import { createMcpServer } from "./mcp/server.js";
 import { buildToolDeps } from "./mcp/tool-deps.js";
+import { startMcpHttpServer, startMcpStdioServer } from "./mcp/transports.js";
 import { RepositoryNotAllowedError } from "./policy/allowlist.js";
+import { resolveAppMode } from "./startup/mode.js";
 
 const VERSION = "0.1.0";
 
+const mode = resolveAppMode(process.argv.slice(2));
 const config = loadEnv();
 // MCP stdio モードでは stdout が JSON-RPC 専用のため、ログは stderr に出す。
-const isMcp = process.argv.includes("--mcp");
 const logger = createLogger(
   config.logging.level,
-  isMcp ? (line) => console.error(line) : undefined,
+  mode === "mcp-stdio" ? (line) => console.error(line) : undefined,
 );
 const tokenCache = createTokenCache();
 
@@ -39,13 +41,46 @@ const issueTokenDeps: IssueTokenDeps = {
   getInstallationToken,
 };
 
-if (isMcp) {
-  const server = createMcpServer(buildToolDeps(issueTokenDeps), {
+const createConfiguredMcpServer = () =>
+  createMcpServer(buildToolDeps(issueTokenDeps), {
     name: "thread-owl",
     version: VERSION,
   });
-  await startMcpServer(server);
-  logger.info("mcp.started", { event: "mcp.started" });
+
+if (mode === "mcp-stdio") {
+  const server = createConfiguredMcpServer();
+  await startMcpStdioServer(server);
+  logger.info("mcp.started", { event: "mcp.started", transport: "stdio" });
+} else if (mode === "mcp-http") {
+  const httpServer = await startMcpHttpServer(createConfiguredMcpServer, {
+    host: config.server.host,
+    port: config.server.port,
+    onError: (error) => {
+      logger.error("mcp.request.error", {
+        event: "mcp.request.error",
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+    },
+  });
+  logger.info("mcp.started", {
+    event: "mcp.started",
+    transport: "streamable-http",
+    host: httpServer.host,
+    port: httpServer.port,
+    path: httpServer.path,
+  });
+
+  const shutdown = () => {
+    void httpServer.close().catch((error) => {
+      logger.error("mcp.shutdown.error", {
+        event: "mcp.shutdown.error",
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+      process.exitCode = 1;
+    });
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 } else {
   const startedAt = new Date();
 

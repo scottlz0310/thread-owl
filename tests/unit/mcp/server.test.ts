@@ -8,7 +8,7 @@ function makeDeps(): ToolDeps {
 }
 
 describe("createMcpServer", () => {
-  it("McpServer インスタンスを返す（stdio transport に connect 可能）", () => {
+  it("transport に依存しない McpServer インスタンスを返す", () => {
     const server = createMcpServer(makeDeps(), { name: "thread-owl", version: "0.1.0" });
 
     expect(server).toBeDefined();

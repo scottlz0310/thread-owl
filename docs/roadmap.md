@@ -46,7 +46,8 @@
 stdio MCP（Phase 3）の自然な拡張として Streamable HTTP transport を追加し、リバースプロキシ `mcp-gateway` 配下の remote MCP server として動作させる。
 
 - `StreamableHTTPServerTransport` を実装する（`createMcpServer(deps, options)` を transport 非依存のまま再利用）
-- 起動部を `startMcpStdioServer` / `startMcpHttpServer` に分離し、起動フラグで stdio / streamable-http / internal-api を切り替える
+- 起動部を `startMcpStdioServer(server)` / `startMcpHttpServer(createServer, options)` に分離し、HTTP は session ID ごとに server/transport を生成する
+- 起動フラグで stdio / streamable-http / internal-api を切り替える
 - stdio（`--mcp`）は local-only / trusted local client 用として維持する
 - mcp-gateway への登録・routing（`/mcp/thread-owl`）
 - caller 認証は **mcp-gateway の責務**。thread-owl は gateway 背後の internal MCP server とし、既定で localhost / container internal bind、Streamable HTTP endpoint を直接 public exposure しない

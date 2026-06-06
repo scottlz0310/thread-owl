@@ -34,6 +34,7 @@ GitHub Webhook
   → review-queue（レビュー候補キューに投入）
 
 MCP クライアント / LLM フロントエンド
+  → stdio（local client）または Streamable HTTP `/mcp`（mcp-gateway 内部接続）
   → MCP tool 呼び出し（get_pr / list_review_threads / post_* / reply_*）
   → policy チェック（allowlist + repository-policy）
   → app-auth（token-cache → 期限切れなら installation-token を再取得）
@@ -60,6 +61,8 @@ App private key（環境変数）
 ## 主要な設計判断
 
 - **NodeNext モジュール**: 厳密な ESM。ローカル import には `.js` 拡張子が必要
+- **MCP transport 分離**: `createMcpServer` は transport 非依存とし、stdio は単一 server、Streamable HTTP は session ID ごとに server/transport を生成する
+- **Streamable HTTP は internal endpoint**: 既定は `127.0.0.1` bind。remote client からは caller 認証を担う mcp-gateway 経由で接続し、直接公開しない
 - **LLM を内蔵しない**: Thread Owl はプロキシであり、AI システムではない
 - **スタブでは `unknown` を使用**: Phase 1 以降で実際の Octokit 型に置き換える
 - **Allowlist をハードゲートとする**: GitHub API 呼び出し前に必ず allowlist チェックを行う

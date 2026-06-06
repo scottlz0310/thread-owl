@@ -456,7 +456,9 @@ review_stale
 
 * StreamableHTTPServerTransport 実装
 * `createMcpServer(deps, options)` を transport 非依存のまま再利用
-* 起動部を `startMcpStdioServer` / `startMcpHttpServer` に分離（起動フラグで stdio / streamable-http / internal-api を切替）
+* 起動部を `startMcpStdioServer(server)` / `startMcpHttpServer(createServer, options)` に分離
+* Streamable HTTP は session ID ごとに `McpServer` / transport を生成・管理
+* 起動フラグで stdio / streamable-http / internal-api を切替
 * stdio（`--mcp`）は local-only / trusted local client 用に維持
 * mcp-gateway への登録・routing（`/mcp/thread-owl`）
 * caller 認証は mcp-gateway の責務（thread-owl は gateway 背後の internal MCP server）
