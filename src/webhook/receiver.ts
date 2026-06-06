@@ -7,6 +7,7 @@ import { handlePullRequestReviewCommentEvent } from "./handlers/pull-request-rev
 import { handlePullRequestReviewEvent } from "./handlers/pull-request-review.js";
 import { handlePullRequestEvent } from "./handlers/pull-request.js";
 import { normalizeEvent } from "./normalize-event.js";
+import { isRecord } from "./utils.js";
 import { verifyWebhookSignature } from "./verify-signature.js";
 
 export interface WebhookReceiverDeps {
@@ -28,10 +29,6 @@ function isBot(payload: unknown): boolean {
   const sender = payload.sender;
   if (!isRecord(sender)) return false;
   return sender.type === "Bot";
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
@@ -101,6 +98,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
         eventType,
         deliveryId,
         errorName: err instanceof Error ? err.name : "UnknownError",
+        errorMessage: err instanceof Error ? err.message : String(err),
       });
       return c.json({ error: "handler failed" }, 500);
     }

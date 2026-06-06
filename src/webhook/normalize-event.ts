@@ -14,16 +14,14 @@ export interface NormalizedEvent {
   payload: unknown;
 }
 
+import { isRecord } from "./utils.js";
+
 const SUPPORTED_TYPES = new Set<string>([
   "pull_request",
   "issue_comment",
   "pull_request_review",
   "pull_request_review_comment",
 ]);
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
 function extractInstallationId(payload: Record<string, unknown>): number {
   const inst = payload.installation;
