@@ -2,6 +2,7 @@ import { PassThrough } from "node:stream";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMcpServer } from "../../../src/mcp/server.js";
 import type { ToolDeps } from "../../../src/mcp/tool-deps.js";
@@ -144,6 +145,42 @@ describe("startMcpHttpServer", () => {
     expect(createServer).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      name: "MCP endpoint 以外",
+      path: "/health",
+      init: { method: "GET" },
+      status: 404,
+    },
+    {
+      name: "session ID なしの GET",
+      path: "/mcp",
+      init: { method: "GET" },
+      status: 400,
+    },
+    {
+      name: "不正な JSON",
+      path: "/mcp",
+      init: {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{",
+      },
+      status: 400,
+    },
+  ])("$name を $status で拒否する", async ({ path, init, status }) => {
+    const createServer = vi.fn(makeServer);
+    startedServer = await startMcpHttpServer(createServer, {
+      host: "127.0.0.1",
+      port: 0,
+    });
+
+    const response = await fetch(`http://127.0.0.1:${startedServer.port}${path}`, init);
+
+    expect(response.status).toBe(status);
+    expect(createServer).not.toHaveBeenCalled();
+  });
+
   it("session 初期化の異常終了を記録して 500 を返す", async () => {
     const onError = vi.fn();
     startedServer = await startMcpHttpServer(
@@ -176,6 +213,128 @@ describe("startMcpHttpServer", () => {
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ message: "initialization failed" }),
     );
+  });
+
+  it("transport 接続失敗時に cleanup して 500 を返す", async () => {
+    const server = makeServer();
+    vi.spyOn(server, "connect").mockRejectedValue(new Error("connect failed"));
+    const onError = vi.fn();
+    startedServer = await startMcpHttpServer(() => server, {
+      host: "127.0.0.1",
+      port: 0,
+      onError,
+    });
+
+    const response = await fetch(`http://127.0.0.1:${startedServer.port}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "test-client", version: "1.0.0" },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "connect failed" }));
+  });
+
+  it("transport request の異常終了時に session を破棄する", async () => {
+    startedServer = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+    });
+    const endpoint = `http://127.0.0.1:${startedServer.port}/mcp`;
+    const initializeResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "test-client", version: "1.0.0" },
+        },
+      }),
+    });
+    const sessionId = initializeResponse.headers.get("mcp-session-id") as string;
+    await initializeResponse.text();
+    const handleRequest = vi
+      .spyOn(StreamableHTTPServerTransport.prototype, "handleRequest")
+      .mockRejectedValueOnce(new Error("request failed"));
+
+    const failedResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+        "mcp-session-id": sessionId,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+    });
+    handleRequest.mockRestore();
+    const retryResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+        "mcp-session-id": sessionId,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+    });
+
+    expect(failedResponse.status).toBe(500);
+    expect(retryResponse.status).toBe(404);
+  });
+
+  it("transport close 時に session を Map から削除する", async () => {
+    const server = makeServer();
+    startedServer = await startMcpHttpServer(() => server, {
+      host: "127.0.0.1",
+      port: 0,
+    });
+    const endpoint = `http://127.0.0.1:${startedServer.port}/mcp`;
+    const client = new Client({ name: "test-client", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(new URL(endpoint));
+    await client.connect(transport);
+    const sessionId = transport.sessionId as string;
+
+    await server.close();
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "mcp-session-id": sessionId,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+    });
+
+    expect(response.status).toBe(404);
+    await client.close();
+  });
+
+  it("bind 失敗を呼び出し元へ伝播する", async () => {
+    startedServer = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+    });
+
+    await expect(
+      startMcpHttpServer(makeServer, {
+        host: "127.0.0.1",
+        port: startedServer.port,
+      }),
+    ).rejects.toMatchObject({ code: "EADDRINUSE" });
   });
 
   it("HTTP server shutdown 時に active session をすべて close する", async () => {
