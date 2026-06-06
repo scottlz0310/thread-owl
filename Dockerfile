@@ -1,6 +1,6 @@
 FROM node:22.22.3-alpine AS builder
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@11
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
@@ -14,7 +14,7 @@ RUN pnpm run build
 
 FROM node:22.22.3-alpine AS runtime
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@11
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
