@@ -2,7 +2,12 @@
 
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
-import { addReviewThreadReply, listReviewThreads, resolveReviewThread } from "./graphql.js";
+import {
+  addReviewThreadReply,
+  getThreadRepository,
+  listReviewThreads,
+  resolveReviewThread,
+} from "./graphql.js";
 import type { ReviewThread } from "./graphql.js";
 import { type WriteContext, auditWrite } from "./write-context.js";
 
@@ -19,15 +24,27 @@ export async function listOpenThreads(
   return threads.filter((thread) => !thread.isResolved);
 }
 
-// スレッドへ返信する（allowlist ガード + 監査ログ付き）。
+// threadId の所属リポジトリを取得し allowlist と照合する。
+// mutation は threadId のみで対象を決めるため、引数ではなく実 repo で判定して bypass を防ぐ。
+async function assertThreadWritable(
+  ctx: WriteContext,
+  threadId: string,
+): Promise<{ owner: string; repo: string }> {
+  const target = await getThreadRepository(ctx.client, threadId);
+  if (!target) {
+    throw new Error(`Review thread ${threadId} not found`);
+  }
+  assertRepoWritable(ctx.allowedRepos, target.owner, target.repo);
+  return target;
+}
+
+// スレッドへ返信する（threadId の所属 repo を allowlist 照合 + 監査ログ付き）。
 export async function replyToThread(
   ctx: WriteContext,
-  owner: string,
-  repo: string,
   threadId: string,
   body: string,
 ): Promise<void> {
-  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  const { owner, repo } = await assertThreadWritable(ctx, threadId);
   const commentId = await addReviewThreadReply(ctx.client, threadId, body);
   auditWrite(ctx.logger, "thread_reply", {
     owner,
@@ -38,14 +55,9 @@ export async function replyToThread(
   });
 }
 
-// スレッドを resolve する（allowlist ガード + 監査ログ付き）。
-export async function resolveThread(
-  ctx: WriteContext,
-  owner: string,
-  repo: string,
-  threadId: string,
-): Promise<void> {
-  assertRepoWritable(ctx.allowedRepos, owner, repo);
+// スレッドを resolve する（threadId の所属 repo を allowlist 照合 + 監査ログ付き）。
+export async function resolveThread(ctx: WriteContext, threadId: string): Promise<void> {
+  const { owner, repo } = await assertThreadWritable(ctx, threadId);
   await resolveReviewThread(ctx.client, threadId);
   auditWrite(ctx.logger, "thread_resolve", { owner, repo, threadId });
 }

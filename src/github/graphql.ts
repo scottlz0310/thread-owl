@@ -179,3 +179,33 @@ export async function resolveReviewThread(client: GitHubClient, threadId: string
 
   await client.graphql(mutation, { threadId });
 }
+
+// review thread が属するリポジトリを取得する（write 前の allowlist 照合に使う）。
+// mutation は threadId のみで対象を決めるため、引数の owner/repo ではなく実 repo で判定する。
+export async function getThreadRepository(
+  client: GitHubClient,
+  threadId: string,
+): Promise<{ owner: string; repo: string } | null> {
+  const query = `
+    query ($threadId: ID!) {
+      node(id: $threadId) {
+        ... on PullRequestReviewThread {
+          repository {
+            name
+            owner {
+              login
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const res = (await client.graphql(query, { threadId })) as {
+    node: { repository: { name: string; owner: { login: string } } } | null;
+  };
+  if (!res.node) {
+    return null;
+  }
+  return { owner: res.node.repository.owner.login, repo: res.node.repository.name };
+}
