@@ -27,6 +27,8 @@ export function createReviewQueue(): ReviewQueue {
     enqueue(candidate: ReviewCandidate): void {
       const key = prKey(candidate);
       const existing = items.findIndex((item) => prKey(item) === key);
+      // dedup を先に行うことで、同一 PR の再エンキューは上限カウントに影響しない。
+      // 順序を逆にすると、満杯時に同一 PR を再エンキューすると無関係な最古エントリが誤って削除される。
       if (existing !== -1) {
         items.splice(existing, 1);
       }
