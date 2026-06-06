@@ -23,7 +23,10 @@ describe("listOpenThreads", () => {
                 isOutdated: false,
                 path: "a",
                 line: 1,
-                comments: { nodes: [] },
+                comments: {
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  nodes: [],
+                },
               },
               {
                 id: "T2",
@@ -31,7 +34,10 @@ describe("listOpenThreads", () => {
                 isOutdated: false,
                 path: "b",
                 line: 2,
-                comments: { nodes: [] },
+                comments: {
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  nodes: [],
+                },
               },
             ],
           },
