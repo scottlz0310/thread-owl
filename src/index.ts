@@ -55,6 +55,7 @@ if (mode === "mcp-stdio") {
   const httpServer = await startMcpHttpServer(createConfiguredMcpServer, {
     host: config.server.host,
     port: config.server.port,
+    path: config.server.mcpHttpPath,
     onError: (error) => {
       logger.error("mcp.request.error", {
         event: "mcp.request.error",

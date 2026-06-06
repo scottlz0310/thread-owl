@@ -22,6 +22,7 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
       // 空文字列は schema の default が効かないため undefined に正規化する。
       // 空 HOST のまま serve すると Node が :: にバインドし localhost 境界が破れるのを防ぐ。
       host: env.HOST || undefined,
+      mcpHttpPath: env.MCP_HTTP_PATH || undefined,
     },
     logging: {
       level: env.LOG_LEVEL,
