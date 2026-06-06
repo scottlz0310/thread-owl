@@ -18,7 +18,11 @@ export const appConfigSchema = z.object({
   server: z.object({
     port: z.number().int().min(1).max(65535),
     host: z.string().min(1).default("127.0.0.1"),
-    mcpHttpPath: z.string().min(1).default("/mcp"),
+    mcpHttpPath: z
+      .string()
+      .min(1)
+      .startsWith("/", "MCP_HTTP_PATH must start with '/'")
+      .default("/mcp"),
   }),
   logging: z.object({
     level: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),

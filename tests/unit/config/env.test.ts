@@ -110,6 +110,12 @@ describe("loadEnv", () => {
     expect(config.server.mcpHttpPath).toBe("/mcp");
   });
 
+  it("MCP_HTTP_PATH が / で始まらない場合はエラーを throw する", () => {
+    expect(() => loadEnv({ ...VALID_ENV, MCP_HTTP_PATH: "mcp/thread-owl" })).toThrow(
+      "Invalid configuration",
+    );
+  });
+
   it("PORT が無効な数値の場合はエラーを throw する", () => {
     expect(() => loadEnv({ ...VALID_ENV, PORT: "abc" })).toThrow("Invalid configuration");
   });
