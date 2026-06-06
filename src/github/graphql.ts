@@ -141,7 +141,41 @@ export async function getReviewThread(
   return res.node ? mapThread(res.node) : null;
 }
 
-// resolveReviewThread（write）は #13 で実装する。
-export async function resolveReviewThread(_client: GitHubClient, _threadId: string): Promise<void> {
-  throw new Error("not implemented");
+// スレッドへの返信（GraphQL mutation）。作成された comment node id を返す。
+export async function addReviewThreadReply(
+  client: GitHubClient,
+  threadId: string,
+  body: string,
+): Promise<string> {
+  const mutation = `
+    mutation ($threadId: ID!, $body: String!) {
+      addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) {
+        comment {
+          id
+          url
+        }
+      }
+    }
+  `;
+
+  const res = (await client.graphql(mutation, { threadId, body })) as {
+    addPullRequestReviewThreadReply: { comment: { id: string; url: string } };
+  };
+  return res.addPullRequestReviewThreadReply.comment.id;
+}
+
+// スレッドの resolve（GraphQL mutation）。
+export async function resolveReviewThread(client: GitHubClient, threadId: string): Promise<void> {
+  const mutation = `
+    mutation ($threadId: ID!) {
+      resolveReviewThread(input: { threadId: $threadId }) {
+        thread {
+          id
+          isResolved
+        }
+      }
+    }
+  `;
+
+  await client.graphql(mutation, { threadId });
 }

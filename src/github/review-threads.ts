@@ -1,8 +1,10 @@
 // High-level review thread operations
 
+import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
-import { listReviewThreads } from "./graphql.js";
+import { addReviewThreadReply, listReviewThreads, resolveReviewThread } from "./graphql.js";
 import type { ReviewThread } from "./graphql.js";
+import { type WriteContext, auditWrite } from "./write-context.js";
 
 export type { ReviewThread };
 
@@ -17,18 +19,33 @@ export async function listOpenThreads(
   return threads.filter((thread) => !thread.isResolved);
 }
 
-// replyToThread / resolveThread（write）は #13 で実装する。
+// スレッドへ返信する（allowlist ガード + 監査ログ付き）。
 export async function replyToThread(
-  _client: GitHubClient,
-  _owner: string,
-  _repo: string,
-  _prNumber: number,
-  _threadId: string,
-  _body: string,
+  ctx: WriteContext,
+  owner: string,
+  repo: string,
+  threadId: string,
+  body: string,
 ): Promise<void> {
-  throw new Error("not implemented");
+  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  const commentId = await addReviewThreadReply(ctx.client, threadId, body);
+  auditWrite(ctx.logger, "thread_reply", {
+    owner,
+    repo,
+    threadId,
+    commentId,
+    bodyLength: body.length,
+  });
 }
 
-export async function resolveThread(_client: GitHubClient, _threadId: string): Promise<void> {
-  throw new Error("not implemented");
+// スレッドを resolve する（allowlist ガード + 監査ログ付き）。
+export async function resolveThread(
+  ctx: WriteContext,
+  owner: string,
+  repo: string,
+  threadId: string,
+): Promise<void> {
+  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  await resolveReviewThread(ctx.client, threadId);
+  auditWrite(ctx.logger, "thread_resolve", { owner, repo, threadId });
 }
