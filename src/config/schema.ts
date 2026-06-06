@@ -3,7 +3,12 @@ import { z } from "zod";
 export const appConfigSchema = z.object({
   github: z.object({
     appId: z.string().min(1, "GITHUB_APP_ID is required"),
-    privateKey: z.string().min(1, "GITHUB_APP_PRIVATE_KEY is required"),
+    privateKey: z
+      .string({
+        required_error:
+          "GitHub App private key is required. Set GITHUB_APP_PRIVATE_KEY_FILE, GITHUB_APP_PRIVATE_KEY_B64, or GITHUB_APP_PRIVATE_KEY.",
+      })
+      .min(1, "GitHub App private key is empty. Check the file path or secret contents."),
     webhookSecret: z.string().min(1, "GITHUB_WEBHOOK_SECRET is required"),
   }),
   policy: z.object({

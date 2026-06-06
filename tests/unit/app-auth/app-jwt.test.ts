@@ -54,9 +54,9 @@ describe("generateAppJwt", () => {
     expect(payload.exp).toBeLessThanOrEqual(after + 600);
   });
 
-  it("不正な秘密鍵の場合はエラーを throw する", async () => {
+  it("不正な秘密鍵の場合は原因と推奨形式を含むエラーを throw する", async () => {
     await expect(
       generateAppJwt({ appId: APP_ID, privateKey: "not-a-valid-key", nowSeconds: NOW }),
-    ).rejects.toThrow();
+    ).rejects.toThrow("GitHub App private key could not be parsed");
   });
 });

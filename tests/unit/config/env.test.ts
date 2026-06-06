@@ -26,6 +26,18 @@ describe("loadEnv", () => {
     expect(config.github.privateKey).toBe("line1\nline2");
   });
 
+  it("GITHUB_APP_PRIVATE_KEY_B64 を base64 デコードして秘密鍵にする", () => {
+    const { GITHUB_APP_PRIVATE_KEY: _, ...rest } = VALID_ENV;
+    const b64 = Buffer.from("pem-content", "utf8").toString("base64");
+    const config = loadEnv({ ...rest, GITHUB_APP_PRIVATE_KEY_B64: b64 });
+    expect(config.github.privateKey).toBe("pem-content");
+  });
+
+  it("秘密鍵が FILE/B64/raw のいずれも未設定の場合はエラーを throw する", () => {
+    const { GITHUB_APP_PRIVATE_KEY: _, ...rest } = VALID_ENV;
+    expect(() => loadEnv(rest)).toThrow("Invalid configuration");
+  });
+
   it("PORT 未設定の場合は 3000 をデフォルトにする", () => {
     const { PORT: _, ...env } = VALID_ENV;
     const config = loadEnv(env);
