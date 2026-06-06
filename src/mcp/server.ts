@@ -24,11 +24,6 @@ import {
   replyThreadInputSchema,
   replyThreadTool,
 } from "./tools/reply-thread.js";
-import {
-  RESOLVE_THREAD_TOOL_NAME,
-  resolveThreadInputSchema,
-  resolveThreadTool,
-} from "./tools/resolve-thread.js";
 
 export interface McpServerOptions {
   name: string;
@@ -93,15 +88,6 @@ export function createMcpServer(deps: ToolDeps, options: McpServerOptions): McpS
       inputSchema: replyThreadInputSchema,
     },
     (args) => runTool(() => replyThreadTool(deps, args)),
-  );
-
-  server.registerTool(
-    RESOLVE_THREAD_TOOL_NAME,
-    {
-      description: "レビュースレッドを resolve する（allowlist 内のみ）",
-      inputSchema: resolveThreadInputSchema,
-    },
-    (args) => runTool(() => resolveThreadTool(deps, args)),
   );
 
   return server;

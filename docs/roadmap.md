@@ -26,15 +26,16 @@
 - summary コメント投稿
 - インラインレビューコメント投稿
 - レビュースレッド返信
-- レビュースレッド resolve
 - 全 write 操作への allowlist・権限チェック
 
 **完了条件:** レビュー用個人アカウントを org member / collaborator から外せること。
 
+> Thread Owl はレビュアー側 GitHub App として動作する。review thread の resolve は PR author または repository write access を持つ修正側が担当する。
+
 ## Phase 3 — MCP 統合
 
 - stdio transport での MCP server 実装
-- `get_pr`・`list_review_threads`・`post_summary_comment`・`post_inline_comment`・`reply_review_thread`・`resolve_review_thread` tools 実装
+- `get_pr`・`list_review_threads`・`post_summary_comment`・`post_inline_comment`・`reply_review_thread` tools 実装
 - 直接 token アクセスが必要な MCP クライアント向け `token-source` エンドポイント
 - 既存 `copilot-review-mcp` からの移行ガイド
 

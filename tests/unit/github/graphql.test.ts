@@ -5,7 +5,6 @@ import {
   getReviewThread,
   getThreadRepository,
   listReviewThreads,
-  resolveReviewThread,
 } from "../../../src/github/graphql.js";
 
 function makeClient(graphql: unknown): GitHubClient {
@@ -137,18 +136,6 @@ describe("addReviewThreadReply", () => {
 
     expect(id).toBe("PRRC_1");
     expect(graphql.mock.calls[0][1]).toEqual({ threadId: "PRRT_1", body: "thanks" });
-  });
-});
-
-describe("resolveReviewThread", () => {
-  it("スレッドを resolve する", async () => {
-    const graphql = vi.fn().mockResolvedValue({
-      resolveReviewThread: { thread: { id: "PRRT_1", isResolved: true } },
-    });
-
-    await resolveReviewThread(makeClient(graphql), "PRRT_1");
-
-    expect(graphql.mock.calls[0][1]).toEqual({ threadId: "PRRT_1" });
   });
 });
 

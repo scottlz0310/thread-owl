@@ -6,11 +6,12 @@ AI 支援による Pull Request レビューのための GitHub App バックエ
 
 Thread Owl は、AI 支援 PR ワークフローにおける Bot アイデンティティ・installation token 管理・リポジトリ allowlist・Webhook エントリポイント・レビュースレッド操作を提供する。
 
-主目的は、PR レビュー操作（コメント投稿・スレッド返信・resolve・summary）の実行主体を個人 GitHub アカウントから GitHub App installation に移行し、organization メンバーまたはリポジトリ collaborator としてのレビュー専用アカウントを不要にすることである。
+主目的は、PR レビュー操作（コメント投稿・スレッド返信・summary）の実行主体を個人 GitHub アカウントから GitHub App installation に移行し、organization メンバーまたはリポジトリ collaborator としてのレビュー専用アカウントを不要にすることである。
 
 ## 設計方針
 
 - **GitHub App を投稿主体にする** — レビュー操作はすべて installation token を使って実行する。個人アクセストークンに依存しない
+- **resolve は修正側に委ねる** — Thread Owl はレビュアー側として指摘と返信を投稿し、スレッドの resolve は PR author または repository write access を持つ修正側が行う
 - **LLM を内蔵しない** — Thread Owl は LLM を持たない。ChatGPT・Claude・Codex などの認証・投稿レイヤーとして機能する
 - **半自動化から始める** — 完全自動化は opt-in で後続フェーズに委ねる。初期は人間承認付きレビュー操作の安定化を優先する
 
@@ -22,7 +23,7 @@ LLM フロントエンド（ChatGPT / Claude / Codex）
 Thread Owl
   ├─ GitHub App Auth（JWT → installation token → キャッシュ）
   ├─ Repository Policy（allowlist・per-repo config）
-  ├─ Review Operations（PR 取得・スレッド一覧・コメント投稿・返信・resolve）
+  ├─ Review Operations（PR 取得・スレッド一覧・コメント投稿・返信）
   ├─ Webhook Receiver（署名検証・重複排除・イベント正規化・キュー投入）
   ├─ MCP Server（tools + subscriptions）
   └─ Internal API（health・token-source・status）
