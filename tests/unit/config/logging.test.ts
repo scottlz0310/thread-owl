@@ -61,4 +61,14 @@ describe("createLogger", () => {
 
     spy.mockRestore();
   });
+
+  it("write 引数で出力先を差し替えられる（MCP stderr 用）", () => {
+    const lines: string[] = [];
+    const logger = createLogger("info", (line) => lines.push(line));
+
+    logger.info("hello");
+
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]).msg).toBe("hello");
+  });
 });

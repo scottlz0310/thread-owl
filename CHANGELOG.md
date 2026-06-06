@@ -8,6 +8,7 @@
 - plan.md をルートから docs/plan.md に移動
 
 ### Added
+- MCP server（#14）: stdio transport の `@modelcontextprotocol/sdk` server と review tools 6種（`get_pr` / `list_review_threads` / `post_summary_comment` / `post_inline_comment` / `reply_review_thread` / `resolve_review_thread`）。各 tool は owner/repo から installation token を都度発行（`issueToken` 再利用・allowlist ゲートが効く）して github 層を呼ぶ。input schema は zod 定義。`node dist/index.js --mcp` で起動し、MCP モードはログを stderr に出力（stdout は JSON-RPC 専用）
 - review write 操作（#13）: `postSummaryComment`（issue comment）/ `postInlineComment`（review comment・commitId/path/line）/ `replyToThread`・`resolveThread`（GraphQL mutation）。全 write は `WriteContext`（client + allowedRepos + logger）経由で **allowlist ガード**（`assertRepoWritable` / `RepositoryNotAllowedError` を policy 層に集約）+ **監査ログ**（`auditWrite`・body 全文や token は非出力）を組み込み。low-level（rest/graphql）は純粋 API 呼び出しに分離。GraphQL thread write（reply/resolve）は threadId から所属 repo を取得して allowlist 照合し、引数経由の bypass を防止
 - review thread read 操作（#12）: `graphql.ts` `listReviewThreads`（GraphQL・全件ページネーション・resolved/outdated 状態・コメント/位置情報を取得）、`getReviewThread`（threadId 単体取得）、`review-threads.ts` `listOpenThreads`（unresolved フィルタ）。write 系（resolve/reply）と `permissions.ts` は #13 用に throw 維持
 - PR read 操作（#11）: `createClient`（installation token で Octokit REST + GraphQL クライアント構築）、`getPullRequest`（PR 基本情報）、`listPullRequestFiles`（変更ファイル一覧・paginate）。Octokit 呼び出しを共通ラップし失敗時に操作名と HTTP status を付与
