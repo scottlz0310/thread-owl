@@ -36,7 +36,7 @@ export interface McpServerOptions {
 }
 
 // tool 実行結果を MCP CallToolResult（text content）に変換する。失敗時は isError で返す。
-async function runTool(fn: () => Promise<unknown>) {
+export async function runTool(fn: () => Promise<unknown>) {
   try {
     const data = await fn();
     return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
