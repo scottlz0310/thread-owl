@@ -1,11 +1,19 @@
 // Authenticated GitHub client factory
-// TODO: implement with @octokit/rest + @octokit/graphql in Phase 1
+
+import { graphql } from "@octokit/graphql";
+import { Octokit } from "@octokit/rest";
 
 export interface GitHubClient {
-  rest: unknown;
-  graphql: unknown;
+  rest: Octokit;
+  graphql: typeof graphql;
 }
 
-export function createClient(_installationToken: string): GitHubClient {
-  throw new Error("not implemented");
+// installation access token で認証済みの REST / GraphQL クライアントを構築する。
+export function createClient(installationToken: string): GitHubClient {
+  return {
+    rest: new Octokit({ auth: installationToken }),
+    graphql: graphql.defaults({
+      headers: { authorization: `token ${installationToken}` },
+    }),
+  };
 }
