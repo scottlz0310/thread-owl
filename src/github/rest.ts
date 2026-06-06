@@ -1,5 +1,7 @@
 // GitHub REST API operations
 
+import type { GitHubClient } from "./client.js";
+
 export interface PullRequest {
   number: number;
   title: string;
@@ -25,26 +27,66 @@ export interface InlineComment {
   body: string;
 }
 
+// Octokit 呼び出しを共通ラップし、失敗時に操作名と HTTP status をコンテキストとして付与する。
+async function request<T>(operation: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (cause) {
+    const status = (cause as { status?: number }).status;
+    throw new Error(
+      `GitHub API ${operation} failed${status !== undefined ? ` (status ${status})` : ""}`,
+      { cause },
+    );
+  }
+}
+
 export async function getPullRequest(
-  _client: unknown,
-  _owner: string,
-  _repo: string,
-  _prNumber: number,
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
 ): Promise<PullRequest> {
-  throw new Error("not implemented");
+  const { data } = await request("pulls.get", () =>
+    client.rest.pulls.get({ owner, repo, pull_number: prNumber }),
+  );
+  return {
+    number: data.number,
+    title: data.title,
+    body: data.body,
+    state: data.state,
+    draft: data.draft ?? false,
+    head: { sha: data.head.sha, ref: data.head.ref },
+    base: { sha: data.base.sha, ref: data.base.ref },
+    htmlUrl: data.html_url,
+  };
 }
 
 export async function listPullRequestFiles(
-  _client: unknown,
-  _owner: string,
-  _repo: string,
-  _prNumber: number,
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
 ): Promise<PullRequestFile[]> {
-  throw new Error("not implemented");
+  const files = await request("pulls.listFiles", () =>
+    client.rest.paginate(client.rest.pulls.listFiles, {
+      owner,
+      repo,
+      pull_number: prNumber,
+      per_page: 100,
+    }),
+  );
+  return files.map((file) => ({
+    filename: file.filename,
+    status: file.status,
+    additions: file.additions,
+    deletions: file.deletions,
+    patch: file.patch,
+  }));
 }
 
+// write 操作（review / comment 投稿）は #13 で実装する。
 export async function createReview(
-  _client: unknown,
+  _client: GitHubClient,
   _owner: string,
   _repo: string,
   _prNumber: number,
@@ -56,7 +98,7 @@ export async function createReview(
 }
 
 export async function createIssueComment(
-  _client: unknown,
+  _client: GitHubClient,
   _owner: string,
   _repo: string,
   _prNumber: number,
@@ -66,7 +108,7 @@ export async function createIssueComment(
 }
 
 export async function replyToReviewComment(
-  _client: unknown,
+  _client: GitHubClient,
   _owner: string,
   _repo: string,
   _prNumber: number,
