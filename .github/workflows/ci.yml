@@ -44,6 +44,7 @@ jobs:
           token: ${{ env.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           fail_ci_if_error: true
+          skip_validation: true
 
       - name: Build
         run: pnpm run build
