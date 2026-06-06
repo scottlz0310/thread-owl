@@ -1,7 +1,6 @@
-// MCP server setup (stdio transport)
+// Transport-independent MCP server setup
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { ToolDeps } from "./tool-deps.js";
 import { GET_PR_TOOL_NAME, getPrInputSchema, getPrTool } from "./tools/get-pr.js";
 import {
@@ -91,9 +90,4 @@ export function createMcpServer(deps: ToolDeps, options: McpServerOptions): McpS
   );
 
   return server;
-}
-
-export async function startMcpServer(server: McpServer): Promise<void> {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
 }

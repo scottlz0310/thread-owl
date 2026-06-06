@@ -29,6 +29,9 @@ node dist/index.js
 
 # MCP server（stdio）
 node dist/index.js --mcp
+
+# MCP server（Streamable HTTP）
+node dist/index.js --mcp-http
 ```
 
 ## Docker で実行
@@ -60,6 +63,16 @@ GET /token?owner=<owner>&repo=<repo>
 
 ## MCP server
 
+起動モードは排他的であり、`--mcp` と `--mcp-http` を同時指定すると起動に失敗する。
+
+| 起動方法 | モード | 用途 |
+|----------|--------|------|
+| `node dist/index.js` | internal API | `/health`・`/status`・`/token` |
+| `node dist/index.js --mcp` | stdio MCP | local-only / trusted local client |
+| `node dist/index.js --mcp-http` | Streamable HTTP MCP | mcp-gateway からの内部接続 |
+
+### stdio
+
 stdio transport の MCP server を起動し、review tools を MCP クライアント（Claude Desktop / Claude Code / ChatGPT Project 等）へ提供する:
 
 ```bash
@@ -79,6 +92,27 @@ node dist/index.js --mcp
 - 各 tool は `owner`/`repo` から installation token を都度発行する（allowlist ゲートが token 発行時に効くため、allowlist 外リポジトリは read/write とも拒否される）
 - MCP stdio モードではログを stderr に出力する（stdout は JSON-RPC 専用のため）
 - review thread の resolve は、PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review-mcp`（MCP server 登録名: `copilot-review`）等で行う
+
+### Streamable HTTP
+
+Streamable HTTP transport を起動する:
+
+```bash
+HOST=127.0.0.1 PORT=3000 node dist/index.js --mcp-http
+```
+
+- endpoint は `http://127.0.0.1:3000/mcp`
+- MCP session ID ごとに独立した `McpServer` と `StreamableHTTPServerTransport` を生成する
+- session の DELETE、transport close、HTTP server shutdown 時に session を破棄する
+- 既定 bind は `127.0.0.1`。Thread Owl の Streamable HTTP endpoint を直接 public exposure する構成は非対応
+- caller 認証は mcp-gateway の責務であり、Thread Owl 側の Bearer 認証は本実装に含まれない
+- mcp-gateway と別コンテナで接続する場合のみ、private Docker network 内で `HOST=0.0.0.0` とし、Thread Owl の port をホストへ publish しない
+
+mcp-gateway から指定する内部 URL の例:
+
+```text
+http://thread-owl:3000/mcp
+```
 
 Claude Desktop の設定例（`claude_desktop_config.json`）:
 

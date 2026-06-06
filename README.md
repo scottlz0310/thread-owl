@@ -19,7 +19,7 @@ Thread Owl は、AI 支援 PR ワークフローにおける Bot アイデンテ
 
 ```
 LLM フロントエンド（ChatGPT / Claude / Codex）
-        ↓ MCP tools / internal API
+        ↓ MCP tools（stdio / Streamable HTTP）/ internal API
 Thread Owl
   ├─ GitHub App Auth（JWT → installation token → キャッシュ）
   ├─ Repository Policy（allowlist・per-repo config）
@@ -39,10 +39,11 @@ GitHub
 | 1 | GitHub App 認証 MVP |
 | 2 | レビュー操作 MVP |
 | 3 | MCP 統合 |
-| 4 | Webhook 受信 |
-| 5 | subscribe 通知 |
-| 6 | 制御付き自動化 |
-| 7 | API LLM ワーカー（opt-in） |
+| 4 | MCP Streamable HTTP / mcp-gateway 連携 |
+| 5 | Webhook 受信 |
+| 6 | subscribe 通知 |
+| 7 | 制御付き自動化 |
+| 8 | API LLM ワーカー（opt-in） |
 
 詳細は [docs/roadmap.md](docs/roadmap.md) を参照。
 

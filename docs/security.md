@@ -31,6 +31,14 @@ Thread Owl は GitHub App の private key と installation token を扱う。
 - allowlist チェックはすべての GitHub API 呼び出しの前に実行する
 - allowlist はサービス起動時にバリデーションする
 
+### Streamable HTTP の公開境界
+
+- `--mcp-http` は mcp-gateway 背後の internal endpoint としてのみ運用する
+- 既定の `HOST=127.0.0.1` を維持し、直接 public exposure しない
+- コンテナ間接続で `HOST=0.0.0.0` が必要な場合も private network に限定し、port をホストへ publish しない
+- caller 認証・rate limit・外部向け監査境界は mcp-gateway 側で適用する
+- Thread Owl 側の Bearer 認証は follow-up hardening とし、本実装には含めない
+
 ### Webhook 署名検証
 
 - 受信した Webhook はすべて `GITHUB_WEBHOOK_SECRET` を使った HMAC-SHA256 で検証する
