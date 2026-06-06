@@ -90,3 +90,7 @@ GITHUB_APP_PRIVATE_KEY_B64=LS0tLS1CRUdJTi...
 ```
 
 > `\n` エスケープ形式（`GITHUB_APP_PRIVATE_KEY`）は、注入過程で `\n` がスペースに置換されると `createPrivateKey` が `error:1E08010C:DECODER routines::unsupported` で失敗する。後方互換としてのみ残しており、新規運用では FILE / B64 を使う。
+
+## 7. レビュー用個人アカウントから移行する
+
+App のインストールと `.env` 設定が完了したら、レビュー投稿主体を個人アカウントから Thread Owl に切り替える。動作確認・org member / collaborator からの除外・PAT 無効化の移行チェックリストは [operations.md](./operations.md#レビュアー個人アカウントから-github-app-への移行) を参照。

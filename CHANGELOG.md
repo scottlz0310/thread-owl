@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- 移行ドキュメント整備（#15）: `docs/operations.md` に「レビュアー個人アカウント→GitHub App 移行チェックリスト」「MCP server 運用（`--mcp`・Claude Desktop 設定例）」「`pr-review-subscribe` / `copilot-review-mcp` との責務整理」を追加。環境変数表（秘密鍵3形式）と Token Source（`GET /token`）を実装に合わせて修正
 - ドキュメント（README・docs/）を日本語にリライト
 - renovate.json をカスタムプリセット方式（scottlz0310/renovate-config）に変更
 - plan.md をルートから docs/plan.md に移動
