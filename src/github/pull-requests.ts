@@ -1,8 +1,15 @@
 // High-level pull request operations
 
+import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
-import { getPullRequest, listPullRequestFiles } from "./rest.js";
+import {
+  createIssueComment,
+  createReviewComment,
+  getPullRequest,
+  listPullRequestFiles,
+} from "./rest.js";
 import type { PullRequest, PullRequestFile } from "./rest.js";
+import { type WriteContext, auditWrite } from "./write-context.js";
 
 export type { PullRequest, PullRequestFile };
 
@@ -24,25 +31,54 @@ export function getPRFiles(
   return listPullRequestFiles(client, owner, repo, prNumber);
 }
 
-// summary / inline コメント投稿は #13 で実装する。
+// PR 本文へのサマリーコメントを投稿する（allowlist ガード + 監査ログ付き）。
 export async function postSummaryComment(
-  _client: GitHubClient,
-  _owner: string,
-  _repo: string,
-  _prNumber: number,
-  _body: string,
+  ctx: WriteContext,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  body: string,
 ): Promise<void> {
-  throw new Error("not implemented");
+  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  const commentId = await createIssueComment(ctx.client, owner, repo, prNumber, body);
+  auditWrite(ctx.logger, "summary_comment", {
+    owner,
+    repo,
+    prNumber,
+    commentId,
+    bodyLength: body.length,
+  });
 }
 
+// インラインレビューコメントを投稿する（allowlist ガード + 監査ログ付き）。
 export async function postInlineComment(
-  _client: GitHubClient,
-  _owner: string,
-  _repo: string,
-  _prNumber: number,
-  _path: string,
-  _line: number,
-  _body: string,
+  ctx: WriteContext,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  commitId: string,
+  path: string,
+  line: number,
+  body: string,
 ): Promise<void> {
-  throw new Error("not implemented");
+  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  const commentId = await createReviewComment(
+    ctx.client,
+    owner,
+    repo,
+    prNumber,
+    commitId,
+    path,
+    line,
+    body,
+  );
+  auditWrite(ctx.logger, "inline_comment", {
+    owner,
+    repo,
+    prNumber,
+    path,
+    line,
+    commentId,
+    bodyLength: body.length,
+  });
 }

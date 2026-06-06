@@ -27,3 +27,26 @@ export function isAllowed(allowedRepos: readonly string[], owner: string, repo: 
   const target = `${owner}/${repo}`.toLowerCase();
   return allowedRepos.some((entry) => entry.toLowerCase() === target);
 }
+
+export class RepositoryNotAllowedError extends Error {
+  readonly owner: string;
+  readonly repo: string;
+
+  constructor(owner: string, repo: string) {
+    super(`Repository ${owner}/${repo} is not in the allowlist`);
+    this.name = "RepositoryNotAllowedError";
+    this.owner = owner;
+    this.repo = repo;
+  }
+}
+
+// write 操作の allowlist ガード。allowlist 外なら RepositoryNotAllowedError を throw（fail-closed）。
+export function assertRepoWritable(
+  allowedRepos: readonly string[],
+  owner: string,
+  repo: string,
+): void {
+  if (!isAllowed(allowedRepos, owner, repo)) {
+    throw new RepositoryNotAllowedError(owner, repo);
+  }
+}

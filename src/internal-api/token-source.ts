@@ -10,7 +10,7 @@ import type {
 import type { TokenCache } from "../app-auth/token-cache.js";
 import type { Logger } from "../config/logging.js";
 import type { AppConfig } from "../config/schema.js";
-import { isAllowed } from "../policy/allowlist.js";
+import { RepositoryNotAllowedError, isAllowed } from "../policy/allowlist.js";
 
 export interface TokenSourceRequest {
   owner: string;
@@ -20,18 +20,6 @@ export interface TokenSourceRequest {
 export interface TokenSourceResponse {
   token: string;
   expiresAt: string;
-}
-
-export class RepositoryNotAllowedError extends Error {
-  readonly owner: string;
-  readonly repo: string;
-
-  constructor(owner: string, repo: string) {
-    super(`Repository ${owner}/${repo} is not in the allowlist`);
-    this.name = "RepositoryNotAllowedError";
-    this.owner = owner;
-    this.repo = repo;
-  }
 }
 
 export interface IssueTokenDeps {

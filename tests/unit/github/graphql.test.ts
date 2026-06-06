@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GitHubClient } from "../../../src/github/client.js";
-import { getReviewThread, listReviewThreads } from "../../../src/github/graphql.js";
+import {
+  addReviewThreadReply,
+  getReviewThread,
+  getThreadRepository,
+  listReviewThreads,
+  resolveReviewThread,
+} from "../../../src/github/graphql.js";
 
 function makeClient(graphql: unknown): GitHubClient {
   return { graphql } as unknown as GitHubClient;
@@ -118,5 +124,49 @@ describe("getReviewThread", () => {
     const graphql = vi.fn().mockResolvedValue({ node: null });
 
     expect(await getReviewThread(makeClient(graphql), "missing")).toBeNull();
+  });
+});
+
+describe("addReviewThreadReply", () => {
+  it("スレッドに返信し comment node id を返す", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      addPullRequestReviewThreadReply: { comment: { id: "PRRC_1", url: "https://example/c" } },
+    });
+
+    const id = await addReviewThreadReply(makeClient(graphql), "PRRT_1", "thanks");
+
+    expect(id).toBe("PRRC_1");
+    expect(graphql.mock.calls[0][1]).toEqual({ threadId: "PRRT_1", body: "thanks" });
+  });
+});
+
+describe("resolveReviewThread", () => {
+  it("スレッドを resolve する", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      resolveReviewThread: { thread: { id: "PRRT_1", isResolved: true } },
+    });
+
+    await resolveReviewThread(makeClient(graphql), "PRRT_1");
+
+    expect(graphql.mock.calls[0][1]).toEqual({ threadId: "PRRT_1" });
+  });
+});
+
+describe("getThreadRepository", () => {
+  it("threadId から所属リポジトリ（owner/repo）を取得する", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      node: { repository: { name: "repo", owner: { login: "owner" } } },
+    });
+
+    const result = await getThreadRepository(makeClient(graphql), "PRRT_1");
+
+    expect(result).toEqual({ owner: "owner", repo: "repo" });
+    expect(graphql.mock.calls[0][1]).toEqual({ threadId: "PRRT_1" });
+  });
+
+  it("node が存在しない場合は null を返す", async () => {
+    const graphql = vi.fn().mockResolvedValue({ node: null });
+
+    expect(await getThreadRepository(makeClient(graphql), "missing")).toBeNull();
   });
 });

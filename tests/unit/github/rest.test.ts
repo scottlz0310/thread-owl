@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GitHubClient } from "../../../src/github/client.js";
-import { getPullRequest, listPullRequestFiles } from "../../../src/github/rest.js";
+import {
+  createIssueComment,
+  createReviewComment,
+  getPullRequest,
+  listPullRequestFiles,
+} from "../../../src/github/rest.js";
 
 function makeClient(rest: unknown): GitHubClient {
   return { rest } as unknown as GitHubClient;
@@ -68,5 +73,42 @@ describe("listPullRequestFiles", () => {
       { filename: "a.ts", status: "modified", additions: 3, deletions: 1, patch: "@@ -1 +1 @@" },
       { filename: "b.ts", status: "added", additions: 10, deletions: 0, patch: undefined },
     ]);
+  });
+});
+
+describe("createIssueComment", () => {
+  it("issue comment を投稿し comment id を返す", async () => {
+    const createComment = vi.fn().mockResolvedValue({ data: { id: 555 } });
+    const client = makeClient({ issues: { createComment } });
+
+    const id = await createIssueComment(client, "o", "r", 7, "summary");
+
+    expect(createComment).toHaveBeenCalledWith({
+      owner: "o",
+      repo: "r",
+      issue_number: 7,
+      body: "summary",
+    });
+    expect(id).toBe(555);
+  });
+});
+
+describe("createReviewComment", () => {
+  it("review comment を投稿し comment id を返す", async () => {
+    const createReviewCommentFn = vi.fn().mockResolvedValue({ data: { id: 777 } });
+    const client = makeClient({ pulls: { createReviewComment: createReviewCommentFn } });
+
+    const id = await createReviewComment(client, "o", "r", 7, "sha", "src/a.ts", 10, "nit");
+
+    expect(createReviewCommentFn).toHaveBeenCalledWith({
+      owner: "o",
+      repo: "r",
+      pull_number: 7,
+      commit_id: "sha",
+      path: "src/a.ts",
+      line: 10,
+      body: "nit",
+    });
+    expect(id).toBe(777);
   });
 });

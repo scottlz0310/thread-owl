@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isAllowed, parseAllowlist } from "../../../src/policy/allowlist.js";
+import {
+  RepositoryNotAllowedError,
+  assertRepoWritable,
+  isAllowed,
+  parseAllowlist,
+} from "../../../src/policy/allowlist.js";
 
 describe("isAllowed", () => {
   const allowlist = ["octo-org/octo-repo", "acme/widgets"];
@@ -42,5 +47,27 @@ describe("parseAllowlist", () => {
     { raw: "owner/repo,bad-entry" },
   ])("形式不正 '$raw' は throw する", ({ raw }) => {
     expect(() => parseAllowlist(raw)).toThrow("owner/repo' format");
+  });
+});
+
+describe("assertRepoWritable", () => {
+  it("allowlist 内なら何もしない", () => {
+    expect(() => assertRepoWritable(["octo-org/octo-repo"], "octo-org", "octo-repo")).not.toThrow();
+  });
+
+  it("大文字小文字を無視して許可する", () => {
+    expect(() => assertRepoWritable(["octo-org/octo-repo"], "Octo-Org", "Octo-Repo")).not.toThrow();
+  });
+
+  it("allowlist 外なら RepositoryNotAllowedError を throw する", () => {
+    expect(() => assertRepoWritable(["octo-org/octo-repo"], "evil", "repo")).toThrow(
+      RepositoryNotAllowedError,
+    );
+  });
+
+  it("allowlist が空なら throw する（fail-closed）", () => {
+    expect(() => assertRepoWritable([], "octo-org", "octo-repo")).toThrow(
+      RepositoryNotAllowedError,
+    );
   });
 });

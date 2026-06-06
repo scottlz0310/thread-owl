@@ -14,7 +14,8 @@ import { loadEnv } from "./config/env.js";
 import { createLogger } from "./config/logging.js";
 import { getHealth } from "./internal-api/health.js";
 import { getStatus } from "./internal-api/status.js";
-import { RepositoryNotAllowedError, issueToken } from "./internal-api/token-source.js";
+import { issueToken } from "./internal-api/token-source.js";
+import { RepositoryNotAllowedError } from "./policy/allowlist.js";
 
 const VERSION = "0.1.0";
 

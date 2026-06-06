@@ -4,7 +4,8 @@ import type { InstallationToken } from "../../../src/app-auth/installation-token
 import type { TokenCache } from "../../../src/app-auth/token-cache.js";
 import type { Logger } from "../../../src/config/logging.js";
 import type { AppConfig } from "../../../src/config/schema.js";
-import { RepositoryNotAllowedError, issueToken } from "../../../src/internal-api/token-source.js";
+import { issueToken } from "../../../src/internal-api/token-source.js";
+import { RepositoryNotAllowedError } from "../../../src/policy/allowlist.js";
 
 const PRIVATE_KEY = "private-key-secret";
 const APP_JWT = "jwt-secret";

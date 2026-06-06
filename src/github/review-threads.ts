@@ -1,8 +1,15 @@
 // High-level review thread operations
 
+import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
-import { listReviewThreads } from "./graphql.js";
+import {
+  addReviewThreadReply,
+  getThreadRepository,
+  listReviewThreads,
+  resolveReviewThread,
+} from "./graphql.js";
 import type { ReviewThread } from "./graphql.js";
+import { type WriteContext, auditWrite } from "./write-context.js";
 
 export type { ReviewThread };
 
@@ -17,18 +24,40 @@ export async function listOpenThreads(
   return threads.filter((thread) => !thread.isResolved);
 }
 
-// replyToThread / resolveThread（write）は #13 で実装する。
-export async function replyToThread(
-  _client: GitHubClient,
-  _owner: string,
-  _repo: string,
-  _prNumber: number,
-  _threadId: string,
-  _body: string,
-): Promise<void> {
-  throw new Error("not implemented");
+// threadId の所属リポジトリを取得し allowlist と照合する。
+// mutation は threadId のみで対象を決めるため、引数ではなく実 repo で判定して bypass を防ぐ。
+async function assertThreadWritable(
+  ctx: WriteContext,
+  threadId: string,
+): Promise<{ owner: string; repo: string }> {
+  const target = await getThreadRepository(ctx.client, threadId);
+  if (!target) {
+    throw new Error(`Review thread ${threadId} not found`);
+  }
+  assertRepoWritable(ctx.allowedRepos, target.owner, target.repo);
+  return target;
 }
 
-export async function resolveThread(_client: GitHubClient, _threadId: string): Promise<void> {
-  throw new Error("not implemented");
+// スレッドへ返信する（threadId の所属 repo を allowlist 照合 + 監査ログ付き）。
+export async function replyToThread(
+  ctx: WriteContext,
+  threadId: string,
+  body: string,
+): Promise<void> {
+  const { owner, repo } = await assertThreadWritable(ctx, threadId);
+  const commentId = await addReviewThreadReply(ctx.client, threadId, body);
+  auditWrite(ctx.logger, "thread_reply", {
+    owner,
+    repo,
+    threadId,
+    commentId,
+    bodyLength: body.length,
+  });
+}
+
+// スレッドを resolve する（threadId の所属 repo を allowlist 照合 + 監査ログ付き）。
+export async function resolveThread(ctx: WriteContext, threadId: string): Promise<void> {
+  const { owner, repo } = await assertThreadWritable(ctx, threadId);
+  await resolveReviewThread(ctx.client, threadId);
+  auditWrite(ctx.logger, "thread_resolve", { owner, repo, threadId });
 }

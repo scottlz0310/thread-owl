@@ -141,7 +141,71 @@ export async function getReviewThread(
   return res.node ? mapThread(res.node) : null;
 }
 
-// resolveReviewThread（write）は #13 で実装する。
-export async function resolveReviewThread(_client: GitHubClient, _threadId: string): Promise<void> {
-  throw new Error("not implemented");
+// スレッドへの返信（GraphQL mutation）。作成された comment node id を返す。
+export async function addReviewThreadReply(
+  client: GitHubClient,
+  threadId: string,
+  body: string,
+): Promise<string> {
+  const mutation = `
+    mutation ($threadId: ID!, $body: String!) {
+      addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) {
+        comment {
+          id
+          url
+        }
+      }
+    }
+  `;
+
+  const res = (await client.graphql(mutation, { threadId, body })) as {
+    addPullRequestReviewThreadReply: { comment: { id: string; url: string } };
+  };
+  return res.addPullRequestReviewThreadReply.comment.id;
+}
+
+// スレッドの resolve（GraphQL mutation）。
+export async function resolveReviewThread(client: GitHubClient, threadId: string): Promise<void> {
+  const mutation = `
+    mutation ($threadId: ID!) {
+      resolveReviewThread(input: { threadId: $threadId }) {
+        thread {
+          id
+          isResolved
+        }
+      }
+    }
+  `;
+
+  await client.graphql(mutation, { threadId });
+}
+
+// review thread が属するリポジトリを取得する（write 前の allowlist 照合に使う）。
+// mutation は threadId のみで対象を決めるため、引数の owner/repo ではなく実 repo で判定する。
+export async function getThreadRepository(
+  client: GitHubClient,
+  threadId: string,
+): Promise<{ owner: string; repo: string } | null> {
+  const query = `
+    query ($threadId: ID!) {
+      node(id: $threadId) {
+        ... on PullRequestReviewThread {
+          repository {
+            name
+            owner {
+              login
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const res = (await client.graphql(query, { threadId })) as {
+    node: { repository: { name: string; owner: { login: string } } } | null;
+  };
+  if (!res.node) {
+    return null;
+  }
+  return { owner: res.node.repository.owner.login, repo: res.node.repository.name };
 }

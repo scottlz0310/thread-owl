@@ -84,7 +84,46 @@ export async function listPullRequestFiles(
   }));
 }
 
-// write 操作（review / comment 投稿）は #13 で実装する。
+// PR 本文へのサマリーコメント（issue comment）を投稿し、作成された comment id を返す。
+export async function createIssueComment(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  body: string,
+): Promise<number> {
+  const { data } = await request("issues.createComment", () =>
+    client.rest.issues.createComment({ owner, repo, issue_number: prNumber, body }),
+  );
+  return data.id;
+}
+
+// インラインレビューコメントを投稿し、作成された comment id を返す。
+export async function createReviewComment(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  commitId: string,
+  path: string,
+  line: number,
+  body: string,
+): Promise<number> {
+  const { data } = await request("pulls.createReviewComment", () =>
+    client.rest.pulls.createReviewComment({
+      owner,
+      repo,
+      pull_number: prNumber,
+      commit_id: commitId,
+      path,
+      line,
+      body,
+    }),
+  );
+  return data.id;
+}
+
+// review 全体投稿 / REST レビューコメント返信は現状未使用（将来用）。
 export async function createReview(
   _client: GitHubClient,
   _owner: string,
@@ -93,16 +132,6 @@ export async function createReview(
   _body: string,
   _event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES",
   _comments?: InlineComment[],
-): Promise<void> {
-  throw new Error("not implemented");
-}
-
-export async function createIssueComment(
-  _client: GitHubClient,
-  _owner: string,
-  _repo: string,
-  _prNumber: number,
-  _body: string,
 ): Promise<void> {
   throw new Error("not implemented");
 }
