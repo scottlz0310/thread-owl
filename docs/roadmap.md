@@ -40,7 +40,24 @@
 
 **完了条件:** Claude Desktop / ChatGPT Project から MCP tools 経由で半自動レビューができること。
 
-## Phase 4 — Webhook 受信
+## Phase 4 — MCP Streamable HTTP / mcp-gateway 連携
+
+stdio MCP（Phase 3）の自然な拡張として Streamable HTTP transport を追加し、リバースプロキシ `mcp-gateway` 配下の remote MCP server として動作させる。
+
+- `StreamableHTTPServerTransport` を実装する（`createMcpServer(deps, options)` を transport 非依存のまま再利用）
+- 起動部を `startMcpStdioServer` / `startMcpHttpServer` に分離し、起動フラグで stdio / streamable-http / internal-api を切り替える
+- stdio（`--mcp`）は local-only / trusted local client 用として維持する
+- mcp-gateway への登録・routing（`/mcp/thread-owl`）
+- caller 認証は **mcp-gateway の責務**。thread-owl は gateway 背後の internal MCP server とし、既定で localhost / container internal bind、Streamable HTTP endpoint を直接 public exposure しない
+- gateway 経由の rate limit / 監査境界を明示する
+
+**完了条件:** mcp-gateway 経由で remote MCP client から thread-owl の review tools を呼び出せること。stdio 経路も従来どおり動作すること。
+
+> caller 認証は gateway 必須。gateway bypass に耐える thread-owl 側の Bearer 検証は follow-up hardening として別途扱う。
+
+## Phase 5 — Webhook 受信
+
+（旧 Phase 4）GitHub イベントを受信し、レビュー候補を管理できるようにする。
 
 - Hono ベースの HTTP サーバー
 - 署名検証・delivery 重複排除・bot ループ防止
@@ -49,7 +66,9 @@
 
 **完了条件:** PR の open / push イベントがレビューキューに確実に入ること。
 
-## Phase 5 — subscribe 通知
+## Phase 6 — subscribe 通知
+
+（旧 Phase 5）
 
 - MCP subscription エンドポイント
 - レビュー準備完了・再レビュー・stale スレッド通知
@@ -57,12 +76,16 @@
 
 **完了条件:** MCP クライアントがポーリングなしで通知を受け取れること。
 
-## Phase 6 — 制御付き自動化
+## Phase 7 — 制御付き自動化
+
+（旧 Phase 6）
 
 - per-repo 設定（label トリガー・draft スキップ・スキップ label）
 - `dry-run` モード・`require-human-approval` モード・`summary-only` モード
 
-## Phase 7 — API LLM ワーカー（opt-in）
+## Phase 8 — API LLM ワーカー（opt-in）
+
+（旧 Phase 7）
 
 - LLM プロバイダー抽象化（OpenAI / Anthropic）
 - diff チャンキング・レビュー重大度分類

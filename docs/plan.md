@@ -453,17 +453,35 @@ review_stale
 * MCP client から App 権限でコメント投稿できる
 * ChatGPT Project / Claude Desktop から半自動レビュー運用できる
 
-### Phase 4: Webhook Receiver
+### Phase 4: MCP Streamable HTTP / mcp-gateway 連携
+
+目的: stdio MCP（Phase 3）を拡張し、リバースプロキシ `mcp-gateway` 配下の remote MCP server として利用できるようにする。
+
+* StreamableHTTPServerTransport 実装
+* `createMcpServer(deps, options)` を transport 非依存のまま再利用
+* 起動部を `startMcpStdioServer` / `startMcpHttpServer` に分離（起動フラグで stdio / streamable-http / internal-api を切替）
+* stdio（`--mcp`）は local-only / trusted local client 用に維持
+* mcp-gateway への登録・routing（`/mcp/thread-owl`）
+* caller 認証は mcp-gateway の責務（thread-owl は gateway 背後の internal MCP server）
+* thread-owl は default localhost / container internal bind、Streamable HTTP endpoint を直接 public exposure しない
+* gateway 経由の rate limit / 監査境界を明示
+
+完了条件:
+
+* mcp-gateway 経由で remote MCP client から review tools を呼び出せる
+* stdio 経路も従来どおり動作する
+* Streamable HTTP endpoint を直接 public exposure しない運用が明記される
+
+注: gateway bypass に耐える thread-owl 側 Bearer 検証は follow-up hardening として別途扱う。
+
+### Phase 5: Webhook Receiver
 
 目的: GitHub イベントを受信し、レビュー候補を管理できるようにする。
 
 * Webhook endpoint
 * signature verification
 * delivery id dedup
-* pull_request event handling
-* issue_comment event handling
-* pull_request_review event handling
-* pull_request_review_comment event handling
+* pull_request / issue_comment / pull_request_review / pull_request_review_comment event handling
 * bot loop prevention
 * review candidate queue
 
@@ -474,7 +492,7 @@ review_stale
 * 重複イベントを除外できる
 * bot 自身の投稿でループしない
 
-### Phase 5: subscribe 通知
+### Phase 6: subscribe 通知
 
 目的: Webhook で検知した review candidate を MCP subscribe で通知する。
 
@@ -490,7 +508,7 @@ review_stale
 * 人間がレビュー開始を判断できる
 * LLM API なしで半自動レビュー運用が成立する
 
-### Phase 6: Controlled Automation
+### Phase 7: Controlled Automation
 
 目的: repo 単位 opt-in の限定自動化を導入する。
 
@@ -509,7 +527,7 @@ review_stale
 * 完全自動投稿せずに dry-run / approval mode を運用できる
 * 誤爆時に安全に停止できる
 
-### Phase 7: API LLM Worker
+### Phase 8: API LLM Worker
 
 目的: 必要になった場合のみ、完全自動レビュー生成を追加する。
 
@@ -595,10 +613,15 @@ Phase 1〜3:
 - GitHub App 認証
 - installation token
 - App権限で投稿
-- MCP tool から操作
+- MCP tool（stdio）から操作
 → 別個人アカウントを外すための実用基盤
 
-Phase 4〜5:
+Phase 4:
+- MCP Streamable HTTP
+- mcp-gateway 連携（remote MCP）
+→ gateway 配下で remote client から利用可能に
+
+Phase 5〜6:
 - Webhook 受信
 - event 正規化
 - delivery dedup
@@ -607,7 +630,7 @@ Phase 4〜5:
 - subscribe 通知
 → レビュー運用システムとして成立
 
-Phase 6以降:
+Phase 7以降:
 - repo別 opt-in
 - label trigger
 - dry-run
@@ -640,9 +663,10 @@ Thread Owl が App 権限で投稿・返信・resolveする
 ```text
 v0.1: App認証 + token broker
 v0.2: PR/review操作
-v0.3: MCP tools
-v0.4: Webhook receiver
-v0.5: review queue
-v0.6: subscribe notifications
+v0.3: MCP tools (stdio)
+v0.4: MCP Streamable HTTP / mcp-gateway 連携
+v0.5: Webhook receiver
+v0.6: review queue + subscribe notifications
 v0.7: controlled automation
+v0.8: API LLM worker
 ```
