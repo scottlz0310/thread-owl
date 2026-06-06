@@ -1,4 +1,4 @@
-// In-memory review candidate queue
+const MAX_QUEUE_SIZE = 100;
 
 export interface ReviewCandidate {
   owner: string;
@@ -17,5 +17,34 @@ export interface ReviewQueue {
 }
 
 export function createReviewQueue(): ReviewQueue {
-  throw new Error("not implemented");
+  const items: ReviewCandidate[] = [];
+
+  function prKey(c: ReviewCandidate): string {
+    return `${c.owner}/${c.repo}#${c.prNumber}`;
+  }
+
+  return {
+    enqueue(candidate: ReviewCandidate): void {
+      const key = prKey(candidate);
+      const existing = items.findIndex((item) => prKey(item) === key);
+      // dedup を先に行うことで、同一 PR の再エンキューは上限カウントに影響しない。
+      // 順序を逆にすると、満杯時に同一 PR を再エンキューすると無関係な最古エントリが誤って削除される。
+      if (existing !== -1) {
+        items.splice(existing, 1);
+      }
+      if (items.length >= MAX_QUEUE_SIZE) {
+        items.shift();
+      }
+      items.push(candidate);
+    },
+    dequeue(): ReviewCandidate | undefined {
+      return items.shift();
+    },
+    list(): ReviewCandidate[] {
+      return [...items];
+    },
+    size(): number {
+      return items.length;
+    },
+  };
 }
