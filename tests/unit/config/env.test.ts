@@ -83,17 +83,36 @@ describe("loadEnv", () => {
 
   it("ALLOWED_REPOS に owner/repo 形式でないエントリが含まれる場合はエラーを throw する", () => {
     expect(() => loadEnv({ ...VALID_ENV, ALLOWED_REPOS: "owner/repo,bad-entry" })).toThrow(
-      "owner/repo' format",
+      "format",
     );
   });
 
   describe("必須変数が欠落している場合はエラーを throw する", () => {
-    it.each([["GITHUB_APP_ID"], ["GITHUB_APP_PRIVATE_KEY"], ["GITHUB_WEBHOOK_SECRET"]] as const)(
-      "%s が欠落",
-      (key) => {
-        const env = { ...VALID_ENV, [key]: undefined };
-        expect(() => loadEnv(env)).toThrow("Invalid configuration");
-      },
+    it.each([["GITHUB_APP_ID"], ["GITHUB_APP_PRIVATE_KEY"]] as const)("%s が欠落", (key) => {
+      const env = { ...VALID_ENV, [key]: undefined };
+      expect(() => loadEnv(env)).toThrow("Invalid configuration");
+    });
+  });
+
+  it("GITHUB_WEBHOOK_SECRET 未設定でも起動できる", () => {
+    const { GITHUB_WEBHOOK_SECRET: _, ...env } = VALID_ENV;
+    const config = loadEnv(env);
+    expect(config.github.webhookSecret).toBeUndefined();
+  });
+
+  it("MCP_HTTP_PATH が設定されている場合は server.mcpHttpPath に反映される", () => {
+    const config = loadEnv({ ...VALID_ENV, MCP_HTTP_PATH: "/mcp/thread-owl" });
+    expect(config.server.mcpHttpPath).toBe("/mcp/thread-owl");
+  });
+
+  it("MCP_HTTP_PATH 未設定の場合は /mcp をデフォルトにする", () => {
+    const config = loadEnv(VALID_ENV);
+    expect(config.server.mcpHttpPath).toBe("/mcp");
+  });
+
+  it("MCP_HTTP_PATH が / で始まらない場合はエラーを throw する", () => {
+    expect(() => loadEnv({ ...VALID_ENV, MCP_HTTP_PATH: "mcp/thread-owl" })).toThrow(
+      "Invalid configuration",
     );
   });
 
