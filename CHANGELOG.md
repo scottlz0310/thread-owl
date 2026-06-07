@@ -12,6 +12,7 @@
 - plan.md をルートから docs/plan.md に移動
 
 ### Added
+- `APP_SLUG` 環境変数による GitHub App スラッグの外部設定対応（#46 review fix）: `src/index.ts` のハードコード `"thread-owl"` を除去し `config.appSlug` 経由で参照。`APP_SLUG` 未設定時はデフォルト `"thread-owl"` を使用。`.env.example` に説明コメント付きで追加
 - `pull_request` webhook イベントハンドラ（#46）: `opened` / `synchronize` / `ready_for_review` をキューに投入。draft PR はスキップ（`ready_for_review` は通過）、allowlist 外は無視。`WebhookReceiverDeps` に `allowedRepos` を追加
 - `approve_pull_request` MCP ツール（#52）: `pulls.createReview` + `event: "APPROVE"` で PR を承認する。allowlist ガード・監査ログ付き。body は任意
 - delivery-dedup 定期 GC（#51）: `createDeliveryDedup` に `gcIntervalMs`（デフォルト 1h）パラメータを追加し、`setInterval` で期限切れエントリを定期全スキャン削除する。プロセス終了をブロックしないよう `.unref()` を付与し、`dispose()` で停止可能にした

@@ -25,7 +25,6 @@ import { resolveAppMode } from "./startup/mode.js";
 import { createWebhookReceiver } from "./webhook/receiver.js";
 
 const VERSION = "0.1.0";
-const APP_SLUG = "thread-owl";
 
 const mode = resolveAppMode(process.argv.slice(2));
 const config = loadEnv();
@@ -154,7 +153,7 @@ if (mode === "mcp-stdio") {
     "/",
     createWebhookReceiver({
       secret: webhookSecret,
-      appSlug: APP_SLUG,
+      appSlug: config.appSlug,
       dedup: createDeliveryDedup(),
       queue: createReviewQueue(),
       logger,
