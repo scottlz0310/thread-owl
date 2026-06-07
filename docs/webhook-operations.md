@@ -169,7 +169,7 @@ Webhook サーバーには `/health` が存在する（内部 API サーバー�
 GET /health → {"status":"ok"}
 ```
 
-バージョンや uptime は `/status` エンドポイントから取得できる（内部 API モードのみ）。
+バージョンや起動時刻は `/status` エンドポイントから取得できる（内部 API モードのみ）。
 
 ---
 

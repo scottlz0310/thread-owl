@@ -66,11 +66,11 @@ GET /health
 → { "status": "ok" }
 ```
 
-バージョンや uptime は `/status` エンドポイントから取得できる（内部 API モードのみ）:
+バージョンや起動時刻は `/status` エンドポイントから取得できる（内部 API モードのみ）:
 
 ```
 GET /status
-→ { "appId": "...", "version": "0.1.0", "startedAt": "2026-01-01T00:00:00.000Z", "uptime": 42.1 }
+→ { "appId": "...", "version": "0.1.0", "startedAt": "2026-01-01T00:00:00.000Z" }
 ```
 
 ## Token Source（内部 API）
