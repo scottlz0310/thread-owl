@@ -171,10 +171,16 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
             removeEnqueueListener = undefined;
             return;
           }
+          // sendResourceUpdated が pending 中に unsubscribe → re-subscribe が起きた場合、
+          // catch 時点で removeEnqueueListener は新 listener を指している可能性がある。
+          // selfRemove で自身の disposer を捕捉し、新 listener を誤解除しないよう guard する。
+          const selfRemove = removeEnqueueListener;
           void server.server.sendResourceUpdated({ uri: QUEUE_RESOURCE_URI }).catch(() => {
-            subscriptions.delete(QUEUE_RESOURCE_URI);
-            removeEnqueueListener?.();
-            removeEnqueueListener = undefined;
+            if (removeEnqueueListener === selfRemove) {
+              subscriptions.delete(QUEUE_RESOURCE_URI);
+              removeEnqueueListener?.();
+              removeEnqueueListener = undefined;
+            }
           });
         });
       }

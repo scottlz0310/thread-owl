@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { type ReviewCandidate, createReviewQueue } from "../queue/review-queue.js";
 import { QUEUE_RESOURCE_URI, createMcpServer } from "./server.js";
 
@@ -94,5 +94,54 @@ describe("createMcpServer — queue resource subscription", () => {
 
     await client.close();
     await server.close();
+  });
+
+  test("sendResourceUpdated failure after re-subscribe does not remove new listener", async () => {
+    const queue = createReviewQueue();
+    const mcpServer = createMcpServer(
+      { ...makeMinimalDeps(), queue },
+      { name: "test", version: "0.0.0" },
+    );
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await mcpServer.connect(serverTransport);
+
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    const notifications: string[] = [];
+    client.setNotificationHandler(ResourceUpdatedNotificationSchema, (n) => {
+      notifications.push(n.params.uri);
+    });
+    await client.connect(clientTransport);
+
+    await client.subscribeResource({ uri: QUEUE_RESOURCE_URI });
+
+    // sendResourceUpdated を遅延 reject に差し替えて pending 状態を作る
+    let rejectSend!: () => void;
+    const deferred = new Promise<void>((_, reject) => {
+      rejectSend = () => reject(new Error("transport closed"));
+    });
+    vi.spyOn(mcpServer.server, "sendResourceUpdated").mockReturnValueOnce(deferred);
+
+    // Enqueue 1 — listener が起動し sendResourceUpdated が pending になる
+    queue.enqueue(makeCandidate(1));
+
+    // pending 中に unsubscribe → re-subscribe（新 listener 登録）
+    await client.unsubscribeResource({ uri: QUEUE_RESOURCE_URI });
+    await client.subscribeResource({ uri: QUEUE_RESOURCE_URI });
+
+    // 旧 sendResourceUpdated を reject（catch が走る）
+    rejectSend();
+    await new Promise((r) => setTimeout(r, 20));
+
+    vi.restoreAllMocks();
+
+    // Enqueue 2 — 新 listener が解除されていなければ通知が届く
+    queue.enqueue(makeCandidate(2));
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toBe(QUEUE_RESOURCE_URI);
+
+    await client.close();
+    await mcpServer.close();
   });
 });
