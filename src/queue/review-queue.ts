@@ -14,10 +14,13 @@ export interface ReviewQueue {
   dequeue(): ReviewCandidate | undefined;
   list(): ReviewCandidate[];
   size(): number;
+  /** enqueue 時に呼ばれる listener を登録する。戻り値は解除関数。 */
+  onEnqueue(listener: () => void): () => void;
 }
 
 export function createReviewQueue(): ReviewQueue {
   const items: ReviewCandidate[] = [];
+  const listeners = new Set<() => void>();
 
   function prKey(c: ReviewCandidate): string {
     return `${c.owner}/${c.repo}#${c.prNumber}`;
@@ -36,6 +39,9 @@ export function createReviewQueue(): ReviewQueue {
         items.shift();
       }
       items.push(candidate);
+      for (const listener of listeners) {
+        listener();
+      }
     },
     dequeue(): ReviewCandidate | undefined {
       return items.shift();
@@ -45,6 +51,12 @@ export function createReviewQueue(): ReviewQueue {
     },
     size(): number {
       return items.length;
+    },
+    onEnqueue(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

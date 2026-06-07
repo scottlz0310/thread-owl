@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- combined モード `--webhook-mcp-http`（#67, #68）: 同一プロセス・同一ポートで Webhook 受信と MCP HTTP を共存。`createSharedRuntime()` で queue/dedup を一元生成し、enqueue イベントが `notifications/resources/updated` として MCP クライアントへ push される。`docker-compose.yml` に `thread-owl-combined` サービス（port 3002）追加
+- MCP resource `queue://review/queue`（#68）: `--webhook-mcp-http` / `--mcp-http` + queue 注入時に有効。`resources/subscribe` で enqueue 通知を受信可能。subscribe → unsubscribe → re-subscribe の listener 重複バグおよび pending 中レース条件を修正済み
+- `ReviewQueue.onEnqueue(listener)` フック（#68）: enqueue 発生時に呼び出す listener を登録し、dispose 関数を返す
+- `McpHttpServerOptions.fallbackHandler`（#68）: MCP パス以外のリクエストを Hono 等の別ハンドラに委譲するオプション。combined モードで `/webhook` / `/health` / `/status` を同一ポートにマウントするために使用
+
 ### Changed
 - review thread コメント取得のページネーション対応（#29）: `listReviewThreads` / `getReviewThread` が各 thread の先頭100件に加え、`comments.pageInfo` と cursor を使って101件目以降も順次取得する。100件以下では追加 GraphQL 呼び出しを行わない
 - レビュー責務の修正（#37）: Thread Owl はレビュアー側 GitHub App としてコメント投稿・スレッド返信までを担い、review thread の resolve は PR author / repository write access を持つ修正側の `github-mcp` / `copilot-review-mcp`（MCP server 登録名: `copilot-review`）に委ねる。`resolve_review_thread` MCP tool と関連する GraphQL mutation・テスト・文書を削除

@@ -15,7 +15,7 @@ services:
     #   - ${GITHUB_APP_PRIVATE_KEY_FILE_HOST:?set GITHUB_APP_PRIVATE_KEY_FILE_HOST}:/run/secrets/github-app.pem:ro
     restart: unless-stopped
 
-  # Webhook 受信サーバー
+  # Webhook 受信サーバー（webhook only）
   # 秘密鍵の渡し方は thread-owl サービスと同じ
   thread-owl-webhook:
     build: .
@@ -24,6 +24,29 @@ services:
       - "3001:3001"
     environment:
       PORT: "3001"
+      HOST: "0.0.0.0"
+    env_file:
+      - .env
+    # FILE 形式を使う場合のみ volumes を有効化する:
+    # volumes:
+    #   - ${GITHUB_APP_PRIVATE_KEY_FILE_HOST:?set GITHUB_APP_PRIVATE_KEY_FILE_HOST}:/run/secrets/github-app.pem:ro
+    restart: unless-stopped
+
+  # Combined サーバー（推奨）: Webhook 受信 + MCP HTTP を同一プロセス・同一ポートで提供。
+  # POST /webhook … GitHub App Webhook 受信（HMAC-SHA256 署名検証）
+  # /mcp          … MCP Streamable HTTP（queue://review/queue resource subscribe 対応）
+  # GET /health   … ヘルスチェック
+  # GET /status   … バージョン・起動時刻
+  #
+  # セキュリティ: /mcp は /webhook と同じ公開面に乗るため、
+  # production では nginx / Caddy 等のリバースプロキシで /mcp の公開範囲と認証を制御すること。
+  thread-owl-combined:
+    build: .
+    command: ["--webhook-mcp-http"]
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: "3002"
       HOST: "0.0.0.0"
     env_file:
       - .env

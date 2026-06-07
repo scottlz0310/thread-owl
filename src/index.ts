@@ -21,6 +21,7 @@ import { startMcpHttpServer, startMcpStdioServer } from "./mcp/transports.js";
 import { RepositoryNotAllowedError } from "./policy/allowlist.js";
 import { createDeliveryDedup } from "./queue/delivery-dedup.js";
 import { createReviewQueue } from "./queue/review-queue.js";
+import { createSharedRuntime } from "./runtime/shared.js";
 import { resolveAppMode } from "./startup/mode.js";
 import { createWebhookReceiver } from "./webhook/receiver.js";
 
@@ -140,8 +141,7 @@ if (mode === "mcp-stdio") {
     host: config.server.host,
     port: config.server.port,
   });
-} else {
-  // mode === "webhook"
+} else if (mode === "webhook") {
   const webhookSecret = config.github.webhookSecret;
   if (!webhookSecret) {
     throw new Error("GITHUB_WEBHOOK_SECRET is required for --webhook mode");
@@ -167,4 +167,74 @@ if (mode === "mcp-stdio") {
     host: config.server.host,
     port: config.server.port,
   });
+} else {
+  // mode === "webhook-mcp-http"
+  const webhookSecret = config.github.webhookSecret;
+  if (!webhookSecret) {
+    throw new Error("GITHUB_WEBHOOK_SECRET is required for --webhook-mcp-http mode");
+  }
+
+  const runtime = createSharedRuntime(config, logger);
+  const startedAt = new Date();
+
+  const honoApp = new Hono();
+  honoApp.get("/health", (c) => c.json(getHealth()));
+  honoApp.get("/status", (c) =>
+    c.json(getStatus({ appId: config.github.appId, version: VERSION, startedAt })),
+  );
+  honoApp.route(
+    "/",
+    createWebhookReceiver({
+      secret: webhookSecret,
+      appSlug: config.appSlug,
+      dedup: runtime.deliveryDedup,
+      queue: runtime.reviewQueue,
+      logger,
+      allowedRepos: config.policy.allowedRepos,
+    }),
+  );
+
+  const { getRequestListener } = await import("@hono/node-server");
+  const honoHandler = getRequestListener(honoApp.fetch);
+
+  const httpServer = await startMcpHttpServer(
+    () =>
+      createMcpServer(
+        { ...buildToolDeps(runtime.issueTokenDeps), queue: runtime.reviewQueue },
+        { name: "thread-owl", version: VERSION },
+      ),
+    {
+      host: config.server.host,
+      port: config.server.port,
+      path: config.server.mcpHttpPath,
+      onError: (error) => {
+        logger.error("mcp.request.error", {
+          event: "mcp.request.error",
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        });
+      },
+      fallbackHandler: async (req, res) => {
+        await honoHandler(req, res);
+      },
+    },
+  );
+
+  logger.info("webhook-mcp-http.started", {
+    event: "webhook-mcp-http.started",
+    host: httpServer.host,
+    port: httpServer.port,
+    mcpPath: httpServer.path,
+  });
+
+  const shutdown = () => {
+    void httpServer.close().catch((error) => {
+      logger.error("mcp.shutdown.error", {
+        event: "mcp.shutdown.error",
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+      process.exitCode = 1;
+    });
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
