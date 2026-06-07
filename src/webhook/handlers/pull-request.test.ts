@@ -116,6 +116,51 @@ test("allowlist 外のリポジトリは無視する", async () => {
   );
 });
 
+test("payload が record でない場合は何もしない", async () => {
+  const queue = makeQueue();
+  const event: NormalizedEvent = {
+    type: "pull_request",
+    deliveryId: "d-1",
+    installationId: 1,
+    owner: "org",
+    repo: "repo",
+    prNumber: 7,
+    payload: null,
+  };
+  await handlePullRequestEvent(event, { queue, logger: makeLogger(), allowedRepos: ALLOWED });
+  expect(queue.enqueue).not.toHaveBeenCalled();
+});
+
+test("pull_request フィールドが record でない場合は何もしない", async () => {
+  const queue = makeQueue();
+  const event: NormalizedEvent = {
+    type: "pull_request",
+    deliveryId: "d-1",
+    installationId: 1,
+    owner: "org",
+    repo: "repo",
+    prNumber: 7,
+    payload: { action: "opened", pull_request: null },
+  };
+  await handlePullRequestEvent(event, { queue, logger: makeLogger(), allowedRepos: ALLOWED });
+  expect(queue.enqueue).not.toHaveBeenCalled();
+});
+
+test("prNumber が undefined の場合は何もしない", async () => {
+  const queue = makeQueue();
+  const event: NormalizedEvent = {
+    type: "pull_request",
+    deliveryId: "d-1",
+    installationId: 1,
+    owner: "org",
+    repo: "repo",
+    prNumber: undefined,
+    payload: { action: "opened", pull_request: { number: 7, draft: false } },
+  };
+  await handlePullRequestEvent(event, { queue, logger: makeLogger(), allowedRepos: ALLOWED });
+  expect(queue.enqueue).not.toHaveBeenCalled();
+});
+
 test("同一 PR を再 enqueue しても重複エントリを作らない", async () => {
   const { createReviewQueue } = await import("../../queue/review-queue.js");
   const queue = createReviewQueue();

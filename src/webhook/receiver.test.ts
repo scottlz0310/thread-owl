@@ -73,6 +73,7 @@ describe("createWebhookReceiver POST /webhook", () => {
   test("invalid signature → 401", async () => {
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -86,6 +87,7 @@ describe("createWebhookReceiver POST /webhook", () => {
   test("duplicate delivery → 200 duplicate", async () => {
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(true),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -101,6 +103,7 @@ describe("createWebhookReceiver POST /webhook", () => {
     const body = JSON.stringify({ ...BASE_REPO, sender: { type: "User" } });
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -115,6 +118,7 @@ describe("createWebhookReceiver POST /webhook", () => {
     const body = "not-json";
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -125,15 +129,16 @@ describe("createWebhookReceiver POST /webhook", () => {
     expect(await res.json()).toMatchObject({ error: "invalid JSON" });
   });
 
-  test("bot sender → 200 skipped", async () => {
+  test("自 App sender → 200 skipped", async () => {
     const body = JSON.stringify({
       ...BASE_REPO,
       action: "opened",
-      sender: { type: "Bot", login: "some-bot" },
+      sender: { type: "Bot", login: "test-app[bot]" },
       pull_request: { number: 1, draft: false },
     });
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -144,10 +149,31 @@ describe("createWebhookReceiver POST /webhook", () => {
     expect(await res.json()).toMatchObject({ status: "skipped" });
   });
 
+  test("第三者 bot sender は skipped にならず処理を続ける", async () => {
+    const body = JSON.stringify({
+      ...BASE_REPO,
+      action: "opened",
+      sender: { type: "Bot", login: "renovate[bot]" },
+      pull_request: { number: 1, draft: false },
+    });
+    const app = createWebhookReceiver({
+      secret: SECRET,
+      appSlug: "test-app",
+      dedup: makeDedup(),
+      queue: makeQueue(),
+      logger: makeLogger(),
+      allowedRepos: ["org/repo"],
+    });
+    const res = await app.request(makeRequest(body, "pull_request"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).not.toMatchObject({ status: "skipped" });
+  });
+
   test("malformed payload (normalize fails) → 400", async () => {
     const body = JSON.stringify({ action: "opened" }); // missing installation/repository
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -194,6 +220,7 @@ describe("createWebhookReceiver POST /webhook", () => {
     const b = body();
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -207,6 +234,7 @@ describe("createWebhookReceiver POST /webhook", () => {
   test("missing headers are treated as empty string (invalid signature)", async () => {
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger: makeLogger(),
@@ -234,6 +262,7 @@ describe("createWebhookReceiver POST /webhook", () => {
     const logger = makeLogger();
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger,
@@ -267,6 +296,7 @@ describe("createWebhookReceiver POST /webhook", () => {
     const logger = makeLogger();
     const app = createWebhookReceiver({
       secret: SECRET,
+      appSlug: "test-app",
       dedup: makeDedup(),
       queue: makeQueue(),
       logger,

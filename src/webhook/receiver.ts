@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Logger } from "../config/logging.js";
+import { shouldIgnoreEvent } from "../policy/actor-policy.js";
 import type { DeliveryDedup } from "../queue/delivery-dedup.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
 import { handleIssueCommentEvent } from "./handlers/issue-comment.js";
@@ -12,6 +13,7 @@ import { verifyWebhookSignature } from "./verify-signature.js";
 
 export interface WebhookReceiverDeps {
   secret: string;
+  appSlug: string;
   dedup: DeliveryDedup;
   queue: ReviewQueue;
   logger: Logger;
@@ -25,11 +27,11 @@ const SUPPORTED_EVENTS = new Set([
   "pull_request_review_comment",
 ]);
 
-function isBot(payload: unknown): boolean {
-  if (!isRecord(payload)) return false;
+function getSenderLogin(payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined;
   const sender = payload.sender;
-  if (!isRecord(sender)) return false;
-  return sender.type === "Bot";
+  if (!isRecord(sender) || typeof sender.login !== "string") return undefined;
+  return sender.login;
 }
 
 export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
@@ -66,7 +68,8 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
       return c.json({ error: "invalid JSON" }, 400);
     }
 
-    if (isBot(payload)) {
+    const senderLogin = getSenderLogin(payload);
+    if (senderLogin !== undefined && shouldIgnoreEvent(senderLogin, deps.appSlug)) {
       return c.json({ status: "skipped" }, 200);
     }
 
