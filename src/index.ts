@@ -153,9 +153,11 @@ if (mode === "mcp-stdio") {
     "/",
     createWebhookReceiver({
       secret: webhookSecret,
+      appSlug: config.appSlug,
       dedup: createDeliveryDedup(),
       queue: createReviewQueue(),
       logger,
+      allowedRepos: config.policy.allowedRepos,
     }),
   );
 

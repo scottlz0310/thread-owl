@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const appConfigSchema = z.object({
+  appSlug: z.string().min(1).default("thread-owl"),
   github: z.object({
     appId: z.string().min(1, "GITHUB_APP_ID is required"),
     privateKey: z

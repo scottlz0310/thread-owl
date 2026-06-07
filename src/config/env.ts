@@ -7,6 +7,7 @@ export type { AppConfig };
 
 export function loadEnv(env: Record<string, string | undefined> = process.env): AppConfig {
   const raw = {
+    appSlug: env.APP_SLUG || undefined,
     github: {
       appId: env.GITHUB_APP_ID,
       // 秘密鍵は FILE > B64 > raw の優先順位で解決する（private-key.ts 参照）
