@@ -6,8 +6,8 @@
 2. 以下を入力する:
    - **GitHub App name**: `Thread Owl`（任意の名前でよい。GitHub が名前から slug を自動生成する。slug は App URL `https://github.com/apps/<slug>` の末尾部分で、後述の `APP_SLUG` 環境変数に設定する）
    - **Homepage URL**: リポジトリの URL
-   - **Webhook URL**: `https://<ホスト名>/webhook`（後で設定しても可）
-   - **Webhook secret**: ランダムな文字列を生成して控えておく
+   - **Webhook URL**: 後でセクション 5 で設定するため、仮の URL（`https://example.com/webhook`）を入力しておく
+   - **Webhook secret**: ランダムな文字列を生成して控えておく（セクション 5 で詳述）
 
 ## 2. 権限を設定する
 
@@ -45,13 +45,34 @@
   - Windows: `%USERPROFILE%\.config\thread-owl\github-app.pem`
 - Bitwarden / dsx には**鍵本体ではなくパスだけ**を保存し、`.pem` はローカルファイルとして置く（後述の `*_B64` を使う場合を除く）
 
-## 5. App をインストールする
+## 5. Webhook URL を設定する
+
+GitHub App の **Webhook** セクションで以下を設定する:
+
+1. **Webhook URL**: `https://<ホスト名>/webhook`
+   - ローカル開発時は smee.io / ngrok 等のトンネルを使う（詳細は [webhook-operations.md](./webhook-operations.md) を参照）
+   - 本番時は `https://<公開ドメイン>/webhook`
+2. **Webhook secret**: ランダムな文字列を生成して設定し、`.env` の `GITHUB_WEBHOOK_SECRET` にも同じ値を設定する
+
+   生成例（PowerShell）:
+   ```powershell
+   [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+   ```
+
+   生成例（bash）:
+   ```bash
+   openssl rand -base64 32
+   ```
+
+3. **Active** チェックボックスを有効にする
+
+## 6. App をインストールする
 
 1. **Install App** タブに移動する
 2. 対象の organization またはリポジトリにインストールする
 3. インストール後の URL に含まれる **Installation ID** を控えておく
 
-## 6. 環境変数を設定する
+## 7. 環境変数を設定する
 
 `.env.example` を `.env` にコピーして記入する:
 
@@ -96,6 +117,6 @@ GITHUB_APP_PRIVATE_KEY_B64=LS0tLS1CRUdJTi...
 
 > `\n` エスケープ形式（`GITHUB_APP_PRIVATE_KEY`）は、注入過程で `\n` がスペースに置換されると `createPrivateKey` が `error:1E08010C:DECODER routines::unsupported` で失敗する。後方互換としてのみ残しており、新規運用では FILE / B64 を使う。
 
-## 7. レビュー用個人アカウントから移行する
+## 8. レビュー用個人アカウントから移行する
 
 App のインストールと `.env` 設定が完了したら、レビュー投稿主体を個人アカウントから Thread Owl に切り替える。動作確認・org member / collaborator からの除外・PAT 無効化の移行チェックリストは [operations.md](./operations.md#レビュアー個人アカウントから-github-app-への移行) を参照。

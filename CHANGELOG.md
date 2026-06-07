@@ -12,6 +12,7 @@
 - plan.md をルートから docs/plan.md に移動
 
 ### Added
+- Webhook 実運用ドキュメント整備: `docs/webhook-operations.md` 新規作成（smee.io/ngrok ローカルテスト手順・本番 URL 設定・疎通確認チェックリスト・トラブルシューティング）。`docker-compose.yml` に `thread-owl-webhook` サービス追加（`--webhook` モード・ポート 3001）。`operations.md` に `--webhook` 起動方法・`APP_SLUG`/`MCP_HTTP_PATH` 環境変数・Webhook セクション追加。`github-app-setup.md` に Webhook URL 設定ステップ（セクション 5）を追加しセクション番号を更新
 - `issue_comment` / `pull_request_review` / `pull_request_review_comment` webhook イベントハンドラ（#48）: 各ハンドラで対象 action フィルタ・allowlist チェックを実施。`issue_comment` は PR に紐づくコメントのみ処理。`receiver.ts` から `allowedRepos` を各ハンドラに渡すよう更新
 - `APP_SLUG` 環境変数による GitHub App スラッグの外部設定対応（#46 review fix）: `src/index.ts` のハードコード `"thread-owl"` を除去し `config.appSlug` 経由で参照。`APP_SLUG` 未設定時はデフォルト `"thread-owl"` を使用。`.env.example` と `docs/github-app-setup.md` に設定方法・注意事項を追加
 - `pull_request` webhook イベントハンドラ（#46）: `opened` / `synchronize` / `ready_for_review` をキューに投入。draft PR はスキップ（`ready_for_review` は通過）、allowlist 外は無視。`WebhookReceiverDeps` に `allowedRepos` を追加

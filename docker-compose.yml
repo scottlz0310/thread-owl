@@ -1,8 +1,22 @@
 services:
+  # 内部 API サーバー（/health・/status・/token）
   thread-owl:
     build: .
     ports:
       - "3000:3000"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  # Webhook 受信サーバー
+  thread-owl-webhook:
+    build: .
+    command: ["--webhook"]
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      HOST: "0.0.0.0"
     env_file:
       - .env
     restart: unless-stopped
