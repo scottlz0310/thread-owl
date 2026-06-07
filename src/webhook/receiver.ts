@@ -94,11 +94,20 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
           allowedRepos: deps.allowedRepos,
         });
       } else if (normalized.type === "issue_comment") {
-        await handleIssueCommentEvent(normalized, { logger: deps.logger });
+        await handleIssueCommentEvent(normalized, {
+          logger: deps.logger,
+          allowedRepos: deps.allowedRepos,
+        });
       } else if (normalized.type === "pull_request_review") {
-        await handlePullRequestReviewEvent(normalized, { logger: deps.logger });
+        await handlePullRequestReviewEvent(normalized, {
+          logger: deps.logger,
+          allowedRepos: deps.allowedRepos,
+        });
       } else {
-        await handlePullRequestReviewCommentEvent(normalized, { logger: deps.logger });
+        await handlePullRequestReviewCommentEvent(normalized, {
+          logger: deps.logger,
+          allowedRepos: deps.allowedRepos,
+        });
       }
     } catch (err) {
       deps.logger.error("webhook.handler.error", {
