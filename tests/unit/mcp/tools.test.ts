@@ -10,6 +10,7 @@ vi.mock("../../../src/github/review-threads.js");
 import * as graphql from "../../../src/github/graphql.js";
 import * as pullRequests from "../../../src/github/pull-requests.js";
 import * as reviewThreads from "../../../src/github/review-threads.js";
+import { approvePullRequestTool } from "../../../src/mcp/tools/approve-pull-request.js";
 import { getPrTool } from "../../../src/mcp/tools/get-pr.js";
 import { listReviewThreadsTool } from "../../../src/mcp/tools/list-review-threads.js";
 import { postInlineCommentTool } from "../../../src/mcp/tools/post-inline-comment.js";
@@ -94,5 +95,21 @@ describe("MCP tools", () => {
 
     expect(deps.getWriteContext).toHaveBeenCalledWith("o", "r");
     expect(reviewThreads.replyToThread).toHaveBeenCalledWith(ctx, "T1", "b");
+  });
+
+  it("approve_pull_request: expectedHeadSha を渡して APPROVE する", async () => {
+    const deps = makeDeps();
+    vi.mocked(pullRequests.approvePR).mockResolvedValue();
+
+    const result = await approvePullRequestTool(deps, {
+      owner: "o",
+      repo: "r",
+      prNumber: 7,
+      expectedHeadSha: "abc123",
+    });
+
+    expect(deps.getWriteContext).toHaveBeenCalledWith("o", "r");
+    expect(pullRequests.approvePR).toHaveBeenCalledWith(ctx, "o", "r", 7, "abc123", undefined);
+    expect(result).toEqual({ ok: true });
   });
 });

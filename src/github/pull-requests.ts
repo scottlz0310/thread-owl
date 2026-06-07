@@ -3,6 +3,7 @@
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
 import {
+  approvePullRequest,
   createIssueComment,
   createReviewComment,
   getPullRequest,
@@ -48,6 +49,35 @@ export async function postSummaryComment(
     commentId,
     bodyLength: body.length,
   });
+}
+
+// PR を APPROVE する（allowlist ガード + head SHA 照合 + 監査ログ付き）。
+// expectedHeadSha が現在の PR head と一致しない場合はエラーを throw する。
+// これにより呼び出し時点で未確認の commit を誤 APPROVE するリスクを防ぐ。
+export async function approvePR(
+  ctx: WriteContext,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  expectedHeadSha: string,
+  body?: string,
+): Promise<void> {
+  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  const pr = await getPullRequest(ctx.client, owner, repo, prNumber);
+  if (pr.head.sha !== expectedHeadSha) {
+    throw new Error(
+      `Head SHA mismatch: expected ${expectedHeadSha} but PR #${prNumber} head is ${pr.head.sha}`,
+    );
+  }
+  const reviewId = await approvePullRequest(
+    ctx.client,
+    owner,
+    repo,
+    prNumber,
+    expectedHeadSha,
+    body,
+  );
+  auditWrite(ctx.logger, "approve", { owner, repo, prNumber, reviewId, headSha: expectedHeadSha });
 }
 
 // インラインレビューコメントを投稿する（allowlist ガード + 監査ログ付き）。
