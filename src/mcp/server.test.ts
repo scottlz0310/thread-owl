@@ -45,6 +45,48 @@ async function setupServerAndClient(queue: ReturnType<typeof createReviewQueue>)
   return { server, client, notifications };
 }
 
+describe("createMcpServer — queue resource listing and reading", () => {
+  test("listResources returns queue://review/queue", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    const result = await client.listResources();
+    expect(result.resources).toHaveLength(1);
+    expect(result.resources[0].uri).toBe(QUEUE_RESOURCE_URI);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("readResource returns current queue contents as JSON", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    queue.enqueue(makeCandidate(42));
+    const result = await client.readResource({ uri: QUEUE_RESOURCE_URI });
+
+    expect(result.contents).toHaveLength(1);
+    const content = result.contents[0];
+    expect("text" in content).toBe(true);
+    const parsed = JSON.parse((content as { text: string }).text) as unknown[];
+    expect(Array.isArray(parsed)).toBe(true);
+    expect((parsed[0] as { prNumber: number }).prNumber).toBe(42);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("readResource with unknown URI returns MCP error", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    await expect(client.readResource({ uri: "queue://unknown" })).rejects.toThrow();
+
+    await client.close();
+    await server.close();
+  });
+});
+
 describe("createMcpServer — queue resource subscription", () => {
   test("subscribe → enqueue sends 1 notification", async () => {
     const queue = createReviewQueue();
@@ -91,6 +133,22 @@ describe("createMcpServer — queue resource subscription", () => {
     await new Promise((r) => setTimeout(r, 20));
 
     expect(notifications).toHaveLength(0);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("duplicate subscribe is a no-op (second call does not register extra listener)", async () => {
+    const queue = createReviewQueue();
+    const { server, client, notifications } = await setupServerAndClient(queue);
+
+    await client.subscribeResource({ uri: QUEUE_RESOURCE_URI });
+    await client.subscribeResource({ uri: QUEUE_RESOURCE_URI }); // no-op
+
+    queue.enqueue(makeCandidate());
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(notifications).toHaveLength(1);
 
     await client.close();
     await server.close();
