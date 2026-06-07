@@ -10,5 +10,11 @@
     "github>scottlz0310/renovate-config//presets/options/automerge",
     "github>scottlz0310/renovate-config//presets/options/schedule",
     "github>scottlz0310/renovate-config//presets/options/security"
+  ],
+  "packageRules": [
+    {
+      "groupName": "Node.js runtime",
+      "matchPackageNames": ["node", "@types/node"]
+    }
   ]
 }
