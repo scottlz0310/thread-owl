@@ -60,6 +60,7 @@ describe("startMcpHttpServer", () => {
       "post_summary_comment",
       "post_inline_comment",
       "reply_review_thread",
+      "approve_pull_request",
     ]);
     expect(transport.sessionId).toBeDefined();
     expect(createServer).toHaveBeenCalledTimes(1);

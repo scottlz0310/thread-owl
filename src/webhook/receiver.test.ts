@@ -15,6 +15,7 @@ function makeDedup(seen = false): DeliveryDedup {
   return {
     isSeen: vi.fn().mockReturnValue(seen),
     markSeen: vi.fn(),
+    dispose: vi.fn(),
   };
 }
 

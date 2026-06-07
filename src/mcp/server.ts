@@ -2,6 +2,11 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolDeps } from "./tool-deps.js";
+import {
+  APPROVE_PULL_REQUEST_TOOL_NAME,
+  approvePullRequestInputSchema,
+  approvePullRequestTool,
+} from "./tools/approve-pull-request.js";
 import { GET_PR_TOOL_NAME, getPrInputSchema, getPrTool } from "./tools/get-pr.js";
 import {
   LIST_REVIEW_THREADS_TOOL_NAME,
@@ -87,6 +92,15 @@ export function createMcpServer(deps: ToolDeps, options: McpServerOptions): McpS
       inputSchema: replyThreadInputSchema,
     },
     (args) => runTool(() => replyThreadTool(deps, args)),
+  );
+
+  server.registerTool(
+    APPROVE_PULL_REQUEST_TOOL_NAME,
+    {
+      description: "PR を APPROVE する（allowlist 内のみ）",
+      inputSchema: approvePullRequestInputSchema,
+    },
+    (args) => runTool(() => approvePullRequestTool(deps, args)),
   );
 
   return server;

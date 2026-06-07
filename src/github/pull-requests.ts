@@ -3,6 +3,7 @@
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
 import {
+  approvePullRequest,
   createIssueComment,
   createReviewComment,
   getPullRequest,
@@ -48,6 +49,19 @@ export async function postSummaryComment(
     commentId,
     bodyLength: body.length,
   });
+}
+
+// PR を APPROVE する（allowlist ガード + 監査ログ付き）。
+export async function approvePR(
+  ctx: WriteContext,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  body?: string,
+): Promise<void> {
+  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  const reviewId = await approvePullRequest(ctx.client, owner, repo, prNumber, body);
+  auditWrite(ctx.logger, "approve", { owner, repo, prNumber, reviewId });
 }
 
 // インラインレビューコメントを投稿する（allowlist ガード + 監査ログ付き）。

@@ -12,6 +12,8 @@
 - plan.md をルートから docs/plan.md に移動
 
 ### Added
+- `approve_pull_request` MCP ツール（#52）: `pulls.createReview` + `event: "APPROVE"` で PR を承認する。allowlist ガード・監査ログ付き。body は任意
+- delivery-dedup 定期 GC（#51）: `createDeliveryDedup` に `gcIntervalMs`（デフォルト 1h）パラメータを追加し、`setInterval` で期限切れエントリを定期全スキャン削除する。プロセス終了をブロックしないよう `.unref()` を付与し、`dispose()` で停止可能にした
 - mcp-gateway 統合（#35）: `MCP_HTTP_PATH` 環境変数を追加し、mcp-gateway がプレフィックスをストリップせず転送する挙動に合わせて MCP HTTP endpoint のサーブパスを設定可能にした（Docker 運用時は `MCP_HTTP_PATH=/mcp/thread-owl`）。`GITHUB_WEBHOOK_SECRET` を optional 化（Phase 5 Webhook 受信まで未使用）。Dockerfile を `ENTRYPOINT` + `CMD []` に分離し compose の `command: ["--mcp-http"]` でモード指定できるようにした
 - MCP Streamable HTTP transport（#34）: `node dist/index.js --mcp-http` で `/mcp` endpoint を起動する。session ID ごとに独立した `McpServer` / `StreamableHTTPServerTransport` を生成・cleanup し、`--mcp` の stdio と既定の internal API を排他的に切り替える。既定は localhost bind で、mcp-gateway 背後の internal endpoint としてのみ運用する
 - MCP server（#14）: stdio transport の `@modelcontextprotocol/sdk` server と review tools 5種（`get_pr` / `list_review_threads` / `post_summary_comment` / `post_inline_comment` / `reply_review_thread`）。各 tool は owner/repo から installation token を都度発行（`issueToken` 再利用・allowlist ゲートが効く）して github 層を呼ぶ。input schema は zod 定義。`node dist/index.js --mcp` で起動し、MCP モードはログを stderr に出力（stdout は JSON-RPC 専用）

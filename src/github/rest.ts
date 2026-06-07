@@ -123,6 +123,26 @@ export async function createReviewComment(
   return data.id;
 }
 
+// PR を APPROVE する。body は任意のレビューコメント。
+export async function approvePullRequest(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  body?: string,
+): Promise<number> {
+  const { data } = await request("pulls.createReview", () =>
+    client.rest.pulls.createReview({
+      owner,
+      repo,
+      pull_number: prNumber,
+      event: "APPROVE",
+      body: body ?? "",
+    }),
+  );
+  return data.id;
+}
+
 // review 全体投稿 / REST レビューコメント返信は現状未使用（将来用）。
 export async function createReview(
   _client: GitHubClient,
