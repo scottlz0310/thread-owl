@@ -127,6 +127,9 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
   if (deps.queue) {
     const queue = deps.queue;
     const subscriptions = new Set<string>();
+    // unsubscribe 時に listener を解除できるよう外側のスコープで保持する。
+    // subscribe → unsubscribe → re-subscribe の際に listener が蓄積するのを防ぐ。
+    let removeEnqueueListener: (() => void) | undefined;
 
     server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: [
@@ -162,14 +165,16 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       if (!subscriptions.has(QUEUE_RESOURCE_URI)) {
         subscriptions.add(QUEUE_RESOURCE_URI);
         // enqueue 時にクライアントへ push。sendResourceUpdated 失敗 = セッション終了として auto-cleanup。
-        const remove = queue.onEnqueue(() => {
+        removeEnqueueListener = queue.onEnqueue(() => {
           if (!subscriptions.has(QUEUE_RESOURCE_URI)) {
-            remove();
+            removeEnqueueListener?.();
+            removeEnqueueListener = undefined;
             return;
           }
           void server.server.sendResourceUpdated({ uri: QUEUE_RESOURCE_URI }).catch(() => {
             subscriptions.delete(QUEUE_RESOURCE_URI);
-            remove();
+            removeEnqueueListener?.();
+            removeEnqueueListener = undefined;
           });
         });
       }
@@ -181,6 +186,8 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
         throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
       }
       subscriptions.delete(QUEUE_RESOURCE_URI);
+      removeEnqueueListener?.();
+      removeEnqueueListener = undefined;
       return {};
     });
   }
