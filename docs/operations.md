@@ -35,8 +35,11 @@ node dist/index.js --mcp
 # MCP server（Streamable HTTP）
 node dist/index.js --mcp-http
 
-# Webhook 受信サーバー
+# Webhook 受信サーバー（webhook only）
 node dist/index.js --webhook
+
+# Webhook + MCP HTTP combined サーバー（推奨）
+node dist/index.js --webhook-mcp-http
 ```
 
 ## Docker で実行
@@ -57,7 +60,8 @@ docker compose up --build
 | サービス | ポート | 用途 |
 |---------|--------|------|
 | `thread-owl` | 3000 | 内部 API（`/health`・`/status`・`/token`） |
-| `thread-owl-webhook` | 3001 | Webhook 受信（`POST /webhook`） |
+| `thread-owl-webhook` | 3001 | Webhook 受信のみ（`POST /webhook`） |
+| `thread-owl-combined` | 3002 | **推奨**: Webhook 受信 + MCP HTTP（`POST /webhook`・`/mcp`・`/health`・`/status`） |
 
 ## ヘルスチェック
 
@@ -99,6 +103,27 @@ GET /token?owner=<owner>&repo=<repo>
 | `node dist/index.js --webhook` | Webhook 受信 | GitHub App Webhook イベントの受信・キュー投入 |
 
 各モードは排他的であり、複数フラグの同時指定は起動失敗する。
+
+### combined モード（`--webhook-mcp-http`）
+
+Webhook 受信と MCP HTTP を同一プロセス・同一ポートで提供する。Webhook ハンドラと MCP server が同じ `ReviewQueue` インスタンスを共有するため、PR がキューに投入されると MCP クライアントへ `notifications/resources/updated` が push される。
+
+**エンドポイント:**
+
+| パス | 説明 |
+|------|------|
+| `POST /webhook` | GitHub App Webhook 受信（HMAC-SHA256 署名検証） |
+| `/mcp` | MCP Streamable HTTP（`queue://review/queue` resource subscribe 対応） |
+| `GET /health` | ヘルスチェック |
+| `GET /status` | バージョン・起動時刻 |
+
+**MCP Resource:**
+
+| URI | mimeType | 内容 |
+|-----|----------|------|
+| `queue://review/queue` | `application/json` | レビュー待ち PR 一覧。`enqueue` 時に `notifications/resources/updated` を push |
+
+**セキュリティ上の注意**: combined モードでは `/mcp` が `POST /webhook` と同じ公開面に乗る。`POST /webhook` は GitHub HMAC-SHA256 署名検証で保護されているが、`/mcp` は保護なし。production では nginx / Caddy 等のリバースプロキシで `/mcp` の公開範囲と認証を制御すること。
 
 ### stdio
 

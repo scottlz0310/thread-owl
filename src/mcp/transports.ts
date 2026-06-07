@@ -14,6 +14,8 @@ export interface McpHttpServerOptions {
   port: number;
   path?: string;
   onError?: (error: unknown) => void;
+  /** MCP パス以外のリクエストを処理するハンドラ。未指定時は 404 を返す。combined モードで使用。 */
+  fallbackHandler?: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 }
 
 export interface StartedMcpHttpServer {
@@ -87,7 +89,11 @@ export async function startMcpHttpServer(
   const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     const requestPath = new URL(req.url ?? "/", "http://localhost").pathname;
     if (requestPath !== path) {
-      res.writeHead(404).end();
+      if (options.fallbackHandler) {
+        await options.fallbackHandler(req, res);
+      } else {
+        res.writeHead(404).end();
+      }
       return;
     }
 

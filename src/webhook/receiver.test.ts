@@ -34,6 +34,7 @@ function makeQueue(): ReviewQueue {
     dequeue: vi.fn(),
     list: vi.fn().mockReturnValue([]),
     size: vi.fn().mockReturnValue(0),
+    onEnqueue: vi.fn().mockReturnValue(() => undefined),
   };
 }
 

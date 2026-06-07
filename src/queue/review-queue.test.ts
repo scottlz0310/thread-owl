@@ -98,4 +98,53 @@ describe("createReviewQueue", () => {
       expect(q.list()[0].prNumber).toBe(2);
     });
   });
+
+  describe("onEnqueue", () => {
+    test("listener is called on each enqueue", () => {
+      const q = createReviewQueue();
+      const calls: number[] = [];
+      q.onEnqueue(() => calls.push(q.size()));
+
+      q.enqueue(makeCandidate(1));
+      q.enqueue(makeCandidate(2));
+
+      expect(calls).toEqual([1, 2]);
+    });
+
+    test("returned dispose removes the listener", () => {
+      const q = createReviewQueue();
+      let count = 0;
+      const dispose = q.onEnqueue(() => count++);
+
+      q.enqueue(makeCandidate(1));
+      dispose();
+      q.enqueue(makeCandidate(2));
+
+      expect(count).toBe(1);
+    });
+
+    test("multiple listeners are each called", () => {
+      const q = createReviewQueue();
+      let a = 0;
+      let b = 0;
+      q.onEnqueue(() => a++);
+      q.onEnqueue(() => b++);
+
+      q.enqueue(makeCandidate(1));
+
+      expect(a).toBe(1);
+      expect(b).toBe(1);
+    });
+
+    test("listener is called even when enqueue deduplicates same PR", () => {
+      const q = createReviewQueue();
+      let count = 0;
+      q.onEnqueue(() => count++);
+
+      q.enqueue(makeCandidate(1, "opened"));
+      q.enqueue(makeCandidate(1, "synchronized"));
+
+      expect(count).toBe(2);
+    });
+  });
 });
