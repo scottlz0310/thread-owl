@@ -18,11 +18,13 @@ Thread Owl の Webhook サーバーは `--webhook` モードで起動し、`POST
 
 ```env
 GITHUB_APP_ID=<App の数値 ID>
-GITHUB_APP_PRIVATE_KEY_FILE=<.pem のパス>  # または B64/raw
+GITHUB_APP_PRIVATE_KEY_B64=<.pem を base64 化した値>  # Docker では B64 を推奨
 GITHUB_WEBHOOK_SECRET=<Webhook secret>
 ALLOWED_REPOS=owner/repo
 APP_SLUG=<GitHub App の slug>  # デフォルト thread-owl 以外の場合
 ```
+
+> **Docker 実行時の秘密鍵について**: `docker compose` の `env_file` はホストファイルをコンテナ内へ**マウントしない**。`GITHUB_APP_PRIVATE_KEY_FILE` にホスト上のパスを設定したままでは、コンテナ起動時にファイルが見つからず失敗する。Docker 実行では **`GITHUB_APP_PRIVATE_KEY_B64`（base64 形式）を推奨**する。FILE 形式を使う場合は `docker-compose.yml` の volumes セクションのコメントを参照して bind mount を設定すること。
 
 ---
 
@@ -164,8 +166,10 @@ GitHub App の設定ページ → **Recent Deliveries** でも配信履歴（ス
 Webhook サーバーには `/health` が存在する（内部 API サーバーと共有）:
 
 ```
-GET /health → {"status":"ok","version":"0.1.0","uptime":42.1}
+GET /health → {"status":"ok"}
 ```
+
+バージョンや uptime は `/status` エンドポイントから取得できる（内部 API モードのみ）。
 
 ---
 

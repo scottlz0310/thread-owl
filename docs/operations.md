@@ -63,7 +63,14 @@ docker compose up --build
 
 ```
 GET /health
-→ { "status": "ok", "version": "0.1.0", "uptime": 42.1 }
+→ { "status": "ok" }
+```
+
+バージョンや uptime は `/status` エンドポイントから取得できる（内部 API モードのみ）:
+
+```
+GET /status
+→ { "appId": "...", "version": "0.1.0", "startedAt": "2026-01-01T00:00:00.000Z", "uptime": 42.1 }
 ```
 
 ## Token Source（内部 API）
