@@ -10,7 +10,7 @@ import type {
 import type { TokenCache } from "../app-auth/token-cache.js";
 import type { Logger } from "../config/logging.js";
 import type { AppConfig } from "../config/schema.js";
-import { RepositoryNotAllowedError, isAllowed } from "../policy/allowlist.js";
+import { isAllowed, RepositoryNotAllowedError } from "../policy/allowlist.js";
 
 export interface TokenSourceRequest {
   owner: string;

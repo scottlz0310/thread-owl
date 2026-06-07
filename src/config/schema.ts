@@ -6,7 +6,7 @@ export const appConfigSchema = z.object({
     appId: z.string().min(1, "GITHUB_APP_ID is required"),
     privateKey: z
       .string({
-        required_error:
+        error:
           "GitHub App private key is required. Set GITHUB_APP_PRIVATE_KEY_FILE, GITHUB_APP_PRIVATE_KEY_B64, or GITHUB_APP_PRIVATE_KEY.",
       })
       .min(1, "GitHub App private key is empty. Check the file path or secret contents."),

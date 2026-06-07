@@ -1,7 +1,7 @@
 // Shared dependencies for MCP tools
 
-import { createClient } from "../github/client.js";
 import type { GitHubClient } from "../github/client.js";
+import { createClient } from "../github/client.js";
 import type { WriteContext } from "../github/write-context.js";
 import { type IssueTokenDeps, issueToken } from "../internal-api/token-source.js";
 

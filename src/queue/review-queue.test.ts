@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { type ReviewCandidate, createReviewQueue } from "./review-queue.js";
+import { createReviewQueue, type ReviewCandidate } from "./review-queue.js";
 
 function makeCandidate(
   prNumber: number,

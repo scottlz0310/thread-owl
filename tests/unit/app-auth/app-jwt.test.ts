@@ -15,22 +15,22 @@ const APP_ID = "123456";
 const NOW = 1_700_000_000;
 
 describe("generateAppJwt", () => {
-  it.each([["pkcs1"], ["pkcs8"]] as const)(
-    "%s 形式の秘密鍵から検証可能な RS256 JWT を生成する",
-    async (keyType) => {
-      const { privateKey, publicKey } = makeKeyPair(keyType);
+  it.each([
+    ["pkcs1"],
+    ["pkcs8"],
+  ] as const)("%s 形式の秘密鍵から検証可能な RS256 JWT を生成する", async (keyType) => {
+    const { privateKey, publicKey } = makeKeyPair(keyType);
 
-      const jwt = await generateAppJwt({ appId: APP_ID, privateKey, nowSeconds: NOW });
+    const jwt = await generateAppJwt({ appId: APP_ID, privateKey, nowSeconds: NOW });
 
-      const { payload, protectedHeader } = await jwtVerify(jwt.token, createPublicKey(publicKey), {
-        currentDate: new Date(NOW * 1000),
-      });
-      expect(protectedHeader.alg).toBe("RS256");
-      expect(payload.iss).toBe(APP_ID);
-      expect(payload.iat).toBe(NOW - 60);
-      expect(payload.exp).toBe(NOW + 600);
-    },
-  );
+    const { payload, protectedHeader } = await jwtVerify(jwt.token, createPublicKey(publicKey), {
+      currentDate: new Date(NOW * 1000),
+    });
+    expect(protectedHeader.alg).toBe("RS256");
+    expect(payload.iss).toBe(APP_ID);
+    expect(payload.iat).toBe(NOW - 60);
+    expect(payload.exp).toBe(NOW + 600);
+  });
 
   it("expiresAt が exp クレームと一致する", async () => {
     const { privateKey } = makeKeyPair("pkcs8");

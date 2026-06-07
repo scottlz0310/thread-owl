@@ -2,6 +2,7 @@
 
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
+import type { PullRequest, PullRequestFile } from "./rest.js";
 import {
   approvePullRequest,
   createIssueComment,
@@ -9,8 +10,7 @@ import {
   getPullRequest,
   listPullRequestFiles,
 } from "./rest.js";
-import type { PullRequest, PullRequestFile } from "./rest.js";
-import { type WriteContext, auditWrite } from "./write-context.js";
+import { auditWrite, type WriteContext } from "./write-context.js";
 
 export type { PullRequest, PullRequestFile };
 

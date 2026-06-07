@@ -1,9 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { type ReviewCandidate, createReviewQueue } from "../queue/review-queue.js";
-import { QUEUE_RESOURCE_URI, createMcpServer } from "./server.js";
+import { describe, expect, test, vi } from "vitest";
+import { createReviewQueue, type ReviewCandidate } from "../queue/review-queue.js";
+import { createMcpServer, QUEUE_RESOURCE_URI } from "./server.js";
 
 function makeCandidate(prNumber = 1): ReviewCandidate {
   return {

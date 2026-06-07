@@ -2,9 +2,9 @@
 
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
-import { addReviewThreadReply, getThreadRepository, listReviewThreads } from "./graphql.js";
 import type { ReviewThread } from "./graphql.js";
-import { type WriteContext, auditWrite } from "./write-context.js";
+import { addReviewThreadReply, getThreadRepository, listReviewThreads } from "./graphql.js";
+import { auditWrite, type WriteContext } from "./write-context.js";
 
 export type { ReviewThread };
 

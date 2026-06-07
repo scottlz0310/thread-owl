@@ -5,10 +5,10 @@ import { createTokenCache } from "../app-auth/token-cache.js";
 import type { AppConfig } from "../config/env.js";
 import type { Logger } from "../config/logging.js";
 import type { IssueTokenDeps } from "../internal-api/token-source.js";
-import { createDeliveryDedup } from "../queue/delivery-dedup.js";
 import type { DeliveryDedup } from "../queue/delivery-dedup.js";
-import { createReviewQueue } from "../queue/review-queue.js";
+import { createDeliveryDedup } from "../queue/delivery-dedup.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
+import { createReviewQueue } from "../queue/review-queue.js";
 
 export interface SharedRuntime {
   config: AppConfig;

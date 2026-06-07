@@ -1,7 +1,7 @@
 import { parseAllowlist } from "../policy/allowlist.js";
 import { loadGitHubAppPrivateKey } from "./private-key.js";
-import { appConfigSchema } from "./schema.js";
 import type { AppConfig } from "./schema.js";
+import { appConfigSchema } from "./schema.js";
 
 export type { AppConfig };
 
