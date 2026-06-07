@@ -1,0 +1,26 @@
+## Phase 6 の疎通確認
+
+疎通確認の手順をまとめます。ターミナルを 3 つ使います。
+
+---
+ターミナル 1 — thread-owl (combined モード)
+dsx env run -- node dist/index.js --webhook-mcp-http
+webhook-mcp-http.started ログが出れば OK。
+
+ターミナル 2 — smee-client
+npx smee-client --url https://smee.io/GUeoxYk5ymPExxzF --target http://localhost:3000/webhook
+
+ターミナル 3 — MCP resource subscriber（購読待機）
+pnpm dlx mcp-resource-subscriber \
+  --url http://localhost:3000/mcp \
+  --uri queue://review/queue \
+  --timeout-ms 300000
+subscribed true が出たら待機状態になります。
+
+---
+確認手順:
+
+1. 3 つ全て起動したら GitHub で scottlz0310/thread-owl（または allowlist 内のリポジトリ）に PR を作成
+2. ターミナル 1 に webhook.pull_request.queued が出ることを確認
+3. ターミナル 3 に notification-received true が出ることを確認
+4. ターミナル 3 の final ブロックの内容（queue の中身）を確認
