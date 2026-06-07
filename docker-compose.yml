@@ -1,8 +1,33 @@
 services:
+  # 内部 API サーバー（/health・/status・/token）
+  # 秘密鍵の渡し方（Docker 実行時は B64 形式を推奨）:
+  #   推奨: GITHUB_APP_PRIVATE_KEY_B64 を .env に設定する
+  #   FILE 形式を使う場合: volumes で .pem をマウントし、
+  #     GITHUB_APP_PRIVATE_KEY_FILE=/run/secrets/github-app.pem を設定する
   thread-owl:
     build: .
     ports:
       - "3000:3000"
     env_file:
       - .env
+    # FILE 形式を使う場合のみ volumes を有効化する:
+    # volumes:
+    #   - ${GITHUB_APP_PRIVATE_KEY_FILE_HOST:?set GITHUB_APP_PRIVATE_KEY_FILE_HOST}:/run/secrets/github-app.pem:ro
+    restart: unless-stopped
+
+  # Webhook 受信サーバー
+  # 秘密鍵の渡し方は thread-owl サービスと同じ
+  thread-owl-webhook:
+    build: .
+    command: ["--webhook"]
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      HOST: "0.0.0.0"
+    env_file:
+      - .env
+    # FILE 形式を使う場合のみ volumes を有効化する:
+    # volumes:
+    #   - ${GITHUB_APP_PRIVATE_KEY_FILE_HOST:?set GITHUB_APP_PRIVATE_KEY_FILE_HOST}:/run/secrets/github-app.pem:ro
     restart: unless-stopped

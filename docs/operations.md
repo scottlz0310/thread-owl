@@ -8,10 +8,12 @@
 | `GITHUB_APP_PRIVATE_KEY_FILE` | 秘密鍵のいずれか1つ | `.pem` のファイルパス（ローカル開発推奨） |
 | `GITHUB_APP_PRIVATE_KEY_B64` | 秘密鍵のいずれか1つ | `.pem` を base64 化した1行（Bitwarden / dsx 注入推奨） |
 | `GITHUB_APP_PRIVATE_KEY` | 秘密鍵のいずれか1つ | PEM の改行を `\n` でエスケープした1行（後方互換・脆弱） |
-| `GITHUB_WEBHOOK_SECRET` | 必須 | Webhook 署名検証用 HMAC シークレット |
+| `GITHUB_WEBHOOK_SECRET` | `--webhook` モードで必須 | Webhook 署名検証用 HMAC シークレット |
 | `ALLOWED_REPOS` | 必須 | `owner/repo` 形式をカンマ区切りで列挙（空なら全 write 拒否） |
+| `APP_SLUG` | 任意（デフォルト: `thread-owl`） | GitHub App の slug。自 App bot イベントのループ防止に使用。App 名を変えた場合は必ず設定する |
 | `PORT` | 任意（デフォルト: 3000） | HTTP サーバーポート |
 | `HOST` | 任意（デフォルト: 127.0.0.1） | HTTP サーバー bind アドレス |
+| `MCP_HTTP_PATH` | 任意（デフォルト: `/mcp`） | Streamable HTTP MCP endpoint のパス |
 | `LOG_LEVEL` | 任意（デフォルト: `info`） | ログレベル: `trace` / `debug` / `info` / `warn` / `error` |
 
 秘密鍵は `*_FILE` > `*_B64` > `*`（raw）の優先順位で解決する。詳細は [github-app-setup.md](./github-app-setup.md) を参照。
@@ -32,19 +34,43 @@ node dist/index.js --mcp
 
 # MCP server（Streamable HTTP）
 node dist/index.js --mcp-http
+
+# Webhook 受信サーバー
+node dist/index.js --webhook
 ```
 
 ## Docker で実行
 
 ```bash
+# 内部 API サーバーのみ
+docker compose up thread-owl --build
+
+# Webhook 受信サーバーのみ
+docker compose up thread-owl-webhook --build
+
+# 両方同時に起動
 docker compose up --build
 ```
+
+各サービスのデフォルトポート:
+
+| サービス | ポート | 用途 |
+|---------|--------|------|
+| `thread-owl` | 3000 | 内部 API（`/health`・`/status`・`/token`） |
+| `thread-owl-webhook` | 3001 | Webhook 受信（`POST /webhook`） |
 
 ## ヘルスチェック
 
 ```
 GET /health
-→ { "status": "ok", "version": "0.1.0", "uptime": 42.1 }
+→ { "status": "ok" }
+```
+
+バージョンや起動時刻は `/status` エンドポイントから取得できる（内部 API モードのみ）:
+
+```
+GET /status
+→ { "appId": "...", "version": "0.1.0", "startedAt": "2026-01-01T00:00:00.000Z" }
 ```
 
 ## Token Source（内部 API）
@@ -70,6 +96,9 @@ GET /token?owner=<owner>&repo=<repo>
 | `node dist/index.js` | internal API | `/health`・`/status`・`/token` |
 | `node dist/index.js --mcp` | stdio MCP | local-only / trusted local client |
 | `node dist/index.js --mcp-http` | Streamable HTTP MCP | mcp-gateway からの内部接続 |
+| `node dist/index.js --webhook` | Webhook 受信 | GitHub App Webhook イベントの受信・キュー投入 |
+
+各モードは排他的であり、複数フラグの同時指定は起動失敗する。
 
 ### stdio
 
@@ -163,6 +192,42 @@ Claude Desktop の設定例（`claude_desktop_config.json`）:
 7. **半自動レビューの動作確認**: レビュー用個人アカウントを外した状態で、MCP クライアント（Claude Desktop / ChatGPT Project 等）経由のレビュー運用が成立することを確認する。
 
 > 注: レビューの「判断」を行う human / LLM レビュアーは引き続き必要だが、GitHub へのレビュー投稿主体は Thread Owl (App) に一本化される。レビュー用個人アカウントを外す前に、必ず手順 3-4 で App 権限による投稿・返信が成立することを確認すること（fail-closed のため allowlist 設定漏れがあると write が拒否される）。resolve は修正側の権限で行う。
+
+## Webhook サーバー
+
+Webhook サーバーは GitHub App から送信されるイベントを受信し、レビューキューに投入する。
+
+### 処理するイベント
+
+| イベント | 処理する action | 処理内容 |
+|---------|----------------|---------|
+| `pull_request` | `opened` / `synchronize` / `ready_for_review` | レビューキューに投入 |
+| `issue_comment` | `created`（PR コメントのみ） | ログ記録（Phase 6 でキュー投入に変更予定） |
+| `pull_request_review` | `submitted` | ログ記録（Phase 6 でキュー投入に変更予定） |
+| `pull_request_review_comment` | `created` | ログ記録（Phase 6 でキュー投入に変更予定） |
+
+### Webhook エンドポイント
+
+```
+POST /webhook
+```
+
+必須ヘッダー:
+
+| ヘッダー | 説明 |
+|---------|------|
+| `X-Hub-Signature-256` | HMAC-SHA256 署名（`GITHUB_WEBHOOK_SECRET` で検証） |
+| `X-GitHub-Event` | イベント種別 |
+| `X-GitHub-Delivery` | 配信 ID（重複受信の dedup に使用） |
+
+### セキュリティ
+
+- 署名検証: `GITHUB_WEBHOOK_SECRET` を使用した HMAC-SHA256 検証。署名不一致は `401` を返す
+- 自己ループ防止: `APP_SLUG` に一致する bot sender からのイベントはスキップする
+- allowlist: `ALLOWED_REPOS` 外のリポジトリからのイベントはハンドラ内で無視する
+- 重複配信: delivery ID ベースの dedup（TTL 24h）で同一 delivery ID を無視する
+
+Webhook の設定手順・疎通確認は [webhook-operations.md](./webhook-operations.md) を参照。
 
 ## Claude Code skill / review MCP servers との責務整理
 
