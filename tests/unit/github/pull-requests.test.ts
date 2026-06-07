@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Logger } from "../../../src/config/logging.js";
 import type { GitHubClient } from "../../../src/github/client.js";
 import {
+  approvePR,
   getPR,
   getPRFiles,
   postInlineComment,
@@ -140,5 +141,67 @@ describe("postInlineComment", () => {
       RepositoryNotAllowedError,
     );
     expect(createReviewComment).not.toHaveBeenCalled();
+  });
+});
+
+describe("approvePR", () => {
+  function makeCtx(headSha: string, createReview: ReturnType<typeof vi.fn>): WriteContext {
+    return {
+      client: {
+        rest: {
+          pulls: {
+            get: vi.fn().mockResolvedValue({
+              data: {
+                number: 7,
+                title: "t",
+                body: null,
+                state: "open",
+                draft: false,
+                head: { sha: headSha, ref: "feat" },
+                base: { sha: "base", ref: "main" },
+                html_url: "u",
+              },
+            }),
+            createReview,
+          },
+        },
+      } as unknown as GitHubClient,
+      allowedRepos: ["o/r"],
+      logger: makeLogger(),
+    };
+  }
+
+  it("head SHA 一致なら APPROVE を呼び監査ログを残す", async () => {
+    const createReview = vi.fn().mockResolvedValue({ data: { id: 42 } });
+    const ctx = makeCtx("abc123", createReview);
+
+    await approvePR(ctx, "o", "r", 7, "abc123");
+
+    expect(createReview).toHaveBeenCalledWith(
+      expect.objectContaining({ commit_id: "abc123", event: "APPROVE" }),
+    );
+    expect(ctx.logger.info).toHaveBeenCalledWith(
+      "review.approve",
+      expect.objectContaining({ prNumber: 7, reviewId: 42, headSha: "abc123" }),
+    );
+  });
+
+  it("head SHA 不一致なら throw し createReview を呼ばない", async () => {
+    const createReview = vi.fn();
+    const ctx = makeCtx("current-sha", createReview);
+
+    await expect(approvePR(ctx, "o", "r", 7, "stale-sha")).rejects.toThrow("Head SHA mismatch");
+    expect(createReview).not.toHaveBeenCalled();
+  });
+
+  it("allowlist 外なら RepositoryNotAllowedError を throw し getPR を呼ばない", async () => {
+    const createReview = vi.fn();
+    const ctx = makeCtx("sha", createReview);
+    ctx.allowedRepos = ["o/r"];
+
+    await expect(approvePR(ctx, "evil", "repo", 7, "sha")).rejects.toThrow(
+      RepositoryNotAllowedError,
+    );
+    expect(createReview).not.toHaveBeenCalled();
   });
 });

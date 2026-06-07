@@ -123,12 +123,14 @@ export async function createReviewComment(
   return data.id;
 }
 
-// PR を APPROVE する。body は任意のレビューコメント。
+// PR を APPROVE する。expectedHeadSha を commit_id として渡すことで、
+// 呼び出し時点の head と異なる commit を誤 APPROVE するリスクを防ぐ。
 export async function approvePullRequest(
   client: GitHubClient,
   owner: string,
   repo: string,
   prNumber: number,
+  expectedHeadSha: string,
   body?: string,
 ): Promise<number> {
   const { data } = await request("pulls.createReview", () =>
@@ -136,6 +138,7 @@ export async function approvePullRequest(
       owner,
       repo,
       pull_number: prNumber,
+      commit_id: expectedHeadSha,
       event: "APPROVE",
       body: body ?? "",
     }),

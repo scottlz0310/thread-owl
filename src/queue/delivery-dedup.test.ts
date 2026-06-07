@@ -48,22 +48,26 @@ describe("createDeliveryDedup", () => {
     vi.useRealTimers();
   });
 
-  test("periodic GC removes expired entries from Map", () => {
+  test("periodic GC physically deletes expired entries without relying on isSeen lazy cleanup", () => {
     vi.useFakeTimers();
     const ttlMs = 1000;
     const gcIntervalMs = 500;
+    const deleteSpy = vi.spyOn(Map.prototype, "delete");
     const dedup = createDeliveryDedup(ttlMs, gcIntervalMs);
 
     dedup.markSeen("a");
     dedup.markSeen("b");
+    // markSeen 後のカウンタをリセット（Map 内部実装による delete 呼び出しを除外）
+    deleteSpy.mockClear();
 
-    // TTL 経過後に GC インターバルが発火して期限切れエントリが削除される
+    // TTL + GC インターバル経過後に GC が期限切れエントリを直接 delete する
     vi.advanceTimersByTime(ttlMs + gcIntervalMs);
 
-    // GC 後は期限切れエントリが Map から消え、isSeen は false を返す
-    expect(dedup.isSeen("a")).toBe(false);
-    expect(dedup.isSeen("b")).toBe(false);
+    // isSeen()（lazy cleanup）を呼ばずに GC が Map.delete を呼んだことを確認
+    expect(deleteSpy).toHaveBeenCalledWith("a");
+    expect(deleteSpy).toHaveBeenCalledWith("b");
 
+    deleteSpy.mockRestore();
     dedup.dispose();
     vi.useRealTimers();
   });
