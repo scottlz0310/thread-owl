@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  RepositoryNotAllowedError,
   assertRepoWritable,
   isAllowed,
   parseAllowlist,
+  RepositoryNotAllowedError,
 } from "../../../src/policy/allowlist.js";
 
 describe("isAllowed", () => {

@@ -1,6 +1,6 @@
 // GitHub App JWT generation (RS256, 10-minute lifetime)
 
-import { type KeyObject, createPrivateKey } from "node:crypto";
+import { createPrivateKey, type KeyObject } from "node:crypto";
 import { SignJWT } from "jose";
 
 export interface AppJwtOptions {
