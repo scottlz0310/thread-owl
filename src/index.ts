@@ -156,6 +156,7 @@ if (mode === "mcp-stdio") {
       dedup: createDeliveryDedup(),
       queue: createReviewQueue(),
       logger,
+      allowedRepos: config.policy.allowedRepos,
     }),
   );
 

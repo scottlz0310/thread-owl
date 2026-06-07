@@ -15,6 +15,7 @@ export interface WebhookReceiverDeps {
   dedup: DeliveryDedup;
   queue: ReviewQueue;
   logger: Logger;
+  allowedRepos: readonly string[];
 }
 
 const SUPPORTED_EVENTS = new Set([
@@ -84,7 +85,11 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
 
     try {
       if (normalized.type === "pull_request") {
-        await handlePullRequestEvent(normalized, { queue: deps.queue, logger: deps.logger });
+        await handlePullRequestEvent(normalized, {
+          queue: deps.queue,
+          logger: deps.logger,
+          allowedRepos: deps.allowedRepos,
+        });
       } else if (normalized.type === "issue_comment") {
         await handleIssueCommentEvent(normalized, { logger: deps.logger });
       } else if (normalized.type === "pull_request_review") {

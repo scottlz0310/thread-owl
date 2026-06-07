@@ -12,6 +12,7 @@
 - plan.md をルートから docs/plan.md に移動
 
 ### Added
+- `pull_request` webhook イベントハンドラ（#46）: `opened` / `synchronize` / `ready_for_review` をキューに投入。draft PR はスキップ（`ready_for_review` は通過）、allowlist 外は無視。`WebhookReceiverDeps` に `allowedRepos` を追加
 - `approve_pull_request` MCP ツール（#52）: `pulls.createReview` + `event: "APPROVE"` で PR を承認する。allowlist ガード・監査ログ付き。body は任意
 - delivery-dedup 定期 GC（#51）: `createDeliveryDedup` に `gcIntervalMs`（デフォルト 1h）パラメータを追加し、`setInterval` で期限切れエントリを定期全スキャン削除する。プロセス終了をブロックしないよう `.unref()` を付与し、`dispose()` で停止可能にした
 - mcp-gateway 統合（#35）: `MCP_HTTP_PATH` 環境変数を追加し、mcp-gateway がプレフィックスをストリップせず転送する挙動に合わせて MCP HTTP endpoint のサーブパスを設定可能にした（Docker 運用時は `MCP_HTTP_PATH=/mcp/thread-owl`）。`GITHUB_WEBHOOK_SECRET` を optional 化（Phase 5 Webhook 受信まで未使用）。Dockerfile を `ENTRYPOINT` + `CMD []` に分離し compose の `command: ["--mcp-http"]` でモード指定できるようにした
