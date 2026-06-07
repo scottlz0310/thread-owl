@@ -4,7 +4,7 @@
 
 1. **Settings → Developer settings → GitHub Apps → New GitHub App** を開く
 2. 以下を入力する:
-   - **GitHub App name**: `Thread Owl`（任意の名前でよい）
+   - **GitHub App name**: `Thread Owl`（任意の名前でよい。GitHub が名前から slug を自動生成する。slug は App URL `https://github.com/apps/<slug>` の末尾部分で、後述の `APP_SLUG` 環境変数に設定する）
    - **Homepage URL**: リポジトリの URL
    - **Webhook URL**: `https://<ホスト名>/webhook`（後で設定しても可）
    - **Webhook secret**: ランダムな文字列を生成して控えておく
@@ -59,7 +59,12 @@
 GITHUB_APP_ID=<App の数値 ID>
 GITHUB_WEBHOOK_SECRET=<Webhook secret>
 ALLOWED_REPOS=owner/repo1,owner/repo2
+
+# App 名を Thread Owl 以外にした場合は slug を変更する（デフォルト: thread-owl）
+APP_SLUG=<GitHub App URL の slug>
 ```
+
+> **`APP_SLUG` について**: 自 App が作成した webhook イベントのループ防止に使用する。デフォルト値は `thread-owl` だが、App 名を変えると slug も変わるため、デフォルトのままでは自己イベントを除外できなくなる。App 名を変えた場合は必ず設定する。
 
 ### 秘密鍵の渡し方（3形式）
 
