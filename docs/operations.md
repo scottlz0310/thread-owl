@@ -254,15 +254,78 @@ POST /webhook
 
 Webhook の設定手順・疎通確認は [webhook-operations.md](./webhook-operations.md) を参照。
 
-## Claude Code skill / review MCP servers との責務整理
+## 周辺ツール・MCP servers との責務整理
 
-| コンポーネント | 役割 |
-|---------------|------|
-| **Thread Owl (MCP server)** | レビュアー側 GitHub App 権限での review 操作（PR/スレッド取得・コメント投稿・返信）を MCP tools として提供。認証・権限（allowlist）・監査ログを担う。LLM は内蔵しない |
-| **`pr-review-subscribe`（Claude Code skill）** | PR レビューサイクルの管理（レビュー取得 → スレッド分類 → 修正 → reply → resolve → サマリ）。acquisition provider（copilot-review / codex / external / existing）を抽象化する |
-| **`github-mcp`** | 修正側のユーザー権限で review thread への返信・resolve を行う |
-| **`copilot-review-mcp`（MCP server 登録名: `copilot-review`）** | GitHub Copilot review の取得経路。修正側のユーザー権限で review thread への返信・resolve も行う |
+| コンポーネント | 立場 | 役割 |
+|---|---|---|
+| **Thread Owl (MCP server)** | review する側 / subscribe **される**側 | レビュアー側 GitHub App 権限での review 操作（PR/スレッド取得・コメント投稿・返信）を MCP tools として提供。`queue://review/queue` を expose し通知を出す。LLM は内蔵しない |
+| **`mcp-resource-subscriber`** | subscribe **する**側 / agent workflow bridge | `queue://review/queue` を subscribe し、`notifications/resources/updated` 受信後に `resources/read` → structured JSON を返す。CLI agent が long-lived subscription を安定保持できない場合に使用する |
+| **`pr-review-subscribe`（Claude Code skill）** | ワークフロー管理 | PR レビューサイクルの管理（レビュー取得 → スレッド分類 → 修正 → reply → resolve → サマリ）。acquisition provider（`thread-owl` / `copilot-review` / `codex` / `external` / `existing`）を抽象化する |
+| **`github-mcp`** | review を受けて直す側 | 修正側のユーザー権限で review thread への返信・resolve を行う |
+| **`copilot-review-mcp`（MCP server 登録名: `copilot-review`）** | review を受けて直す側 | GitHub Copilot review の取得経路。修正側のユーザー権限で review thread への返信・resolve も行う |
 
 - Thread Owl は「GitHub への安全な read/write」、`pr-review-subscribe` は「いつ・どのレビューを取得し、どう処理するか」のワークフローを担当し、責務が分離している。
 - Thread Owl はレビュアー側としてスレッドを resolve しない。修正完了の判断と resolve は修正側 MCP の責務とする。
 - レビューの判断（指摘内容の生成や合否）は MCP クライアント側の LLM / human が行う。
+- Thread Owl に subscription client / watcher CLI / agent wait loop は内蔵しない。長期待機と通知受信は `mcp-resource-subscriber` に委譲する。
+
+詳細は [architecture.md の「周辺レビュー基盤との責務境界」](./architecture.md#周辺レビュー基盤との責務境界) を参照。
+
+## queue://review/queue の購読方法
+
+combined モード（`--webhook-mcp-http`）で起動中の Thread Owl MCP server に対して、
+`queue://review/queue` を subscribe してレビュー候補を待ち受ける方法を示す。
+
+### mcp-resource-subscriber を使う場合
+
+CLI agent が long-lived subscription を安定保持できない場合（Claude Code skill 等）に推奨:
+
+```sh
+pnpm dlx mcp-resource-subscriber \
+  --url http://localhost:3000/mcp \
+  --uri queue://review/queue \
+  --timeout-ms 900000
+```
+
+出力例（通知受信時）:
+
+```json
+{
+  "route": "notification-received",
+  "notification-received": true,
+  "resource": [
+    {
+      "owner": "org",
+      "repo": "my-repo",
+      "prNumber": 42,
+      "installationId": 12345,
+      "queuedAt": "2026-06-08T00:00:00.000Z",
+      "reason": "opened"
+    }
+  ]
+}
+```
+
+出力例（起動時点でキューに既存エントリがある場合）:
+
+```json
+{
+  "route": "pre-completion",
+  "resource": [...]
+}
+```
+
+CLI agent はこの出力をパースして Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
+
+### MCP client が native subscribe を使う場合
+
+MCP client が `resources/subscribe` を native にサポートし、long-lived 接続を安定保持できる場合は、
+直接 `queue://review/queue` を subscribe して `notifications/resources/updated` を受信し、
+`resources/read` で最新キューを取得する方式でも構わない。
+
+```
+client.subscribeResource({ uri: "queue://review/queue" })
+  → notifications/resources/updated 受信
+  → client.readResource({ uri: "queue://review/queue" })
+  → キュー内容（ReviewCandidate[]）を取得してワークフローへ
+```
