@@ -135,7 +135,15 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       session,
       QUEUE_RESOURCE_URI,
     );
-    server.server.onclose = () => notifier.dispose();
+    const prevOnclose = server.server.onclose;
+    server.server.onclose = () => {
+      try {
+        prevOnclose?.();
+      } finally {
+        notifier.dispose();
+        session.dispose();
+      }
+    };
 
     server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: [

@@ -46,7 +46,6 @@ export function createQueueNotifier(
       removeListener = undefined;
     },
     dispose(): void {
-      session.dispose();
       removeListener?.();
       removeListener = undefined;
     },

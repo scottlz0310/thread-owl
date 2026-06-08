@@ -74,6 +74,14 @@ describe("createQueueNotifier", () => {
     notifier.dispose();
   });
 
+  test("dispose は session.dispose() を呼ばない（session のライフサイクルは caller が管理する）", () => {
+    const { notifier, session } = setup();
+    notifier.handleSubscribe();
+    notifier.dispose();
+    // session は依然として subscribe 状態のまま — notifier が session を壊さない
+    expect(session.isSubscribed(TEST_URI)).toBe(true);
+  });
+
   test("dispose 後に enqueue しても sendUpdated は呼ばれない", async () => {
     const { queue, notifier, sendUpdated } = setup();
     notifier.handleSubscribe();
