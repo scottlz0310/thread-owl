@@ -289,33 +289,35 @@ pnpm dlx mcp-resource-subscriber \
 
 出力例（通知受信時）:
 
-```json
-{
-  "route": "notification-received",
-  "notification-received": true,
-  "resource": [
-    {
-      "owner": "org",
-      "repo": "my-repo",
-      "prNumber": 42,
-      "installationId": 12345,
-      "queuedAt": "2026-06-08T00:00:00.000Z",
-      "reason": "opened"
-    }
-  ]
-}
+```
+capabilities {"subscribe":true,"listChanged":false}
+resource-found true
+resource-uri queue://review/queue
+server-url http://localhost:3000/mcp
+initial
+[]
+route subscription
+subscribed true
+notification-received true
+notification-count 1
+unsubscribed true
+error-code null
+notification queue://review/queue
+final
+[{"owner":"org","repo":"my-repo","prNumber":42,"installationId":12345,"queuedAt":"2026-06-08T00:00:00.000Z","reason":"opened"}]
+phase-summary route=subscription url=http://localhost:3000/mcp uri=queue://review/queue
 ```
 
-出力例（起動時点でキューに既存エントリがある場合）:
+出力例（タイムアウト時）:
 
-```json
-{
-  "route": "pre-completion",
-  "resource": [...]
-}
+```
+error-code NOTIFICATION_TIMEOUT
+phase-summary route=timeout url=http://localhost:3000/mcp uri=queue://review/queue error-code=NOTIFICATION_TIMEOUT
 ```
 
-CLI agent はこの出力をパースして Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
+CLI agent は `phase-summary` の `route=subscription` を確認し、`final` ブロックの JSON をパースして Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
+
+> **将来の `--json` mode（[mcp-resource-subscriber#86](https://github.com/scottlz0310/mcp-resource-subscriber/issues/86) 実装後）**: `--json` フラグを追加すると、上記 line-based output の代わりに単一の JSON オブジェクトが stdout に出力される。agent workflow から JSON として直接パースできるようになる。
 
 ### MCP client が native subscribe を使う場合
 
