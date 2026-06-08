@@ -10,6 +10,8 @@ import {
   UnsubscribeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
+import { createSubscriptionSession } from "./subscriptions/listen.js";
+import { createQueueNotifier } from "./subscriptions/notify.js";
 import type { ToolDeps } from "./tool-deps.js";
 import {
   APPROVE_PULL_REQUEST_TOOL_NAME,
@@ -126,10 +128,14 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
 
   if (deps.queue) {
     const queue = deps.queue;
-    const subscriptions = new Set<string>();
-    // unsubscribe 時に listener を解除できるよう外側のスコープで保持する。
-    // subscribe → unsubscribe → re-subscribe の際に listener が蓄積するのを防ぐ。
-    let removeEnqueueListener: (() => void) | undefined;
+    const session = createSubscriptionSession();
+    const notifier = createQueueNotifier(
+      queue,
+      (uri) => server.server.sendResourceUpdated({ uri }),
+      session,
+      QUEUE_RESOURCE_URI,
+    );
+    server.server.onclose = () => notifier.dispose();
 
     server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: [
@@ -162,28 +168,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       if (request.params.uri !== QUEUE_RESOURCE_URI) {
         throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
       }
-      if (!subscriptions.has(QUEUE_RESOURCE_URI)) {
-        subscriptions.add(QUEUE_RESOURCE_URI);
-        // enqueue 時にクライアントへ push。sendResourceUpdated 失敗 = セッション終了として auto-cleanup。
-        removeEnqueueListener = queue.onEnqueue(() => {
-          if (!subscriptions.has(QUEUE_RESOURCE_URI)) {
-            removeEnqueueListener?.();
-            removeEnqueueListener = undefined;
-            return;
-          }
-          // sendResourceUpdated が pending 中に unsubscribe → re-subscribe が起きた場合、
-          // catch 時点で removeEnqueueListener は新 listener を指している可能性がある。
-          // selfRemove で自身の disposer を捕捉し、新 listener を誤解除しないよう guard する。
-          const selfRemove = removeEnqueueListener;
-          void server.server.sendResourceUpdated({ uri: QUEUE_RESOURCE_URI }).catch(() => {
-            if (removeEnqueueListener === selfRemove) {
-              subscriptions.delete(QUEUE_RESOURCE_URI);
-              removeEnqueueListener?.();
-              removeEnqueueListener = undefined;
-            }
-          });
-        });
-      }
+      notifier.handleSubscribe();
       return {};
     });
 
@@ -191,9 +176,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       if (request.params.uri !== QUEUE_RESOURCE_URI) {
         throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
       }
-      subscriptions.delete(QUEUE_RESOURCE_URI);
-      removeEnqueueListener?.();
-      removeEnqueueListener = undefined;
+      notifier.handleUnsubscribe();
       return {};
     });
   }
