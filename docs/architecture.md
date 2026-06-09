@@ -82,10 +82,12 @@ GitHub
   ▼
 Thread Owl (--webhook-mcp-http)
   │  review candidate を判定・enqueue
-  ▼
-queue://review/queue  ─── notifications/resources/updated ──►  MCP client
-  │  resources/read                                            （native subscribe の場合）
-  │
+  ├─► queue://review/queue              ─── notifications/resources/updated ──►  通常レビュー subscriber
+  │     opened / synchronized / re-review-requested を通知
+  └─► queue://review/re-review-requests ─── notifications/resources/updated ──►  re-review handoff subscriber
+        re-review-requested のみ通知（push-first 経路で synchronized が先着しても終端しない）
+
+  │  resources/read
   ▼
 mcp-resource-subscriber（CLI agent が long-lived subscribe を保持できない場合）
   │  structured JSON output
@@ -102,10 +104,17 @@ Claude Code / agent workflow
        re-review 依頼
 ```
 
+### MCP リソース一覧
+
+| URI | 通知トリガー | 用途 |
+|-----|-------------|------|
+| `queue://review/queue` | `opened` / `synchronized` / `re-review-requested` | 通常レビューの subscriber 起動 |
+| `queue://review/re-review-requests` | `re-review-requested` のみ | re-review handoff subscriber 起動（push-first 経路での early termination を防ぐ） |
+
 ### 設計原則
 
 - Thread Owl 本体に subscription client / watcher CLI / agent wait loop を内蔵しない
-- Thread Owl は `queue://review/queue` を expose し、subscribe される側に徹する
+- Thread Owl は `queue://review/queue` と `queue://review/re-review-requests` を expose し、subscribe される側に徹する
 - MCP client が `resources/subscribe` を native に安定保持できる場合は直接利用してよい
 - CLI agent が long-lived subscription を安定保持できない場合は `mcp-resource-subscriber` を外部コマンドとして呼び出す
 - review を受けて直す側の操作（resolve / unresolve / 再レビュー依頼）は Thread Owl ではなく review-response 系 repo に寄せる
