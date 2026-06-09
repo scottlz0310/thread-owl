@@ -95,8 +95,10 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
         });
       } else if (normalized.type === "issue_comment") {
         await handleIssueCommentEvent(normalized, {
+          queue: deps.queue,
           logger: deps.logger,
           allowedRepos: deps.allowedRepos,
+          appSlug: deps.appSlug,
         });
       } else if (normalized.type === "pull_request_review") {
         await handlePullRequestReviewEvent(normalized, {

@@ -7,6 +7,9 @@ export interface ReviewCandidate {
   installationId: number;
   queuedAt: Date;
   reason: "opened" | "synchronized" | "re-review-requested";
+  // re-review-requested のとき付与
+  sourceCommentId?: number;
+  requestedBy?: string;
 }
 
 export interface ReviewQueue {
