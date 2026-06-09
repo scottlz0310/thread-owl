@@ -5,6 +5,9 @@
 ### Fixed
 - GitHub App JWT の `exp` をクロックドリフト考慮なしで `now + 600` に設定していたため、実行環境の時計が GitHub より数秒進んでいると `'exp' is too far in the future` 401 が発生していた（#77）。`exp = iat + 600`（= `now + 540`）に修正し、`exp - iat <= 600` を単体テストで保証
 
+### Added (next)
+- `issue_comment` webhook で `@<appSlug>` mention + re-review intent（`re-review` / `rereview` / `review again` / `再レビュー`）を検出し、`reason: "re-review-requested"` で review queue に enqueue する（#79）。`ReviewCandidate` に `sourceCommentId` / `requestedBy` を optional フィールドとして追加。`queue://review/queue` の `resources/updated` 通知は既存の `onEnqueue` フックで自動発火
+
 ### Added
 - combined モード `--webhook-mcp-http`（#67, #68）: 同一プロセス・同一ポートで Webhook 受信と MCP HTTP を共存。`createSharedRuntime()` で queue/dedup を一元生成し、enqueue イベントが `notifications/resources/updated` として MCP クライアントへ push される。`docker-compose.yml` に `thread-owl-combined` サービス（port 3002）追加
 - MCP resource `queue://review/queue`（#68）: `--webhook-mcp-http` / `--mcp-http` + queue 注入時に有効。`resources/subscribe` で enqueue 通知を受信可能。subscribe → unsubscribe → re-subscribe の listener 重複バグおよび pending 中レース条件を修正済み

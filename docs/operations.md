@@ -271,14 +271,24 @@ Webhook の設定手順・疎通確認は [webhook-operations.md](./webhook-oper
 
 詳細は [architecture.md の「周辺レビュー基盤との責務境界」](./architecture.md#周辺レビュー基盤との責務境界) を参照。
 
-## queue://review/queue の購読方法
+## MCP リソースの購読方法
 
-combined モード（`--webhook-mcp-http`）で起動中の Thread Owl MCP server に対して、
-`queue://review/queue` を subscribe してレビュー候補を待ち受ける方法を示す。
+Thread Owl は 2 つの購読可能なリソースを expose する。用途に応じて適切な URI を選択すること。
+
+| URI | 通知タイミング | 用途 |
+|-----|--------------|------|
+| `queue://review/queue` | opened / synchronized / re-review-requested | 通常レビューの subscriber 起動 |
+| `queue://review/re-review-requests` | **re-review-requested のみ** | re-review handoff subscriber 起動 |
+
+**re-review handoff subscriber は必ず `queue://review/re-review-requests` を購読すること。**  
+`queue://review/queue` を購読すると、commit push による `synchronized` 通知で subscriber が先に終端し、
+直後の `re-review-requested` 通知を見逃す（push-first 経路での early termination）。
 
 ### mcp-resource-subscriber を使う場合
 
 CLI agent が long-lived subscription を安定保持できない場合（Claude Code skill 等）に推奨:
+
+**通常レビュー**（opened / synchronized を含む全 enqueue を検知）:
 
 ```sh
 pnpm dlx mcp-resource-subscriber \
@@ -287,12 +297,21 @@ pnpm dlx mcp-resource-subscriber \
   --timeout-ms 900000
 ```
 
+**re-review handoff**（re-review-requested のみを検知。push-first 経路での early termination を防ぐ）:
+
+```sh
+pnpm dlx mcp-resource-subscriber \
+  --url http://localhost:3000/mcp \
+  --uri queue://review/re-review-requests \
+  --timeout-ms 900000
+```
+
 出力例（通知受信時）:
 
 ```
 capabilities {"subscribe":true,"listChanged":false}
 resource-found true
-resource-uri queue://review/queue
+resource-uri queue://review/re-review-requests
 server-url http://localhost:3000/mcp
 initial
 []
@@ -302,17 +321,17 @@ notification-received true
 notification-count 1
 unsubscribed true
 error-code null
-notification queue://review/queue
+notification queue://review/re-review-requests
 final
-[{"owner":"org","repo":"my-repo","prNumber":42,"installationId":12345,"queuedAt":"2026-06-08T00:00:00.000Z","reason":"opened"}]
-phase-summary route=subscription url=http://localhost:3000/mcp uri=queue://review/queue
+[{"owner":"org","repo":"my-repo","prNumber":42,"installationId":12345,"queuedAt":"2026-06-08T00:00:00.000Z","reason":"re-review-requested","sourceCommentId":99,"requestedBy":"human-user"}]
+phase-summary route=subscription url=http://localhost:3000/mcp uri=queue://review/re-review-requests
 ```
 
 出力例（タイムアウト時）:
 
 ```
 error-code NOTIFICATION_TIMEOUT
-phase-summary route=timeout url=http://localhost:3000/mcp uri=queue://review/queue error-code=NOTIFICATION_TIMEOUT
+phase-summary route=timeout url=http://localhost:3000/mcp uri=queue://review/re-review-requests error-code=NOTIFICATION_TIMEOUT
 ```
 
 CLI agent は `phase-summary` の `route=subscription` を確認し、`final` ブロックの JSON をパースして Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
@@ -322,12 +341,12 @@ CLI agent は `phase-summary` の `route=subscription` を確認し、`final` �
 ### MCP client が native subscribe を使う場合
 
 MCP client が `resources/subscribe` を native にサポートし、long-lived 接続を安定保持できる場合は、
-直接 `queue://review/queue` を subscribe して `notifications/resources/updated` を受信し、
-`resources/read` で最新キューを取得する方式でも構わない。
+直接 subscribe して `notifications/resources/updated` を受信し、`resources/read` で最新キューを取得する。
 
 ```
-client.subscribeResource({ uri: "queue://review/queue" })
-  → notifications/resources/updated 受信
-  → client.readResource({ uri: "queue://review/queue" })
-  → キュー内容（ReviewCandidate[]）を取得してワークフローへ
+# re-review handoff subscriber
+client.subscribeResource({ uri: "queue://review/re-review-requests" })
+  → notifications/resources/updated 受信（re-review-requested 時のみ）
+  → client.readResource({ uri: "queue://review/re-review-requests" })
+  → re-review-requested エントリのみ含む ReviewCandidate[] を取得してワークフローへ
 ```
