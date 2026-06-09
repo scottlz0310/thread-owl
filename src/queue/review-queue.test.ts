@@ -143,6 +143,20 @@ describe("createReviewQueue", () => {
 
       expect(count).toBe(1); // re-review-requested の enqueue のみ
     });
+
+    test("synchronized → re-review-requested: push-first でも最初の通知が re-review-requested", () => {
+      const q = createReviewQueue();
+      const notifiedReasons: string[] = [];
+      q.onEnqueue(() => {
+        const top = q.list()[0];
+        if (top) notifiedReasons.push(top.reason);
+      });
+
+      q.enqueue(makeCandidate(1, "synchronized")); // 通知しない
+      q.enqueue(makeCandidate(1, "re-review-requested")); // 通知する
+
+      expect(notifiedReasons).toEqual(["re-review-requested"]);
+    });
   });
 
   describe("size limit", () => {
@@ -197,15 +211,15 @@ describe("createReviewQueue", () => {
       expect(b).toBe(1);
     });
 
-    test("listener is called even when enqueue deduplicates same PR", () => {
+    test("synchronized は listener を呼ばない", () => {
       const q = createReviewQueue();
       let count = 0;
       q.onEnqueue(() => count++);
 
       q.enqueue(makeCandidate(1, "opened"));
-      q.enqueue(makeCandidate(1, "synchronized"));
+      q.enqueue(makeCandidate(1, "synchronized")); // 通知しない
 
-      expect(count).toBe(2);
+      expect(count).toBe(1);
     });
   });
 });
