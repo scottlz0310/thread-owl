@@ -36,6 +36,14 @@ export function createReviewQueue(): ReviewQueue {
       // dedup を先に行うことで、同一 PR の再エンキューは上限カウントに影響しない。
       // 順序を逆にすると、満杯時に同一 PR を再エンキューすると無関係な最古エントリが誤って削除される。
       if (existing !== -1) {
+        // re-review-requested は synchronized / opened より優先する。
+        // 修正 push のタイミングで先着の re-review-requested が上書きされないよう保護する。
+        if (
+          items[existing].reason === "re-review-requested" &&
+          candidate.reason !== "re-review-requested"
+        ) {
+          return;
+        }
         items.splice(existing, 1);
       }
       if (items.length >= MAX_QUEUE_SIZE) {

@@ -84,6 +84,67 @@ describe("createReviewQueue", () => {
     });
   });
 
+  describe("re-review-requested 優先度", () => {
+    test("re-review-requested → synchronized: synchronized は上書きしない（webhook 到着順: comment first）", () => {
+      const q = createReviewQueue();
+      q.enqueue(makeCandidate(1, "re-review-requested"));
+      q.enqueue(makeCandidate(1, "synchronized"));
+
+      expect(q.size()).toBe(1);
+      expect(q.dequeue()?.reason).toBe("re-review-requested");
+    });
+
+    test("synchronized → re-review-requested: re-review-requested が上書きする（webhook 到着順: push first）", () => {
+      const q = createReviewQueue();
+      q.enqueue(makeCandidate(1, "synchronized"));
+      q.enqueue(makeCandidate(1, "re-review-requested"));
+
+      expect(q.size()).toBe(1);
+      expect(q.dequeue()?.reason).toBe("re-review-requested");
+    });
+
+    test("re-review-requested → opened: opened は上書きしない", () => {
+      const q = createReviewQueue();
+      q.enqueue(makeCandidate(1, "re-review-requested"));
+      q.enqueue(makeCandidate(1, "opened"));
+
+      expect(q.size()).toBe(1);
+      expect(q.dequeue()?.reason).toBe("re-review-requested");
+    });
+
+    test("re-review-requested → re-review-requested: 新しい依頼で上書きする", () => {
+      const q = createReviewQueue();
+      const first = {
+        ...makeCandidate(1, "re-review-requested"),
+        sourceCommentId: 100,
+        requestedBy: "alice",
+      };
+      const second = {
+        ...makeCandidate(1, "re-review-requested"),
+        sourceCommentId: 200,
+        requestedBy: "bob",
+      };
+      q.enqueue(first);
+      q.enqueue(second);
+
+      const result = q.dequeue();
+      expect(result?.reason).toBe("re-review-requested");
+      expect(result?.sourceCommentId).toBe(200);
+      expect(result?.requestedBy).toBe("bob");
+    });
+
+    test("re-review-requested → synchronized: listener は呼ばれない（通知しない）", () => {
+      const q = createReviewQueue();
+      let count = 0;
+      q.onEnqueue(() => count++);
+
+      q.enqueue(makeCandidate(1, "re-review-requested"));
+      q.enqueue(makeCandidate(1, "synchronized"));
+
+      expect(count).toBe(1); // re-review-requested の enqueue のみ
+    });
+  });
+
   describe("size limit", () => {
     test("drops oldest entry when limit (100) is reached", () => {
       const q = createReviewQueue();
