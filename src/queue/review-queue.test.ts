@@ -223,4 +223,70 @@ describe("createReviewQueue", () => {
       expect(count).toBe(2);
     });
   });
+
+  describe("onReReviewRequested", () => {
+    test("re-review-requested enqueue 時のみ listener を呼ぶ", () => {
+      const q = createReviewQueue();
+      let count = 0;
+      q.onReReviewRequested(() => count++);
+
+      q.enqueue(makeCandidate(1, "opened"));
+      q.enqueue(makeCandidate(2, "synchronized"));
+      q.enqueue(makeCandidate(3, "re-review-requested"));
+
+      expect(count).toBe(1);
+    });
+
+    test("opened / synchronized では呼ばれない", () => {
+      const q = createReviewQueue();
+      const reasons: string[] = [];
+      q.onReReviewRequested(() => reasons.push("fired"));
+
+      q.enqueue(makeCandidate(1, "opened"));
+      q.enqueue(makeCandidate(2, "synchronized"));
+
+      expect(reasons).toHaveLength(0);
+    });
+
+    test("returned dispose で listener を解除できる", () => {
+      const q = createReviewQueue();
+      let count = 0;
+      const dispose = q.onReReviewRequested(() => count++);
+
+      q.enqueue(makeCandidate(1, "re-review-requested"));
+      dispose();
+      q.enqueue(makeCandidate(2, "re-review-requested"));
+
+      expect(count).toBe(1);
+    });
+
+    test("onEnqueue と onReReviewRequested は独立して発火する", () => {
+      const q = createReviewQueue();
+      let allCount = 0;
+      let reReviewCount = 0;
+      q.onEnqueue(() => allCount++);
+      q.onReReviewRequested(() => reReviewCount++);
+
+      q.enqueue(makeCandidate(1, "opened"));
+      q.enqueue(makeCandidate(2, "synchronized"));
+      q.enqueue(makeCandidate(3, "re-review-requested"));
+
+      expect(allCount).toBe(3);
+      expect(reReviewCount).toBe(1);
+    });
+
+    test("push-first（synchronized → re-review-requested）: onReReviewRequested は synchronized では発火しない", () => {
+      const q = createReviewQueue();
+      const reReviewNotified: string[] = [];
+      q.onReReviewRequested(() => {
+        const top = q.list()[0];
+        if (top) reReviewNotified.push(top.reason);
+      });
+
+      q.enqueue(makeCandidate(1, "synchronized")); // onReReviewRequested は発火しない
+      q.enqueue(makeCandidate(1, "re-review-requested")); // 発火する
+
+      expect(reReviewNotified).toEqual(["re-review-requested"]);
+    });
+  });
 });

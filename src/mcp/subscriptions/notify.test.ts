@@ -20,7 +20,12 @@ function setup(overrides?: { sendUpdated?: (uri: string) => Promise<void> }) {
   const queue = createReviewQueue();
   const session = createSubscriptionSession();
   const sendUpdated = overrides?.sendUpdated ?? vi.fn().mockResolvedValue(undefined);
-  const notifier = createQueueNotifier(queue, sendUpdated, session, TEST_URI);
+  const notifier = createQueueNotifier(
+    (listener) => queue.onEnqueue(listener),
+    sendUpdated,
+    session,
+    TEST_URI,
+  );
   return { queue, session, sendUpdated, notifier };
 }
 

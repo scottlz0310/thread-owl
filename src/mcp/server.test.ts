@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, test, vi } from "vitest";
 import { createReviewQueue, type ReviewCandidate } from "../queue/review-queue.js";
-import { createMcpServer, QUEUE_RESOURCE_URI } from "./server.js";
+import { createMcpServer, QUEUE_RESOURCE_URI, RE_REVIEW_RESOURCE_URI } from "./server.js";
 
 function makeCandidate(prNumber = 1): ReviewCandidate {
   return {
@@ -46,13 +46,14 @@ async function setupServerAndClient(queue: ReturnType<typeof createReviewQueue>)
 }
 
 describe("createMcpServer — queue resource listing and reading", () => {
-  test("listResources returns queue://review/queue", async () => {
+  test("listResources returns both queue resources", async () => {
     const queue = createReviewQueue();
     const { server, client } = await setupServerAndClient(queue);
 
     const result = await client.listResources();
-    expect(result.resources).toHaveLength(1);
-    expect(result.resources[0].uri).toBe(QUEUE_RESOURCE_URI);
+    const uris = result.resources.map((r) => r.uri);
+    expect(uris).toContain(QUEUE_RESOURCE_URI);
+    expect(uris).toContain(RE_REVIEW_RESOURCE_URI);
 
     await client.close();
     await server.close();
@@ -201,5 +202,71 @@ describe("createMcpServer — queue resource subscription", () => {
 
     await client.close();
     await mcpServer.close();
+  });
+});
+
+describe("createMcpServer — re-review-requests resource", () => {
+  test("subscribe → re-review-requested enqueue sends notification", async () => {
+    const queue = createReviewQueue();
+    const { server, client, notifications } = await setupServerAndClient(queue);
+
+    await client.subscribeResource({ uri: RE_REVIEW_RESOURCE_URI });
+    queue.enqueue({ ...makeCandidate(), reason: "re-review-requested" });
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toBe(RE_REVIEW_RESOURCE_URI);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("subscribe → opened enqueue does not notify re-review-requests", async () => {
+    const queue = createReviewQueue();
+    const { server, client, notifications } = await setupServerAndClient(queue);
+
+    await client.subscribeResource({ uri: RE_REVIEW_RESOURCE_URI });
+    queue.enqueue(makeCandidate()); // reason: "opened"
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(notifications).toHaveLength(0);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("push-first: synchronized は re-review-requests を通知しない", async () => {
+    const queue = createReviewQueue();
+    const { server, client, notifications } = await setupServerAndClient(queue);
+
+    await client.subscribeResource({ uri: RE_REVIEW_RESOURCE_URI });
+    queue.enqueue({ ...makeCandidate(1), reason: "synchronized" });
+    queue.enqueue({ ...makeCandidate(1), reason: "re-review-requested" });
+    await new Promise((r) => setTimeout(r, 20));
+
+    // synchronized は通知せず、re-review-requested のみ通知する
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toBe(RE_REVIEW_RESOURCE_URI);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("readResource re-review-requests returns only re-review-requested entries", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    queue.enqueue(makeCandidate(1)); // opened
+    queue.enqueue({ ...makeCandidate(2), reason: "re-review-requested" });
+
+    const result = await client.readResource({ uri: RE_REVIEW_RESOURCE_URI });
+    const parsed = JSON.parse((result.contents[0] as { text: string }).text) as {
+      prNumber: number;
+    }[];
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].prNumber).toBe(2);
+
+    await client.close();
+    await server.close();
   });
 });

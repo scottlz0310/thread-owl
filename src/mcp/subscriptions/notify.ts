@@ -1,4 +1,3 @@
-import type { ReviewQueue } from "../../queue/review-queue.js";
 import type { SubscriptionSession } from "./listen.js";
 
 export interface QueueNotifier {
@@ -10,7 +9,7 @@ export interface QueueNotifier {
 }
 
 export function createQueueNotifier(
-  queue: ReviewQueue,
+  onHook: (listener: () => void) => () => void,
   sendUpdated: (uri: string) => Promise<void>,
   session: SubscriptionSession,
   uri: string,
@@ -21,7 +20,7 @@ export function createQueueNotifier(
   // pending 中の sendUpdated が reject されても re-subscribe 後の新リスナーを誤解除しない。
   function attachListener(): void {
     removeListener?.();
-    removeListener = queue.onEnqueue(() => {
+    removeListener = onHook(() => {
       if (!session.isSubscribed(uri)) return;
       const selfRemove = removeListener;
       void sendUpdated(uri).catch(() => {

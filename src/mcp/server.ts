@@ -41,6 +41,7 @@ import {
 } from "./tools/reply-thread.js";
 
 export const QUEUE_RESOURCE_URI = "queue://review/queue";
+export const RE_REVIEW_RESOURCE_URI = "queue://review/re-review-requests";
 const QUEUE_RESOURCE_MIME_TYPE = "application/json";
 
 export interface McpServerOptions {
@@ -128,13 +129,23 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
 
   if (deps.queue) {
     const queue = deps.queue;
+
     const session = createSubscriptionSession();
     const notifier = createQueueNotifier(
-      queue,
+      (listener) => queue.onEnqueue(listener),
       (uri) => server.server.sendResourceUpdated({ uri }),
       session,
       QUEUE_RESOURCE_URI,
     );
+
+    const reReviewSession = createSubscriptionSession();
+    const reReviewNotifier = createQueueNotifier(
+      (listener) => queue.onReReviewRequested(listener),
+      (uri) => server.server.sendResourceUpdated({ uri }),
+      reReviewSession,
+      RE_REVIEW_RESOURCE_URI,
+    );
+
     const prevOnclose = server.server.onclose;
     server.server.onclose = () => {
       try {
@@ -142,6 +153,8 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       } finally {
         notifier.dispose();
         session.dispose();
+        reReviewNotifier.dispose();
+        reReviewSession.dispose();
       }
     };
 
@@ -151,40 +164,68 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
           uri: QUEUE_RESOURCE_URI,
           name: "Review Queue",
           description:
-            "レビュー待ちの PR 一覧。enqueue されると notifications/resources/updated が push される。",
+            "レビュー待ちの PR 一覧。opened / synchronized で enqueue されると notifications/resources/updated が push される。",
+          mimeType: QUEUE_RESOURCE_MIME_TYPE,
+        },
+        {
+          uri: RE_REVIEW_RESOURCE_URI,
+          name: "Re-review Requests",
+          description:
+            "再レビュー依頼のみを通知するキュー。re-review-requested で enqueue されたときだけ notifications/resources/updated が push される。",
           mimeType: QUEUE_RESOURCE_MIME_TYPE,
         },
       ],
     }));
 
     server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      if (request.params.uri !== QUEUE_RESOURCE_URI) {
-        throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
+      if (request.params.uri === QUEUE_RESOURCE_URI) {
+        return {
+          contents: [
+            {
+              uri: QUEUE_RESOURCE_URI,
+              mimeType: QUEUE_RESOURCE_MIME_TYPE,
+              text: JSON.stringify(queue.list(), null, 2),
+            },
+          ],
+        };
       }
-      return {
-        contents: [
-          {
-            uri: QUEUE_RESOURCE_URI,
-            mimeType: QUEUE_RESOURCE_MIME_TYPE,
-            text: JSON.stringify(queue.list(), null, 2),
-          },
-        ],
-      };
+      if (request.params.uri === RE_REVIEW_RESOURCE_URI) {
+        return {
+          contents: [
+            {
+              uri: RE_REVIEW_RESOURCE_URI,
+              mimeType: QUEUE_RESOURCE_MIME_TYPE,
+              text: JSON.stringify(
+                queue.list().filter((c) => c.reason === "re-review-requested"),
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+      throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
     });
 
     server.server.setRequestHandler(SubscribeRequestSchema, async (request) => {
-      if (request.params.uri !== QUEUE_RESOURCE_URI) {
+      if (request.params.uri === QUEUE_RESOURCE_URI) {
+        notifier.handleSubscribe();
+      } else if (request.params.uri === RE_REVIEW_RESOURCE_URI) {
+        reReviewNotifier.handleSubscribe();
+      } else {
         throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
       }
-      notifier.handleSubscribe();
       return {};
     });
 
     server.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
-      if (request.params.uri !== QUEUE_RESOURCE_URI) {
+      if (request.params.uri === QUEUE_RESOURCE_URI) {
+        notifier.handleUnsubscribe();
+      } else if (request.params.uri === RE_REVIEW_RESOURCE_URI) {
+        reReviewNotifier.handleUnsubscribe();
+      } else {
         throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
       }
-      notifier.handleUnsubscribe();
       return {};
     });
   }

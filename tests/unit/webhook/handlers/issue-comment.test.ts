@@ -48,6 +48,7 @@ function makeQueue(): ReviewQueue {
     list: vi.fn(() => []),
     size: vi.fn(() => 0),
     onEnqueue: vi.fn(() => () => {}),
+    onReReviewRequested: vi.fn(() => () => {}),
   };
 }
 
