@@ -23,7 +23,7 @@ export async function generateAppJwt(options: AppJwtOptions): Promise<AppJwt> {
   const key = importPrivateKey(options.privateKey);
   const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
   const iat = now - CLOCK_DRIFT_SECONDS;
-  const exp = now + JWT_LIFETIME_SECONDS;
+  const exp = iat + JWT_LIFETIME_SECONDS;
 
   const token = await new SignJWT({})
     .setProtectedHeader({ alg: "RS256", typ: "JWT" })

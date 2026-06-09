@@ -29,7 +29,18 @@ describe("generateAppJwt", () => {
     expect(protectedHeader.alg).toBe("RS256");
     expect(payload.iss).toBe(APP_ID);
     expect(payload.iat).toBe(NOW - 60);
-    expect(payload.exp).toBe(NOW + 600);
+    expect(payload.exp).toBe(NOW + 540);
+  });
+
+  it("exp - iat が 600 秒を超えない（クロックドリフト対策）", async () => {
+    const { privateKey, publicKey } = makeKeyPair("pkcs8");
+
+    const jwt = await generateAppJwt({ appId: APP_ID, privateKey, nowSeconds: NOW });
+
+    const { payload } = await jwtVerify(jwt.token, createPublicKey(publicKey), {
+      currentDate: new Date(NOW * 1000),
+    });
+    expect((payload.exp as number) - (payload.iat as number)).toBeLessThanOrEqual(600);
   });
 
   it("expiresAt が exp クレームと一致する", async () => {
@@ -37,7 +48,7 @@ describe("generateAppJwt", () => {
 
     const jwt = await generateAppJwt({ appId: APP_ID, privateKey, nowSeconds: NOW });
 
-    expect(jwt.expiresAt.getTime()).toBe((NOW + 600) * 1000);
+    expect(jwt.expiresAt.getTime()).toBe((NOW + 540) * 1000);
   });
 
   it("nowSeconds 未指定時は現在時刻を基準にする", async () => {
@@ -50,8 +61,8 @@ describe("generateAppJwt", () => {
     const after = Math.floor(Date.now() / 1000);
     expect(payload.iat).toBeGreaterThanOrEqual(before - 60);
     expect(payload.iat).toBeLessThanOrEqual(after - 60);
-    expect(payload.exp).toBeGreaterThanOrEqual(before + 600);
-    expect(payload.exp).toBeLessThanOrEqual(after + 600);
+    expect(payload.exp).toBeGreaterThanOrEqual(before + 540);
+    expect(payload.exp).toBeLessThanOrEqual(after + 540);
   });
 
   it("不正な秘密鍵の場合は原因と推奨形式を含むエラーを throw する", async () => {
