@@ -50,14 +50,8 @@ export function createReviewQueue(): ReviewQueue {
         items.shift();
       }
       items.push(candidate);
-      // synchronized は queue を更新するが subscriber への通知は行わない。
-      // review の起動は opened / re-review-requested の明示的イベントのみが担う。
-      // これにより push-first 順序（synchronized → re-review-requested）でも
-      // subscriber が受け取る最初の通知は必ず re-review-requested になる。
-      if (candidate.reason !== "synchronized") {
-        for (const listener of listeners) {
-          listener();
-        }
+      for (const listener of listeners) {
+        listener();
       }
     },
     dequeue(): ReviewCandidate | undefined {

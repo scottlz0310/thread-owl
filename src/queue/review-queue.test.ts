@@ -133,18 +133,18 @@ describe("createReviewQueue", () => {
       expect(result?.requestedBy).toBe("bob");
     });
 
-    test("re-review-requested → synchronized: listener は呼ばれない（通知しない）", () => {
+    test("re-review-requested → synchronized: priority guard で synchronized は enqueue されない（通知なし）", () => {
       const q = createReviewQueue();
       let count = 0;
       q.onEnqueue(() => count++);
 
       q.enqueue(makeCandidate(1, "re-review-requested"));
-      q.enqueue(makeCandidate(1, "synchronized"));
+      q.enqueue(makeCandidate(1, "synchronized")); // priority guard で早期 return
 
       expect(count).toBe(1); // re-review-requested の enqueue のみ
     });
 
-    test("synchronized → re-review-requested: push-first でも最初の通知が re-review-requested", () => {
+    test("synchronized → re-review-requested: push-first では両方通知され queue 最終状態は re-review-requested", () => {
       const q = createReviewQueue();
       const notifiedReasons: string[] = [];
       q.onEnqueue(() => {
@@ -152,10 +152,11 @@ describe("createReviewQueue", () => {
         if (top) notifiedReasons.push(top.reason);
       });
 
-      q.enqueue(makeCandidate(1, "synchronized")); // 通知しない
-      q.enqueue(makeCandidate(1, "re-review-requested")); // 通知する
+      q.enqueue(makeCandidate(1, "synchronized")); // 通知する（architecture 契約）
+      q.enqueue(makeCandidate(1, "re-review-requested")); // synchronized を置き換えて通知する
 
-      expect(notifiedReasons).toEqual(["re-review-requested"]);
+      expect(notifiedReasons).toEqual(["synchronized", "re-review-requested"]);
+      expect(q.dequeue()?.reason).toBe("re-review-requested");
     });
   });
 
@@ -211,15 +212,15 @@ describe("createReviewQueue", () => {
       expect(b).toBe(1);
     });
 
-    test("synchronized は listener を呼ばない", () => {
+    test("通常の opened → synchronized は両方で listener を呼ぶ（architecture 契約）", () => {
       const q = createReviewQueue();
       let count = 0;
       q.onEnqueue(() => count++);
 
       q.enqueue(makeCandidate(1, "opened"));
-      q.enqueue(makeCandidate(1, "synchronized")); // 通知しない
+      q.enqueue(makeCandidate(1, "synchronized")); // 通常の PR 更新は通知する
 
-      expect(count).toBe(1);
+      expect(count).toBe(2);
     });
   });
 });
