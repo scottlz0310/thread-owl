@@ -186,4 +186,16 @@ describe("handleIssueCommentEvent", () => {
       expect.objectContaining({ requestedBy: undefined }),
     );
   });
+
+  it("comment.id が数値でない場合 sourceCommentId を undefined で enqueue する", async () => {
+    const deps = makeDeps();
+    const event = makeEvent({
+      comment: { id: "not-a-number", body: "@thread-owl re-review", user: { login: "human" } },
+    });
+    await handleIssueCommentEvent(event, deps);
+
+    expect(deps.queue.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceCommentId: undefined }),
+    );
+  });
 });
