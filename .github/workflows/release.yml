@@ -96,10 +96,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Check prerelease
+        id: prerelease_check
+        # semver prerelease 判定: vX.Y.Z の直後に "-" が続くかどうかで判定する。
+        # contains(ref_name, '-') では v0.2.0+build-1 のような build metadata 識別子内の
+        # "-" を誤検知するため、正規表現で semver prerelease 部分のみを判定する。
+        run: |
+          if echo "${{ github.ref_name }}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-'; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          # タグ名に "-" が含まれる場合（v0.2.0-rc.1 等）を prerelease として扱う。
-          # Docker の latest=auto と GitHub Release の安定版判定を揃えるため。
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ steps.prerelease_check.outputs.value }}
