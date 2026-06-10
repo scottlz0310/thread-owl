@@ -45,6 +45,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Verify version consistency
+        # git tag（v0.2.0）の数値部分と package.json / src/index.ts の VERSION が一致することを確認する。
+        # ずれたまま publish するとイメージタグとアプリ自己申告バージョンが乖離する。
+        run: |
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          PKG_VER=$(node -p "require('./package.json').version")
+          SRC_VER=$(grep -oP '(?<=const VERSION = ")[^"]+' src/index.ts)
+          if [ "$TAG_VER" != "$PKG_VER" ]; then
+            echo "ERROR: git tag ($TAG_VER) != package.json version ($PKG_VER)"
+            exit 1
+          fi
+          if [ "$TAG_VER" != "$SRC_VER" ]; then
+            echo "ERROR: git tag ($TAG_VER) != src/index.ts VERSION ($SRC_VER)"
+            exit 1
+          fi
+          echo "Version OK: $TAG_VER"
+
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
@@ -83,3 +100,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+          # タグ名に "-" が含まれる場合（v0.2.0-rc.1 等）を prerelease として扱う。
+          # Docker の latest=auto と GitHub Release の安定版判定を揃えるため。
+          prerelease: ${{ contains(github.ref_name, '-') }}
