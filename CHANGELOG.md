@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Docker イメージタグを開発/安定リリースに分離（#84）: main push は `:main`（+ `:sha-*`）のみ発行し、`:latest` と version タグ（`:X.Y.Z` / `:X.Y`）は git tag `vX.Y.Z` push 時に新設の `release.yml` が発行する。`release.yml` はテスト通過後に multi-platform（amd64/arm64）イメージを push し GitHub Release を自動作成する。タグ運用方針を README に明記
+
 ### Fixed
 - GitHub App JWT の `exp` をクロックドリフト考慮なしで `now + 600` に設定していたため、実行環境の時計が GitHub より数秒進んでいると `'exp' is too far in the future` 401 が発生していた（#77）。`exp = iat + 600`（= `now + 540`）に修正し、`exp - iat <= 600` を単体テストで保証
 

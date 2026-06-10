@@ -71,6 +71,40 @@ pnpm test           # テスト実行
 pnpm run build      # dist/ へコンパイル
 ```
 
+## Docker イメージ
+
+`ghcr.io/scottlz0310/thread-owl` として公開している。タグ運用は姉妹リポジトリ（mcp-gateway / review-raven）と同じモデルに揃えている。
+
+| タグ | 内容 | 発行タイミング |
+|------|------|----------------|
+| `:latest` | 安定リリース（最新の `vX.Y.Z` と同一） | git tag `vX.Y.Z` push 時 |
+| `:X.Y.Z` / `:X.Y` | 特定バージョンの固定参照 | git tag `vX.Y.Z` push 時 |
+| `:main` | 開発ビルド（main 追従） | main への push ごと |
+
+```bash
+# 安定版（推奨）
+docker pull ghcr.io/scottlz0310/thread-owl:latest
+
+# 開発版（bleeding-edge）
+docker pull ghcr.io/scottlz0310/thread-owl:main
+```
+
+### リリース手順
+
+`v` プレフィックス付きの semver タグを push すると、`release.yml` がテスト・イメージ発行（`:latest` + version タグ）・GitHub Release 作成まで行う。
+
+**タグを push する前に `package.json` と `src/index.ts` の VERSION を揃える。** `release.yml` はタグ・`package.json`・`src/index.ts` の 3 者が一致しない場合にビルドを失敗させる。
+
+```bash
+# 1. package.json と src/index.ts の version / VERSION を同じ値に更新してコミット
+#    （例: 0.1.0 → 0.2.0）
+# 2. タグを付けて push
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+RC 等のプレリリース版（タグに `-` を含む場合、例: `v0.2.0-rc.1`）は GitHub Release が prerelease として作成され、Docker イメージに `:latest` は付与されない。
+
 ## GitHub App 権限
 
 最小限必要な権限:

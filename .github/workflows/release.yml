@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check (biome)
+        run: pnpm run check
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
+
+  release:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify version consistency
+        # git tag（v0.2.0）の数値部分と package.json / src/index.ts の VERSION が一致することを確認する。
+        # ずれたまま publish するとイメージタグとアプリ自己申告バージョンが乖離する。
+        run: |
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          PKG_VER=$(node -p "require('./package.json').version")
+          SRC_VER=$(grep -oP '(?<=const VERSION = ")[^"]+' src/index.ts)
+          if [ "$TAG_VER" != "$PKG_VER" ]; then
+            echo "ERROR: git tag ($TAG_VER) != package.json version ($PKG_VER)"
+            exit 1
+          fi
+          if [ "$TAG_VER" != "$SRC_VER" ]; then
+            echo "ERROR: git tag ($TAG_VER) != src/index.ts VERSION ($SRC_VER)"
+            exit 1
+          fi
+          echo "Version OK: $TAG_VER"
+
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 安定リリース用タグを発行する（vX.Y.Z push → :X.Y.Z / :X.Y）。
+      # :latest は flavor latest=auto（デフォルト）により非 prerelease の
+      # semver タグにのみ自動付与される。開発ビルド（:main）は docker.yml が担う。
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check prerelease
+        id: prerelease_check
+        # semver prerelease 判定: vX.Y.Z の直後に "-" が続くかどうかで判定する。
+        # contains(ref_name, '-') では v0.2.0+build-1 のような build metadata 識別子内の
+        # "-" を誤検知するため、正規表現で semver prerelease 部分のみを判定する。
+        run: |
+          if echo "${{ github.ref_name }}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-'; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          prerelease: ${{ steps.prerelease_check.outputs.value }}
