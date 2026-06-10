@@ -1,0 +1,4 @@
+interface:
+  display_name: "Thread Owl PR Reviewer"
+  short_description: "Thread OwlでPRを独立レビューし重複のない指摘を投稿する"
+  default_prompt: "$thread-owl-pr-reviewer を使って、このPRを独立レビューし、既存レビューと重複しない高価値な日本語コメントだけを投稿してください。"

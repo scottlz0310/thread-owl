@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- `docs/skills/thread-owl-pr-reviewer/` を新規配置: mcp-resource-subscriber `--json` モード対応済みの skill 定義（SKILL.md + agents/openai.yaml）
+
 ### Changed
 - `docs/operations.md` の mcp-resource-subscriber 呼び出し例を `--json` モードに更新（#83）: `--json` フラグを primary に変更し、JSON 出力フィールド（`route` / `errorCode` / `recommendedNextAction` / `finalText` 等）の説明テーブルを追記。line-based 出力例は `<details>` 補足に格下げ。「将来の `--json` mode」注記を削除
 
