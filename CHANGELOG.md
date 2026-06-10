@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-10
+
 ### Changed
 - Docker イメージタグを開発/安定リリースに分離（#84）: main push は `:main`（+ `:sha-*`）のみ発行し、`:latest` と version タグ（`:X.Y.Z` / `:X.Y`）は git tag `vX.Y.Z` push 時に新設の `release.yml` が発行する。`release.yml` はテスト通過後に multi-platform（amd64/arm64）イメージを push し GitHub Release を自動作成する。タグ運用方針を README に明記
 
