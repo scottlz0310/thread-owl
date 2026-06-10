@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Logger } from "../config/logging.js";
 import { RepositoryNotAllowedError } from "../policy/allowlist.js";
 import { approvePR } from "./pull-requests.js";
@@ -6,6 +6,10 @@ import * as rest from "./rest.js";
 import type { WriteContext } from "./write-context.js";
 
 vi.mock("./rest.js");
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 function makeLogger(): Logger {
   return { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
