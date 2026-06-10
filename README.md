@@ -71,6 +71,33 @@ pnpm test           # テスト実行
 pnpm run build      # dist/ へコンパイル
 ```
 
+## Docker イメージ
+
+`ghcr.io/scottlz0310/thread-owl` として公開している。タグ運用は姉妹リポジトリ（mcp-gateway / review-raven）と同じモデルに揃えている。
+
+| タグ | 内容 | 発行タイミング |
+|------|------|----------------|
+| `:latest` | 安定リリース（最新の `vX.Y.Z` と同一） | git tag `vX.Y.Z` push 時 |
+| `:X.Y.Z` / `:X.Y` | 特定バージョンの固定参照 | git tag `vX.Y.Z` push 時 |
+| `:main` | 開発ビルド（main 追従） | main への push ごと |
+
+```bash
+# 安定版（推奨）
+docker pull ghcr.io/scottlz0310/thread-owl:latest
+
+# 開発版（bleeding-edge）
+docker pull ghcr.io/scottlz0310/thread-owl:main
+```
+
+### リリース手順
+
+`v` プレフィックス付きの semver タグを push すると、`release.yml` がテスト・イメージ発行（`:latest` + version タグ）・GitHub Release 作成まで行う。
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
 ## GitHub App 権限
 
 最小限必要な権限:
