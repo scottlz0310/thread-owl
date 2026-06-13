@@ -8,6 +8,7 @@
 
 ### Changed
 - `docs/operations.md` の mcp-resource-subscriber 呼び出し例を `--json` モードに更新（#83）: `--json` フラグを primary に変更し、JSON 出力フィールド（`route` / `errorCode` / `recommendedNextAction` / `finalText` 等）の説明テーブルを追記。line-based 出力例は `<details>` 補足に格下げ。「将来の `--json` mode」注記を削除
+- `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新: 安全性の観点から自律的な `APPROVE` 送信を禁止し、ユーザーの明示的指示を必須とすること、およびレビュー結果でマージ推奨の判断を明確に報告する運用ルールを追加
 
 ## [0.2.0] - 2026-06-10
 
