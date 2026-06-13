@@ -176,7 +176,15 @@ PR URL を示してレビューと投稿を依頼された場合、根拠が固�
 - 投稿対象 PR、head、line、thread を確実に特定できない
 - `summary-only` の summary 投稿を明示されていない
 
+### APPROVE 投稿とマージ判断について
+
 `approve_pull_request` はユーザーが明示的に APPROVE 投稿を依頼した場合だけ実行する。実行直前に `get_pr` で head SHA と CI を再確認する。CI が unknown、blocking が残る、または head が変わった場合は実行しない。
+
+安全性の観点（自動マージや自動デプロイがトリガーされるリスク等）から、明示的な許可（指示）がない限り、自律的に `APPROVE` を送信してはならない。
+
+マージ判断の伝わりやすさを担保するため、以下の運用ルールを適用する。
+- **レビュー結果の明記:** レビューの要約やコメントにおいて、「技術的・品質的にマージ可能な状態である（マージ推奨）」という評価自体は日本語で明確に報告する。
+- **ユーザーの指示による実行:** ユーザーから「APPROVEしてマージしてください」という明示的な許可（指示）をチャット上でいただいた段階で、エージェントが実際のAPPROVE投稿やマージ処理を実行する。
 
 ## Re-review
 
@@ -200,7 +208,7 @@ PR URL を示してレビューと投稿を依頼された場合、根拠が固�
 
 ## Verdict
 
-- `approve`: blocking がなく、主要リスクのテストまたは説明があり、CI が成功している。これは判断結果であり、明示依頼がなければ APPROVE review は送らない。
+- `approve`: blocking がなく、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。
 - `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告に留める。
 - `comment only`: 判断材料が不足し、question が中心。
 - `needs follow-up`: merge 可能だが、別 issue または後続 PR で追う論点がある。
