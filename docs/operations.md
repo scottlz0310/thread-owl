@@ -373,7 +373,6 @@ CLI agent は `json.route === "subscription"` を確認し、`json.recommendedNe
 
 `--json` フラグを省略した場合、line-based output が stdout に出力される。
 
-</details>
 出力例（通知受信時）:
 
 ```
