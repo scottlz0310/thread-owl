@@ -294,7 +294,8 @@ CLI agent が long-lived subscription を安定保持できない場合（Claude
 pnpm dlx mcp-resource-subscriber \
   --url http://localhost:3000/mcp \
   --uri queue://review/queue \
-  --timeout-ms 900000
+  --timeout-ms 900000 \
+  --json
 ```
 
 **re-review handoff**（re-review-requested のみを検知。push-first 経路での early termination を防ぐ）:
@@ -303,9 +304,76 @@ pnpm dlx mcp-resource-subscriber \
 pnpm dlx mcp-resource-subscriber \
   --url http://localhost:3000/mcp \
   --uri queue://review/re-review-requests \
-  --timeout-ms 900000
+  --timeout-ms 900000 \
+  --json
 ```
 
+`--json` フラグを指定すると、line-based output の代わりに単一の JSON オブジェクトが stdout に出力される。
+
+**stdout（通知受信時）**:
+
+```json
+{
+  "route": "subscription",
+  "serverUrl": "http://localhost:3000/mcp",
+  "resourceUri": "queue://review/re-review-requests",
+  "subscribed": true,
+  "notificationReceived": true,
+  "errorCode": null,
+  "recommendedNextAction": "READ_REVIEW_THREADS",
+  "finalText": "[{\"owner\":\"org\",\"repo\":\"my-repo\",\"prNumber\":42,\"installationId\":12345,\"queuedAt\":\"2026-06-08T00:00:00.000Z\",\"reason\":\"re-review-requested\",\"sourceCommentId\":99,\"requestedBy\":\"human-user\"}]"
+}
+```
+
+**stdout（タイムアウト時）**:
+
+```json
+{
+  "route": "timeout",
+  "serverUrl": "http://localhost:3000/mcp",
+  "resourceUri": "queue://review/re-review-requests",
+  "subscribed": true,
+  "notificationReceived": false,
+  "errorCode": "NOTIFICATION_TIMEOUT",
+  "recommendedNextAction": null,
+  "finalText": null
+}
+```
+
+**stdout（接続失敗時）**:
+
+```json
+{
+  "route": "error",
+  "serverUrl": null,
+  "resourceUri": "queue://review/re-review-requests",
+  "subscribed": false,
+  "notificationReceived": false,
+  "errorCode": "SERVER_URL_UNKNOWN",
+  "recommendedNextAction": null,
+  "finalText": null
+}
+```
+
+| フィールド | 説明 |
+|---|---|
+| `route` | `"subscription"`: 通知受信成功 / `"timeout"`: タイムアウト / `"error"`: 接続・購読失敗 |
+| `serverUrl` | 接続した MCP サーバー URL（接続失敗時は `null`） |
+| `resourceUri` | 購読した resource URI |
+| `subscribed` | 購読成功フラグ |
+| `notificationReceived` | 通知受信フラグ |
+| `errorCode` | エラーコード（`null` / `"NOTIFICATION_TIMEOUT"` / `"SERVER_URL_UNKNOWN"` 等） |
+| `recommendedNextAction` | agent への推奨次アクション（`"READ_REVIEW_THREADS"` 等。エラー時は `null`） |
+| `finalText` | 受信した resource content の raw JSON 文字列（エラー時は `null`） |
+
+CLI agent は `json.route === "subscription"` を確認し、`json.recommendedNextAction` / `json.finalText` を使って Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
+
+<details>
+<summary>--json なし（line-based 出力）</summary>
+
+`--json` フラグを省略した場合、line-based output が stdout に出力される。
+
+</details>
 出力例（通知受信時）:
 
 ```
@@ -334,9 +402,9 @@ error-code NOTIFICATION_TIMEOUT
 phase-summary route=timeout url=http://localhost:3000/mcp uri=queue://review/re-review-requests error-code=NOTIFICATION_TIMEOUT
 ```
 
-CLI agent は `phase-summary` の `route=subscription` を確認し、`final` ブロックの JSON をパースして Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
+CLI agent は `phase-summary` の `route=subscription` を確認し、`final` ブロックの JSON をパースする。
 
-> **将来の `--json` mode（[mcp-resource-subscriber#86](https://github.com/scottlz0310/mcp-resource-subscriber/issues/86) 実装後）**: `--json` フラグを追加すると、上記 line-based output の代わりに単一の JSON オブジェクトが stdout に出力される。agent workflow から JSON として直接パースできるようになる。
+</details>
 
 ### MCP client が native subscribe を使う場合
 
