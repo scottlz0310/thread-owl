@@ -1,5 +1,9 @@
 # Thread Owl
 
+<p align="center">
+  <img src="assets/icon.png" alt="Thread Owl" width="150">
+</p>
+
 AI 支援による Pull Request レビューのための GitHub App バックエンド。
 
 ## 概要
