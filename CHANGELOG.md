@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- `README.md` に Thread Owl のアバターアイコンを表示
 - `docs/skills/thread-owl-pr-reviewer/` を新規配置: mcp-resource-subscriber `--json` モード対応済みの skill 定義（SKILL.md + agents/openai.yaml）
 - `approvePR` のユニットテスト追加（#90）: allowlist ガード・expectedHeadSha 不一致エラー・正常系（監査ログ記録・body 転送）の 4 ケースを網羅
 
