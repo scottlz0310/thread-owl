@@ -190,21 +190,38 @@ PR URL を示してレビューと投稿を依頼された場合、根拠が固�
 
 1. queue 起点なら `reason = re-review-requested` と対象 PR を確認する。
 2. 前回 thread、実装者返信、現 head、前回レビュー後の差分を読む。
-3. 前回 blocking / question が現 head で解消されたか確認する。
+3. 各 thread の `isResolved` / `isOutdated` 状態と、現 head での対応状況を確認する。
 4. 未解決 thread と、対応差分が導入した重大な回帰だけを確認する。
 5. CI の変化を確認する。
-6. 解消済みなら対象 thread に簡潔に返信する。thread 自体は resolve しない。
-7. 一部未解消なら、残っている再現条件を具体的に返信する。
-8. 初回レビューで出さなかった軽微な新規指摘を追加しない。
-9. 新しい blocking がある場合だけ新規 inline comment を検討する。
+6. 次の投稿経路表に従って各 thread を処理する。
+
+| 元 thread の状態 | 現 head での状態 | 投稿方法 |
+| --- | --- | --- |
+| unresolved | resolved in code | 元 thread へ簡潔に返信する。thread 自体は resolve しない |
+| unresolved | partially resolved / not resolved / needs clarification | 元 thread へ残存再現条件を具体的に返信する |
+| resolved / outdated | resolved in code | 新規コメントを投稿しない。必要なら PR summary のみで解消を報告する |
+| resolved / outdated | partially resolved / not resolved / needs clarification | current diff 上の関連行へ `post_inline_comment` で新規 unresolved thread を作る |
+
+新規 inline comment には、以前の指摘の継続であることと、現 head に残る具体的な再現条件を記載する。元 thread への重複返信は行わない。
+
+current diff 上に投稿可能な行がない場合は、無理に stale な位置へ投稿せず PR-level summary に blocking と残存条件を明示する。
+
+新規 inline を投稿する前に Snapshot Guard を再実行し、現 head SHA と投稿可能行を確認する。
+
+7. 初回レビューで出さなかった軽微な新規指摘を追加しない。
+8. 新しい blocking がある場合だけ新規 inline comment を検討する。
 
 ## Thread Follow-up
 
 1. 指定 thread と current head を特定する。
-2. thread の root comment、全返信、対応差分だけを読む。
-3. `resolved in code` / `partially resolved` / `not resolved` / `needs clarification` を判断する。
-4. 新しい独立論点を同じ thread に混ぜない。
-5. 必要な場合だけ `reply_review_thread` で返信し、resolve は行わない。
+2. thread の `isResolved` / `isOutdated` 状態を確認する。
+3. thread の root comment、全返信、対応差分だけを読む。
+4. `resolved in code` / `partially resolved` / `not resolved` / `needs clarification` を判断する。
+5. 新しい独立論点を同じ thread に混ぜない。
+6. Re-review の投稿経路表と同じルールを適用する。
+   - thread が unresolved なら `reply_review_thread` で返信する。resolve は行わない。
+   - thread が resolved / outdated で問題が残るなら、current diff 上の関連行へ `post_inline_comment` で新規 thread を作る。元 thread への返信は行わない。
+   - current diff 上に投稿可能な行がない場合は PR-level summary にする。
 
 ## Verdict
 
@@ -223,8 +240,8 @@ PR URL を示してレビューと投稿を依頼された場合、根拠が固�
 - reviewed head: ...
 - verdict: approve | request changes | comment only | needs follow-up
 - CI: success | failure | unknown
-- posted: inline N 件、thread 返信 N 件、summary N 件、approve N 件
-- blocking: N 件
+- posted: 新規inline N 件、thread 返信 N 件、summary N 件、approve N 件
+- blocking: N 件（新規inline N 件 / thread 返信 N 件）
 - residual risk: ...
 
 ## Independent review delta
