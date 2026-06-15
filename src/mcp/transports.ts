@@ -42,6 +42,7 @@ export async function startMcpHttpServer(
   options: McpHttpServerOptions,
 ): Promise<StartedMcpHttpServer> {
   const path = options.path ?? "/mcp";
+  const normalizedPath = normalizeEndpointPath(path);
   const sessions = new Map<string, McpHttpSession>();
 
   const closeSession = async (session: McpHttpSession) => {
@@ -88,7 +89,7 @@ export async function startMcpHttpServer(
 
   const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     const requestPath = new URL(req.url ?? "/", "http://localhost").pathname;
-    if (requestPath !== path) {
+    if (normalizeEndpointPath(requestPath) !== normalizedPath) {
       if (options.fallbackHandler) {
         await options.fallbackHandler(req, res);
       } else {
@@ -175,6 +176,10 @@ export async function startMcpHttpServer(
       return closing;
     },
   };
+}
+
+function normalizeEndpointPath(path: string): string {
+  return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
 function getSessionId(req: IncomingMessage): string | undefined {

@@ -40,6 +40,70 @@ describe("startMcpHttpServer", () => {
     startedServer = undefined;
   });
 
+  it.each([
+    { name: "default path", configuredPath: undefined, requestPath: "/mcp" },
+    { name: "default path with slash", configuredPath: undefined, requestPath: "/mcp/" },
+    { name: "custom path", configuredPath: "/custom/mcp", requestPath: "/custom/mcp" },
+    {
+      name: "custom path with request slash",
+      configuredPath: "/custom/mcp",
+      requestPath: "/custom/mcp/",
+    },
+    {
+      name: "custom path with configured slash",
+      configuredPath: "/custom/mcp/",
+      requestPath: "/custom/mcp",
+    },
+  ])("$name は末尾スラッシュの有無を同一視する", async ({ configuredPath, requestPath }) => {
+    startedServer = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: configuredPath,
+    });
+    const endpoint = `http://127.0.0.1:${startedServer.port}${requestPath}`;
+    const alternateEndpoint = requestPath.endsWith("/") ? endpoint.slice(0, -1) : `${endpoint}/`;
+
+    const initializeResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "test-client", version: "1.0.0" },
+        },
+      }),
+    });
+    const sessionId = initializeResponse.headers.get("mcp-session-id");
+    await initializeResponse.text();
+
+    expect(initializeResponse.status).toBe(200);
+    expect(sessionId).toBeDefined();
+
+    const initializedResponse = await fetch(alternateEndpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+        "mcp-session-id": sessionId as string,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+    });
+    expect(initializedResponse.status).toBe(202);
+
+    const deleteResponse = await fetch(endpoint, {
+      method: "DELETE",
+      headers: { "mcp-session-id": sessionId as string },
+    });
+    expect(deleteResponse.status).toBe(200);
+  });
+
   it("Streamable HTTP client から tools/list を呼び出せる", async () => {
     const createServer = vi.fn(makeServer);
     startedServer = await startMcpHttpServer(createServer, {
@@ -151,6 +215,12 @@ describe("startMcpHttpServer", () => {
       name: "MCP endpoint 以外",
       path: "/health",
       init: { method: "GET" },
+      status: 404,
+    },
+    {
+      name: "MCP endpoint の子 path",
+      path: "/mcp/foo",
+      init: { method: "POST" },
       status: 404,
     },
     {
