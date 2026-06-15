@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- MCP Streamable HTTP endpoint で設定 path の末尾スラッシュ有無を同一視し、`/mcp` と `/mcp/` の両方を受け付ける（#98）。子 path は従来どおり 404 を返す
+
 ### Added
 - `README.md` に Thread Owl のアバターアイコンを表示
 - `docs/skills/thread-owl-pr-reviewer/` を新規配置: mcp-resource-subscriber `--json` モード対応済みの skill 定義（SKILL.md + agents/openai.yaml）
