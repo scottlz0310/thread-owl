@@ -89,12 +89,12 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 ### 1. Remote Snapshot の原則
 - レビュアーは現在のローカル作業ツリーをレビュー対象として信頼してはならない。GitHub から取得した PR HEAD SHA（`reviewedHeadSha`）を唯一のレビュー対象として固定する。
-- PR metadata / diff / 変更ファイルは `thread-owl:get_pr` を第一候補にする。
+- PR metadata / diff / 変更ファイルは `get_pr` を第一候補にする。
 - GitHub connector や `gh` で補完する場合も、必ず `reviewedHeadSha` を明示して取得する。branch 名だけを指定した読み取りは禁止する（レビュー中に branch が更新されて内容が変化し得るため、commit SHA を使用する）。
 
 ### 2. ローカル検証時の Repository State Guard
 ローカル環境でコード参照、ビルド、テスト、静的解析等を行う場合は、開始前に以下を確認する。
-1. `git status --porcelain` が空（作業ツリーがクリーン）であること
+1. `git status --porcelain --untracked-files=no` が空（tracked file に変更がない状態）であること
 2. `git rev-parse HEAD` が `reviewedHeadSha` と一致すること
 いずれかを満たさない場合、現在の worktree をレビュー根拠として使用してはならない。
 
@@ -105,13 +105,15 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
       ```bash
       git fetch origin <reviewedHeadSha>
       git worktree add --detach <temporary-path> <reviewedHeadSha>
+      # 検証完了後
+      git worktree remove <temporary-path>
       ```
   - 隔離検証環境を作成できない場合は、ローカル検証を行わず `local verification: not performed` としてレビューを進行する。
 
 ### 3. 検証後の再確認ゲート
 ビルドやテストが完了した後、かつ投稿処理（Snapshot Guard）の直前に、以下を再確認する。
 1. 検証環境の `HEAD` が `reviewedHeadSha` のままであること
-2. 検証環境の `git status --porcelain` が空であり、tracked file に変更がないこと
+2. 検証環境の `git status --porcelain --untracked-files=no` が空であり、tracked file に変更がないこと
 3. 現在の GitHub 上の PR HEAD SHA が `reviewedHeadSha` のままであること
 
 次の場合は stale review として投稿（inline comment や APPROVE）を停止する。
