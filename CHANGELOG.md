@@ -11,6 +11,7 @@
 - `approvePR` のユニットテスト追加（#90）: allowlist ガード・expectedHeadSha 不一致エラー・正常系（監査ログ記録・body 転送）の 4 ケースを網羅
 
 ### Changed
+- `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#104）: リモート基準の検証環境ゲート（Repository State Guard、検証後の再確認、CI 検証の SHA 固定、再レビュー依頼の期待 HEAD 照合）を追加し、ローカル未 push 変更の誤レビューを防止。ユーザー報告に `source of truth`, `local verification`, `local verification head`, `CI head` を追記
 - `docs/operations.md` の mcp-resource-subscriber 呼び出し例を `--json` モードに更新（#83）: `--json` フラグを primary に変更し、JSON 出力フィールド（`route` / `errorCode` / `recommendedNextAction` / `finalText` 等）の説明テーブルを追記。line-based 出力例は `<details>` 補足に格下げ。「将来の `--json` mode」注記を削除
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新: 安全性の観点から自律的な `APPROVE` 送信を禁止し、ユーザーの明示的指示を必須とすること、およびレビュー結果でマージ推奨の判断を明確に報告する運用ルールを追加
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#94）: 再レビュー・thread follow-up で元 thread の `isResolved` / `isOutdated` 状態を投稿経路の判断材料とする運用を追加。resolved / outdated thread に問題が残る場合は元 thread へ返信せず current diff 上に新規 inline thread を作成し、投稿可能行がない場合は PR-level summary にフォールバックする。新規 inline 投稿前の Snapshot Guard 再実行を明記。ユーザー報告で新規 inline と thread 返信の件数・残存 blocking を区別できるよう更新

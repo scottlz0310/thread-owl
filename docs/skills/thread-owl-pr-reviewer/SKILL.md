@@ -85,14 +85,56 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 インラインコメントを投稿せず、merge readiness と残存リスクをまとめる。ユーザーが投稿を明示していなければ draft のみ返す。
 
-## Snapshot Guard
+## Snapshot Guard & Repository State Guard
 
-1. 開始時に `get_pr` を呼び、`reviewedHeadSha = pr.head.sha` を記録する。
-2. `files[].patch` が欠ける、切れる、または周辺実装が必要な場合は GitHub connector / `gh` で完全な diff と対象ファイルを読む。
-3. 投稿直前に `get_pr` を再実行する。
-4. head SHA が変わっていたら stale な inline comment や approve を投稿せず、追加差分をレビューし直す。
-5. `post_inline_comment.commitId` と `approve_pull_request.expectedHeadSha` には、最終確認済みの同じ head SHA を使う。
-6. inline の `path` と `line` が current diff 上の投稿可能な位置であることを確認する。確実でなければ PR-level summary にする。
+### 1. Remote Snapshot の原則
+- レビュアーは現在のローカル作業ツリーをレビュー対象として信頼してはならない。GitHub から取得した PR HEAD SHA（`reviewedHeadSha`）を唯一のレビュー対象として固定する。
+- PR metadata / diff / 変更ファイルは `thread-owl:get_pr` を第一候補にする。
+- GitHub connector や `gh` で補完する場合も、必ず `reviewedHeadSha` を明示して取得する。branch 名だけを指定した読み取りは禁止する（レビュー中に branch が更新されて内容が変化し得るため、commit SHA を使用する）。
+
+### 2. ローカル検証時の Repository State Guard
+ローカル環境でコード参照、ビルド、テスト、静的解析等を行う場合は、開始前に以下を確認する。
+1. `git status --porcelain` が空（作業ツリーがクリーン）であること
+2. `git rev-parse HEAD` が `reviewedHeadSha` と一致すること
+いずれかを満たさない場合、現在の worktree をレビュー根拠として使用してはならない。
+
+- **dirty/mismatched な状態の扱い:**
+  - 未 commit 変更を stash / discard してレビューを続行してはならない（実装担当の作業状態を破壊しないため）。
+  - detached worktree または一時的な clone を作成し、`reviewedHeadSha` を checkout して検証する。
+    - 推奨例:
+      ```bash
+      git fetch origin <reviewedHeadSha>
+      git worktree add --detach <temporary-path> <reviewedHeadSha>
+      ```
+  - 隔離検証環境を作成できない場合は、ローカル検証を行わず `local verification: not performed` としてレビューを進行する。
+
+### 3. 検証後の再確認ゲート
+ビルドやテストが完了した後、かつ投稿処理（Snapshot Guard）の直前に、以下を再確認する。
+1. 検証環境の `HEAD` が `reviewedHeadSha` のままであること
+2. 検証環境の `git status --porcelain` が空であり、tracked file に変更がないこと
+3. 現在の GitHub 上の PR HEAD SHA が `reviewedHeadSha` のままであること
+
+次の場合は stale review として投稿（inline comment や APPROVE）を停止する。
+- レビュー中に PR HEAD が変更された
+- 検証処理によって tracked file が書き換えられた、または HEAD が意図せず移動した
+（生成物などの untracked file は許容するが、tracked file の変更は厳禁とする）
+
+### 4. CI 検証の SHA 固定
+- CI の成否確認は、ブランチの最新状態ではなく `reviewedHeadSha` に紐づく workflow run または combined status を確認する。
+- 最終的な verdict（判定）の根拠とした CI の対象 SHA を確認・記録する。
+- `CI: success` は、すべての required checks が `reviewedHeadSha` に対して成功している場合のみ適用する。SHA を特定・保証できない場合は `CI: unknown` とする。
+- APPROVE 投稿の直前に、PR HEAD SHA と CI 対象 SHA の両方が `reviewedHeadSha` と一致していることを再確認する。
+
+### 5. 再レビュー依頼の期待 HEAD 照合
+- candidate queue などの再レビュー依頼に `expected_head` が含まれる場合、開始時に以下を照合する。
+  ```text
+  candidate.expected_head == get_pr().pr.head.sha
+  ```
+- 不一致の場合は古い再レビュー依頼とみなし、そのまま APPROVE せず、最新の HEAD を新しいレビュー対象としてレビューをやり直すか、明示的に処理を停止する。
+
+### 6. 既存 Snapshot Guard の維持
+- `post_inline_comment.commitId` と `approve_pull_request.expectedHeadSha` には、最終確認済みの同じ head SHA (`reviewedHeadSha`) を使う。
+- inline の `path` と `line` が current diff 上の投稿可能な位置であることを確認する。確実でなければ PR-level summary にする。
 
 ## Initial Review
 
@@ -237,7 +279,11 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 
 - PR: ...
 - mode: initial-review | re-review | thread-follow-up | summary-only
-- reviewed head: ...
+- reviewed head: <SHA>
+- source of truth: remote PR snapshot
+- local verification: isolated worktree | clean matching worktree | not performed
+- local verification head: <SHA | n/a>
+- CI head: <SHA | unknown>
 - verdict: approve | request changes | comment only | needs follow-up
 - CI: success | failure | unknown
 - posted: 新規inline N 件、thread 返信 N 件、summary N 件、approve N 件
