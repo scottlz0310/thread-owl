@@ -1,4 +1,4 @@
-FROM node:24.16.0-alpine AS builder
+FROM node:24.18.0-alpine AS builder
 
 RUN npm install -g pnpm@11
 
@@ -12,7 +12,7 @@ RUN pnpm run build
 
 # ---
 
-FROM node:24.16.0-alpine AS runtime
+FROM node:24.18.0-alpine AS runtime
 
 RUN npm install -g pnpm@11
 
