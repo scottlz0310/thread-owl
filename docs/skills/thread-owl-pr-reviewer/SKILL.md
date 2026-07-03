@@ -22,7 +22,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 - style nit、既存コードだけに由来する問題、PR の目的外の大規模改善を投稿しない。
 - 既存レビューへの同意、言い換え、根拠の弱い追従を投稿しない。
 - 再レビューで、初回に出さなかった軽微な指摘を後出ししない。
-- 指摘がない場合はコメントを作らない。ただし `initial-review` / `re-review` で新規 `blocking` 指摘が0件かつ既存 review thread がすべて resolved である場合（`verdict: approve`）は例外とし、「Verdict コメント投稿」節に従って固定フォーマットの Verdict コメントを投稿する。
+- 指摘がない場合はコメントを作らない。ただし `initial-review` / `re-review` で `verdict: approve`（後述の「Verdict」節を参照）と判定した場合は例外とし、「Verdict コメント投稿」節に従って固定フォーマットの Verdict コメントを投稿する。
 - 書き込み失敗が曖昧な場合は、同じ投稿を即時再実行せず thread を再取得して重複を確認する。
 
 ## Thread Owl 契約
@@ -226,12 +226,12 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 
 **トリガー条件**
 
-`initial-review` または `re-review` において、新規 `blocking` 指摘が0件、かつ既存 review thread がすべて `resolved` である場合（= `verdict: approve`）。
+`initial-review` または `re-review` において `verdict: approve` と判定した場合（判定基準は「Verdict」節を参照）。
 
 **振る舞い**
 
 - `approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
-- 代わりに `post_summary_comment` で以下の固定フォーマットの Verdict コメントを必ず投稿する。
+- 代わりに `post_summary_comment` で以下の固定フォーマットの Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
 
 ```markdown
 ## @thread-owl Review Verdict: APPROVED
@@ -294,7 +294,7 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 
 ## Verdict
 
-- `approve`: blocking がなく、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。新規 `blocking` 指摘が0件かつ既存 review thread がすべて resolved の場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
+- `approve`: blocking がなく（新規指摘・既存 review thread の未解決分の双方を含む）、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
 - `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告に留める。
 - `comment only`: 判断材料が不足し、question が中心。
 - `needs follow-up`: merge 可能だが、別 issue または後続 PR で追う論点がある。

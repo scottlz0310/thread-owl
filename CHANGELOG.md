@@ -11,7 +11,7 @@
 - `approvePR` のユニットテスト追加（#90）: allowlist ガード・expectedHeadSha 不一致エラー・正常系（監査ログ記録・body 転送）の 4 ケースを網羅
 
 ### Changed
-- `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#114）: 新規 `blocking` 指摘が0件かつ既存 review thread がすべて resolved の場合（`verdict: approve`）に、「指摘がない場合はコメントを作らない」原則の例外として固定フォーマットの Verdict コメント（`## @thread-owl Review Verdict: APPROVED`）を `post_summary_comment` で投稿する運用を追加。reviewed-side workflow がマージ判断時に参照する「レビュー完了の証拠」を GitHub 上に残し、reviewer-side が沈黙する一方 reviewed-side が証拠を待ち続けるデッドロックを解消。`approve_pull_request` の自律実行は行わず、既存の投稿判断ルールをそのまま適用
+- `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#114）: `initial-review` / `re-review` で `verdict: approve` と判定した場合に、「指摘がない場合はコメントを作らない」原則の例外として固定フォーマットの Verdict コメント（`## @thread-owl Review Verdict: APPROVED`）を `post_summary_comment` で投稿する運用を追加。reviewed-side workflow がマージ判断時に参照する「レビュー完了の証拠」を GitHub 上に残し、reviewer-side が沈黙する一方 reviewed-side が証拠を待ち続けるデッドロックを解消。`approve_pull_request` の自律実行は行わず、既存の投稿判断ルールをそのまま適用。トリガー条件を Verdict 節の `approve` 判定基準（CI success 等を含む）と統一し、条件の二重定義による内部不整合を解消
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#104）: リモート基準の検証環境ゲート（Repository State Guard、検証後の再確認、CI 検証の SHA 固定、再レビュー依頼の期待 HEAD 照合）を追加し、ローカル未 push 変更の誤レビューを防止。ユーザー報告に `source of truth`, `local verification`, `local verification head`, `CI head` を追記
 - `docs/operations.md` の mcp-resource-subscriber 呼び出し例を `--json` モードに更新（#83）: `--json` フラグを primary に変更し、JSON 出力フィールド（`route` / `errorCode` / `recommendedNextAction` / `finalText` 等）の説明テーブルを追記。line-based 出力例は `<details>` 補足に格下げ。「将来の `--json` mode」注記を削除
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新: 安全性の観点から自律的な `APPROVE` 送信を禁止し、ユーザーの明示的指示を必須とすること、およびレビュー結果でマージ推奨の判断を明確に報告する運用ルールを追加
