@@ -22,7 +22,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 - style nit、既存コードだけに由来する問題、PR の目的外の大規模改善を投稿しない。
 - 既存レビューへの同意、言い換え、根拠の弱い追従を投稿しない。
 - 再レビューで、初回に出さなかった軽微な指摘を後出ししない。
-- 指摘がない場合はコメントを作らない。
+- 指摘がない場合はコメントを作らない。ただし `initial-review` / `re-review` で `verdict: approve`（後述の「Verdict」節を参照）と判定した場合は例外とし、「Verdict コメント投稿」節に従って固定フォーマットの Verdict コメントを投稿する。
 - 書き込み失敗が曖昧な場合は、同じ投稿を即時再実行せず thread を再取得して重複を確認する。
 
 ## Thread Owl 契約
@@ -35,7 +35,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 | `list_review_threads` | resolved / outdated 状態とコメントを含む review thread 一覧を返す |
 | `post_inline_comment` | `commitId`、`path`、`line`、`body` を指定して current diff に投稿する |
 | `reply_review_thread` | `threadId` へ返信する。thread の所属 repository は server 側でも allowlist 照合される |
-| `post_summary_comment` | PR conversation に issue comment として summary を投稿する |
+| `post_summary_comment` | PR conversation に issue comment として summary を投稿する。blocking 0件・全 review thread resolved 時の Verdict コメント投稿にも使う（「Verdict コメント投稿」節参照） |
 | `approve_pull_request` | `expectedHeadSha` と現在の head が一致する場合だけ APPROVE review を送る |
 
 `get_pr` は CI status、check logs、通常の issue comment 全文を返さない。必要な読み取りだけ GitHub connector または `gh` で補う。Thread Owl で提供されない書き込みを別経路へ迂回しない。
@@ -220,6 +220,31 @@ PR URL を示してレビューと投稿を依頼された場合、根拠が固�
 - 投稿対象 PR、head、line、thread を確実に特定できない
 - `summary-only` の summary 投稿を明示されていない
 
+### Verdict コメント投稿
+
+reviewed-side workflow は、マージ判断時に「thread-owl から現在の PR HEAD に対するレビュー完了の証拠が GitHub 上に存在するか」を確認する。指摘がなく沈黙すると、この証拠が残らずマージ判断が進まないデッドロックになる。これを避けるため、次の条件でだけ Verdict コメントを投稿する。
+
+**トリガー条件**
+
+`initial-review` または `re-review` において `verdict: approve` と判定した場合（判定基準は「Verdict」節を参照）。
+
+**振る舞い**
+
+- `approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
+- 代わりに `post_summary_comment` で以下の固定フォーマットの Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
+
+```markdown
+## @thread-owl Review Verdict: APPROVED
+
+すべての対象コードの検証が完了しました。技術的・品質的にマージ可能な状態である（マージ推奨）と判定しました。
+
+- Reviewed HEAD SHA: `<reviewedHeadSha>`
+- Status: `READY_TO_MERGE`
+```
+
+- `<reviewedHeadSha>` は Snapshot Guard で確認済みの `reviewedHeadSha` と一致させる。
+- この Verdict コメント投稿自体は、上記の投稿判断基準（本節冒頭のリスト）にそのまま従う。承認不要の新たな自律アクションとして追加するものではない。
+
 ### APPROVE 投稿とマージ判断について
 
 `approve_pull_request` はユーザーが明示的に APPROVE 投稿を依頼した場合だけ実行する。実行直前に `get_pr` で head SHA と CI を再確認する。CI が unknown、blocking が残る、または head が変わった場合は実行しない。
@@ -269,7 +294,7 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 
 ## Verdict
 
-- `approve`: blocking がなく、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。
+- `approve`: 新規 `blocking` 指摘がなく、既存 review thread がすべて resolved であり（分類を問わない。`non-blocking` / `question` の未解決も許容しない）、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
 - `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告に留める。
 - `comment only`: 判断材料が不足し、question が中心。
 - `needs follow-up`: merge 可能だが、別 issue または後続 PR で追う論点がある。
