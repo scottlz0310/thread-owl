@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Verify version consistency
-        # git tag（v0.2.0）の数値部分と package.json / src/index.ts の VERSION が一致することを確認する。
+        # git tag（vX.Y.Z）の数値部分と package.json / src/index.ts の VERSION が一致することを確認する。
         # ずれたまま publish するとイメージタグとアプリ自己申告バージョンが乖離する。
         run: |
           TAG_VER="${GITHUB_REF_NAME#v}"
@@ -99,7 +99,7 @@ jobs:
       - name: Check prerelease
         id: prerelease_check
         # semver prerelease 判定: vX.Y.Z の直後に "-" が続くかどうかで判定する。
-        # contains(ref_name, '-') では v0.2.0+build-1 のような build metadata 識別子内の
+        # contains(ref_name, '-') では vX.Y.Z+build-1 のような build metadata 識別子内の
         # "-" を誤検知するため、正規表現で semver prerelease 部分のみを判定する。
         run: |
           if echo "${{ github.ref_name }}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-'; then
