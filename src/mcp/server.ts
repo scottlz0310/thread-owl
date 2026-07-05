@@ -18,6 +18,11 @@ import {
   approvePullRequestInputSchema,
   approvePullRequestTool,
 } from "./tools/approve-pull-request.js";
+import {
+  ENQUEUE_REVIEW_TOOL_NAME,
+  enqueueReviewInputSchema,
+  enqueueReviewTool,
+} from "./tools/enqueue-review.js";
 import { GET_PR_TOOL_NAME, getPrInputSchema, getPrTool } from "./tools/get-pr.js";
 import {
   LIST_REVIEW_THREADS_TOOL_NAME,
@@ -129,6 +134,16 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
 
   if (deps.queue) {
     const queue = deps.queue;
+
+    server.registerTool(
+      ENQUEUE_REVIEW_TOOL_NAME,
+      {
+        description:
+          "webhook 以外の正規経路で PR を review queue に enqueue する（allowlist 内のみ）",
+        inputSchema: enqueueReviewInputSchema,
+      },
+      (args) => runTool(() => enqueueReviewTool({ ...deps, queue }, args)),
+    );
 
     const session = createSubscriptionSession();
     const notifier = createQueueNotifier(

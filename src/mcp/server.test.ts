@@ -4,6 +4,7 @@ import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/typ
 import { describe, expect, test, vi } from "vitest";
 import { createReviewQueue, type ReviewCandidate } from "../queue/review-queue.js";
 import { createMcpServer, QUEUE_RESOURCE_URI, RE_REVIEW_RESOURCE_URI } from "./server.js";
+import { ENQUEUE_REVIEW_TOOL_NAME } from "./tools/enqueue-review.js";
 
 function makeCandidate(prNumber = 1): ReviewCandidate {
   return {
@@ -24,6 +25,8 @@ function makeMinimalDeps() {
     getWriteContext: async (): Promise<never> => {
       throw new Error("not used in subscription tests");
     },
+    allowedRepos: ["org/repo"],
+    resolveInstallationId: async (): Promise<number> => 1,
   };
 }
 
@@ -202,6 +205,111 @@ describe("createMcpServer — queue resource subscription", () => {
 
     await client.close();
     await mcpServer.close();
+  });
+});
+
+describe("createMcpServer — enqueue_review tool", () => {
+  test("tools/list includes enqueue_review", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    const result = await client.listTools();
+    expect(result.tools.map((t) => t.name)).toContain(ENQUEUE_REVIEW_TOOL_NAME);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("valid call enqueues candidate and notifies queue subscribers", async () => {
+    const queue = createReviewQueue();
+    const { server, client, notifications } = await setupServerAndClient(queue);
+
+    await client.subscribeResource({ uri: QUEUE_RESOURCE_URI });
+    const result = await client.callTool({
+      name: ENQUEUE_REVIEW_TOOL_NAME,
+      arguments: { owner: "org", repo: "repo", prNumber: 7, reason: "opened" },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(result.isError).toBeFalsy();
+    expect(queue.list()).toHaveLength(1);
+    expect(queue.list()[0]).toMatchObject({ owner: "org", repo: "repo", prNumber: 7 });
+    expect(notifications).toContain(QUEUE_RESOURCE_URI);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("re-review-requested call notifies re-review-requests subscribers", async () => {
+    const queue = createReviewQueue();
+    const { server, client, notifications } = await setupServerAndClient(queue);
+
+    await client.subscribeResource({ uri: RE_REVIEW_RESOURCE_URI });
+    await client.callTool({
+      name: ENQUEUE_REVIEW_TOOL_NAME,
+      arguments: {
+        owner: "org",
+        repo: "repo",
+        prNumber: 7,
+        reason: "re-review-requested",
+        requestedBy: "alice",
+      },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(notifications).toContain(RE_REVIEW_RESOURCE_URI);
+    expect(queue.list()[0].requestedBy).toBe("alice");
+
+    await client.close();
+    await server.close();
+  });
+
+  test("rejects repo outside allowlist without enqueueing", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    const result = await client.callTool({
+      name: ENQUEUE_REVIEW_TOOL_NAME,
+      arguments: { owner: "other", repo: "repo", prNumber: 1, reason: "opened" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(queue.size()).toBe(0);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("rejects invalid reason", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    const result = await client.callTool({
+      name: ENQUEUE_REVIEW_TOOL_NAME,
+      arguments: { owner: "org", repo: "repo", prNumber: 1, reason: "invalid" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(queue.size()).toBe(0);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("rejects missing required arguments", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    const result = await client.callTool({
+      name: ENQUEUE_REVIEW_TOOL_NAME,
+      arguments: { owner: "org", repo: "repo" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(queue.size()).toBe(0);
+
+    await client.close();
+    await server.close();
   });
 });
 

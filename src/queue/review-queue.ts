@@ -28,8 +28,10 @@ export function createReviewQueue(): ReviewQueue {
   const listeners = new Set<() => void>();
   const reReviewListeners = new Set<() => void>();
 
+  // owner/repo は大文字小文字を区別しない（allowlist.isAllowed と同様）ため、
+  // dedup key も小文字化して比較する。大小文字違いの重複 enqueue を防ぐ。
   function prKey(c: ReviewCandidate): string {
-    return `${c.owner}/${c.repo}#${c.prNumber}`;
+    return `${c.owner}/${c.repo}#${c.prNumber}`.toLowerCase();
   }
 
   return {
