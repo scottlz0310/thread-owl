@@ -111,6 +111,8 @@ Claude Code / agent workflow
 | `queue://review/queue` | `opened` / `synchronized` / `re-review-requested` | 通常レビューの subscriber 起動 |
 | `queue://review/re-review-requests` | `re-review-requested` のみ | re-review handoff subscriber 起動（push-first 経路での early termination を防ぐ） |
 
+`--mcp-http`（webhook 受信なし）も同じ resources を expose するが、GitHub イベントからの自動 enqueue は行わない。enqueue は `enqueue_review` tool 呼び出し経由に限られる（[#122](https://github.com/scottlz0310/thread-owl/issues/122)）。
+
 ### 設計原則
 
 - Thread Owl 本体に subscription client / watcher CLI / agent wait loop を内蔵しない
