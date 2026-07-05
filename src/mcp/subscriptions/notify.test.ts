@@ -177,7 +177,7 @@ describe("createQueueNotifier", () => {
 
       notifier.handleSubscribe();
 
-      expect(logger.debug).toHaveBeenCalledWith(
+      expect(logger.info).toHaveBeenCalledWith(
         "mcp.subscription.subscribed",
         expect.objectContaining({ uri: TEST_URI, listenerCount: 2 }),
       );
@@ -199,7 +199,7 @@ describe("createQueueNotifier", () => {
       notifier.handleSubscribe();
       notifier.handleUnsubscribe();
 
-      expect(logger.debug).toHaveBeenCalledWith(
+      expect(logger.info).toHaveBeenCalledWith(
         "mcp.subscription.unsubscribed",
         expect.objectContaining({ uri: TEST_URI, listenerCount: 0 }),
       );

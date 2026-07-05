@@ -76,7 +76,7 @@ describe("startMcpHttpServer - session count diagnostics (#117)", () => {
     );
     await client.connect(transport);
 
-    expect(logger.debug).toHaveBeenCalledWith(
+    expect(logger.info).toHaveBeenCalledWith(
       "mcp.session.initialized",
       expect.objectContaining({ sessionCount: 1 }),
     );
@@ -85,10 +85,11 @@ describe("startMcpHttpServer - session count diagnostics (#117)", () => {
     await client.close();
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(logger.debug).toHaveBeenCalledWith(
-      "mcp.session.closed",
-      expect.objectContaining({ sessionCount: 0 }),
+    const closedCalls = (logger.info as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([event]) => event === "mcp.session.closed",
     );
+    expect(closedCalls).toHaveLength(1);
+    expect(closedCalls[0][1]).toMatchObject({ sessionCount: 0 });
 
     await srv.close();
   });

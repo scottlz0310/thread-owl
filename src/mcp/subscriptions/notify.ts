@@ -57,7 +57,9 @@ export function createQueueNotifier(
       session.subscribe(uri);
       attachListener();
       if (diagnostics) {
-        diagnostics.logger.debug("mcp.subscription.subscribed", {
+        // 既定の LOG_LEVEL（info）でも記録されるよう info を使う。#117 は長時間稼働後に
+        // しか再現せず、事後に debug へ切り替えると状態がリセットされてしまうため。
+        diagnostics.logger.info("mcp.subscription.subscribed", {
           event: "mcp.subscription.subscribed",
           uri,
           listenerCount: diagnostics.listenerCount(),
@@ -69,7 +71,7 @@ export function createQueueNotifier(
       removeListener?.();
       removeListener = undefined;
       if (diagnostics) {
-        diagnostics.logger.debug("mcp.subscription.unsubscribed", {
+        diagnostics.logger.info("mcp.subscription.unsubscribed", {
           event: "mcp.subscription.unsubscribed",
           uri,
           listenerCount: diagnostics.listenerCount(),

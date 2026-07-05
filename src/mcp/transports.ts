@@ -49,8 +49,10 @@ export async function startMcpHttpServer(
   const sessions = new Map<string, McpHttpSession>();
 
   // 通知配信の長時間稼働後サイレント停止（#117）の診断用。セッション数の推移を追える。
+  // 既定の LOG_LEVEL（info）でも記録されるよう info を使う（事後に debug へ切り替えると
+  // 再現に必要な状態がリセットされてしまうため）。
   const logSessionCount = (event: string) => {
-    options.logger?.debug(event, { event, sessionCount: sessions.size });
+    options.logger?.info(event, { event, sessionCount: sessions.size });
   };
 
   const closeSession = async (session: McpHttpSession) => {
@@ -76,8 +78,11 @@ export async function startMcpHttpServer(
         logSessionCount("mcp.session.initialized");
       },
       onsessionclosed: (sessionId) => {
-        sessions.delete(sessionId);
-        logSessionCount("mcp.session.closed");
+        // 実際に削除できた場合のみログする。transport.onclose と重複しうる経路のため。
+        if (sessions.get(sessionId) === session) {
+          sessions.delete(sessionId);
+          logSessionCount("mcp.session.closed");
+        }
       },
     });
     session = { server, transport };
