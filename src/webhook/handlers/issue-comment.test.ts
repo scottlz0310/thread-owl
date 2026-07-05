@@ -12,6 +12,7 @@ function makeQueue(): ReviewQueue {
     size: vi.fn(() => 0),
     onEnqueue: vi.fn(() => () => {}),
     onReReviewRequested: vi.fn(() => () => {}),
+    listenerCounts: vi.fn(() => ({ onEnqueue: 0, onReReviewRequested: 0 })),
   };
 }
 

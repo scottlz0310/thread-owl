@@ -21,6 +21,8 @@ export interface ReviewQueue {
   onEnqueue(listener: () => void): () => void;
   /** re-review-requested enqueue 時のみ呼ばれる listener を登録する。戻り値は解除関数。 */
   onReReviewRequested(listener: () => void): () => void;
+  /** 現在登録されている listener 数。通知配信停止の診断用（#117）。 */
+  listenerCounts(): { onEnqueue: number; onReReviewRequested: number };
 }
 
 export function createReviewQueue(): ReviewQueue {
@@ -84,6 +86,9 @@ export function createReviewQueue(): ReviewQueue {
       return () => {
         reReviewListeners.delete(listener);
       };
+    },
+    listenerCounts(): { onEnqueue: number; onReReviewRequested: number } {
+      return { onEnqueue: listeners.size, onReReviewRequested: reReviewListeners.size };
     },
   };
 }

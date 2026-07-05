@@ -1,7 +1,12 @@
 import { describe, expect, test, vi } from "vitest";
+import type { Logger } from "../../config/logging.js";
 import { createReviewQueue, type ReviewCandidate } from "../../queue/review-queue.js";
 import { createSubscriptionSession } from "./listen.js";
 import { createQueueNotifier } from "./notify.js";
+
+function makeLogger(): Logger {
+  return { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+}
 
 const TEST_URI = "queue://review/queue";
 
@@ -142,5 +147,87 @@ describe("createQueueNotifier", () => {
 
     expect(sendUpdated).toHaveBeenCalledTimes(2);
     notifier.dispose();
+  });
+
+  describe("diagnostics（#117 通知配信停止の診断ログ）", () => {
+    test("diagnostics 未指定なら logger は一切呼ばれない", async () => {
+      const sendUpdated = vi.fn().mockRejectedValue(new Error("transport closed"));
+      const { queue, notifier } = setup({ sendUpdated });
+      notifier.handleSubscribe();
+      notifier.handleUnsubscribe();
+      queue.enqueue(makeCandidate());
+      await new Promise((r) => setTimeout(r, 10));
+      notifier.dispose();
+      // logger を渡していないので例外なく動作することのみ確認する
+      expect(sendUpdated).not.toHaveBeenCalled();
+    });
+
+    test("handleSubscribe で subscribed ログと listenerCount を記録する", () => {
+      const queue = createReviewQueue();
+      const session = createSubscriptionSession();
+      const logger = makeLogger();
+      queue.onEnqueue(() => {});
+      const notifier = createQueueNotifier(
+        (listener) => queue.onEnqueue(listener),
+        vi.fn().mockResolvedValue(undefined),
+        session,
+        TEST_URI,
+        { logger, listenerCount: () => queue.listenerCounts().onEnqueue },
+      );
+
+      notifier.handleSubscribe();
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        "mcp.subscription.subscribed",
+        expect.objectContaining({ uri: TEST_URI, listenerCount: 2 }),
+      );
+      notifier.dispose();
+    });
+
+    test("handleUnsubscribe で unsubscribed ログを記録する", () => {
+      const queue = createReviewQueue();
+      const session = createSubscriptionSession();
+      const logger = makeLogger();
+      const notifier = createQueueNotifier(
+        (listener) => queue.onEnqueue(listener),
+        vi.fn().mockResolvedValue(undefined),
+        session,
+        TEST_URI,
+        { logger, listenerCount: () => queue.listenerCounts().onEnqueue },
+      );
+
+      notifier.handleSubscribe();
+      notifier.handleUnsubscribe();
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        "mcp.subscription.unsubscribed",
+        expect.objectContaining({ uri: TEST_URI, listenerCount: 0 }),
+      );
+      notifier.dispose();
+    });
+
+    test("sendUpdated 失敗時に notify.failed を warn で記録する", async () => {
+      const queue = createReviewQueue();
+      const session = createSubscriptionSession();
+      const logger = makeLogger();
+      const sendUpdated = vi.fn().mockRejectedValue(new Error("transport closed"));
+      const notifier = createQueueNotifier(
+        (listener) => queue.onEnqueue(listener),
+        sendUpdated,
+        session,
+        TEST_URI,
+        { logger, listenerCount: () => queue.listenerCounts().onEnqueue },
+      );
+
+      notifier.handleSubscribe();
+      queue.enqueue(makeCandidate());
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "mcp.subscription.notify.failed",
+        expect.objectContaining({ uri: TEST_URI, error: "transport closed" }),
+      );
+      notifier.dispose();
+    });
   });
 });

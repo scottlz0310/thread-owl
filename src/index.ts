@@ -60,6 +60,7 @@ if (mode === "mcp-stdio") {
     host: config.server.host,
     port: config.server.port,
     path: config.server.mcpHttpPath,
+    logger,
     onError: (error) => {
       logger.error("mcp.request.error", {
         event: "mcp.request.error",
@@ -200,13 +201,14 @@ if (mode === "mcp-stdio") {
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
-        { ...buildToolDeps(runtime.issueTokenDeps), queue: runtime.reviewQueue },
+        { ...buildToolDeps(runtime.issueTokenDeps), queue: runtime.reviewQueue, logger },
         { name: "thread-owl", version: VERSION },
       ),
     {
       host: config.server.host,
       port: config.server.port,
       path: config.server.mcpHttpPath,
+      logger,
       onError: (error) => {
         logger.error("mcp.request.error", {
           event: "mcp.request.error",
