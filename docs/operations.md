@@ -99,7 +99,7 @@ GET /token?owner=<owner>&repo=<repo>
 |----------|--------|------|
 | `node dist/index.js` | internal API | `/health`・`/status`・`/token` |
 | `node dist/index.js --mcp` | stdio MCP | local-only / trusted local client |
-| `node dist/index.js --mcp-http` | Streamable HTTP MCP | mcp-gateway からの内部接続 |
+| `node dist/index.js --mcp-http` | Streamable HTTP MCP | mcp-gateway からの内部接続（queue 機能含む） |
 | `node dist/index.js --webhook` | Webhook 受信 | GitHub App Webhook イベントの受信・キュー投入 |
 
 各モードは排他的であり、複数フラグの同時指定は起動失敗する。
@@ -161,6 +161,16 @@ HOST=127.0.0.1 PORT=3000 node dist/index.js --mcp-http
 - 既定 bind は `127.0.0.1`。Thread Owl の Streamable HTTP endpoint を直接 public exposure する構成は非対応
 - caller 認証は mcp-gateway の責務であり、Thread Owl 側の Bearer 認証は本実装に含まれない
 - mcp-gateway と別コンテナで接続する場合のみ、private Docker network 内で `HOST=0.0.0.0` とし、Thread Owl の port をホストへ publish しない
+
+**queue 機能（webhook 受信なし）:**
+
+`--mcp-http` は起動時に `ReviewQueue` を生成し MCP server に注入する（#122）。`--webhook-mcp-http` と異なり `POST /webhook` は提供しないため、GitHub イベントからの自動 enqueue は行われない。代わりに以下が利用できる。
+
+| 機能 | 説明 |
+|------|------|
+| `enqueue_review` tool | webhook 以外の正規経路で PR を queue に投入する |
+| `queue://review/queue` resource | `resources/subscribe` で enqueue 通知を受信 |
+| `queue://review/re-review-requests` resource | `re-review-requested` のみ通知 |
 
 mcp-gateway から指定する内部 URL の例:
 

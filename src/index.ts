@@ -56,18 +56,28 @@ if (mode === "mcp-stdio") {
   await startMcpStdioServer(server);
   logger.info("mcp.started", { event: "mcp.started", transport: "stdio" });
 } else if (mode === "mcp-http") {
-  const httpServer = await startMcpHttpServer(createConfiguredMcpServer, {
-    host: config.server.host,
-    port: config.server.port,
-    path: config.server.mcpHttpPath,
-    logger,
-    onError: (error) => {
-      logger.error("mcp.request.error", {
-        event: "mcp.request.error",
-        errorName: error instanceof Error ? error.name : "UnknownError",
-      });
+  // webhook receiver は起動しないため、GitHub イベントからの自動 enqueue は行わない。
+  // enqueue_review tool と resources/subscribe のみで queue 機能を提供する（#122）。
+  const reviewQueue = createReviewQueue();
+  const httpServer = await startMcpHttpServer(
+    () =>
+      createMcpServer(
+        { ...buildToolDeps(issueTokenDeps), queue: reviewQueue, logger },
+        { name: "thread-owl", version: VERSION },
+      ),
+    {
+      host: config.server.host,
+      port: config.server.port,
+      path: config.server.mcpHttpPath,
+      logger,
+      onError: (error) => {
+        logger.error("mcp.request.error", {
+          event: "mcp.request.error",
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        });
+      },
     },
-  });
+  );
   logger.info("mcp.started", {
     event: "mcp.started",
     transport: "streamable-http",
