@@ -229,5 +229,29 @@ describe("createQueueNotifier", () => {
       );
       notifier.dispose();
     });
+
+    test("sendUpdated が Error 以外の値で reject した場合も notify.failed を記録する", async () => {
+      const queue = createReviewQueue();
+      const session = createSubscriptionSession();
+      const logger = makeLogger();
+      const sendUpdated = vi.fn().mockRejectedValue("plain string rejection");
+      const notifier = createQueueNotifier(
+        (listener) => queue.onEnqueue(listener),
+        sendUpdated,
+        session,
+        TEST_URI,
+        { logger, listenerCount: () => queue.listenerCounts().onEnqueue },
+      );
+
+      notifier.handleSubscribe();
+      queue.enqueue(makeCandidate());
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "mcp.subscription.notify.failed",
+        expect.objectContaining({ uri: TEST_URI, error: "plain string rejection" }),
+      );
+      notifier.dispose();
+    });
   });
 });

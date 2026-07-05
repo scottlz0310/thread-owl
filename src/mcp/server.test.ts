@@ -2,9 +2,14 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, test, vi } from "vitest";
+import type { Logger } from "../config/logging.js";
 import { createReviewQueue, type ReviewCandidate } from "../queue/review-queue.js";
 import { createMcpServer, QUEUE_RESOURCE_URI, RE_REVIEW_RESOURCE_URI } from "./server.js";
 import { ENQUEUE_REVIEW_TOOL_NAME } from "./tools/enqueue-review.js";
+
+function makeLogger(): Logger {
+  return { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+}
 
 function makeCandidate(prNumber = 1): ReviewCandidate {
   return {
@@ -374,6 +379,55 @@ describe("createMcpServer — re-review-requests resource", () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].prNumber).toBe(2);
 
+    await client.close();
+    await server.close();
+  });
+});
+
+describe("createMcpServer — diagnostics logging (#117)", () => {
+  test("logger 付きで subscribe すると queue と re-review-requests 両方の診断ログを記録する", async () => {
+    const queue = createReviewQueue();
+    const logger = makeLogger();
+    const server = createMcpServer(
+      { ...makeMinimalDeps(), queue, logger },
+      { name: "test", version: "0.0.0" },
+    );
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    await client.connect(clientTransport);
+
+    await client.subscribeResource({ uri: QUEUE_RESOURCE_URI });
+    await client.subscribeResource({ uri: RE_REVIEW_RESOURCE_URI });
+
+    expect(logger.info).toHaveBeenCalledWith(
+      "mcp.subscription.subscribed",
+      expect.objectContaining({ uri: QUEUE_RESOURCE_URI, listenerCount: 1 }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      "mcp.subscription.subscribed",
+      expect.objectContaining({ uri: RE_REVIEW_RESOURCE_URI, listenerCount: 1 }),
+    );
+
+    await client.unsubscribeResource({ uri: QUEUE_RESOURCE_URI });
+    expect(logger.info).toHaveBeenCalledWith(
+      "mcp.subscription.unsubscribed",
+      expect.objectContaining({ uri: QUEUE_RESOURCE_URI, listenerCount: 0 }),
+    );
+
+    await client.close();
+    await server.close();
+  });
+
+  test("logger 未指定なら診断ログは記録されない", async () => {
+    const queue = createReviewQueue();
+    const { server, client } = await setupServerAndClient(queue);
+
+    await client.subscribeResource({ uri: QUEUE_RESOURCE_URI });
+    queue.enqueue(makeCandidate());
+    await new Promise((r) => setTimeout(r, 20));
+
+    // logger を渡していないので diagnostics 経路が例外なく no-op で動作することのみ確認する
     await client.close();
     await server.close();
   });
