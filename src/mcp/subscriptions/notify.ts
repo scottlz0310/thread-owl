@@ -1,3 +1,4 @@
+import type { Logger } from "../../config/logging.js";
 import type { SubscriptionSession } from "./listen.js";
 
 export interface QueueNotifier {
@@ -8,11 +9,20 @@ export interface QueueNotifier {
   dispose(): void;
 }
 
+// 長時間稼働時の通知配信停止（#117）の診断用。渡すと subscribe/unsubscribe/配信失敗のたびに
+// listener 数を記録する。sendUpdated が resolve した場合でも実際にクライアントへ届いたかは
+// MCP SDK の standalone SSE 仕様上ここからは確認できないため、reject（＝失敗を検知できたケース）のみログする。
+export interface NotifierDiagnostics {
+  logger: Logger;
+  listenerCount: () => number;
+}
+
 export function createQueueNotifier(
   onHook: (listener: () => void) => () => void,
   sendUpdated: (uri: string) => Promise<void>,
   session: SubscriptionSession,
   uri: string,
+  diagnostics?: NotifierDiagnostics,
 ): QueueNotifier {
   let removeListener: (() => void) | undefined;
 
@@ -23,11 +33,19 @@ export function createQueueNotifier(
     removeListener = onHook(() => {
       if (!session.isSubscribed(uri)) return;
       const selfRemove = removeListener;
-      void sendUpdated(uri).catch(() => {
+      void sendUpdated(uri).catch((error) => {
         if (removeListener === selfRemove) {
           session.unsubscribe(uri);
           removeListener?.();
           removeListener = undefined;
+          if (diagnostics) {
+            diagnostics.logger.warn("mcp.subscription.notify.failed", {
+              event: "mcp.subscription.notify.failed",
+              uri,
+              listenerCount: diagnostics.listenerCount(),
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       });
     });
@@ -38,11 +56,27 @@ export function createQueueNotifier(
       if (session.isSubscribed(uri)) return;
       session.subscribe(uri);
       attachListener();
+      if (diagnostics) {
+        // 既定の LOG_LEVEL（info）でも記録されるよう info を使う。#117 は長時間稼働後に
+        // しか再現せず、事後に debug へ切り替えると状態がリセットされてしまうため。
+        diagnostics.logger.info("mcp.subscription.subscribed", {
+          event: "mcp.subscription.subscribed",
+          uri,
+          listenerCount: diagnostics.listenerCount(),
+        });
+      }
     },
     handleUnsubscribe(): void {
       session.unsubscribe(uri);
       removeListener?.();
       removeListener = undefined;
+      if (diagnostics) {
+        diagnostics.logger.info("mcp.subscription.unsubscribed", {
+          event: "mcp.subscription.unsubscribed",
+          uri,
+          listenerCount: diagnostics.listenerCount(),
+        });
+      }
     },
     dispose(): void {
       removeListener?.();

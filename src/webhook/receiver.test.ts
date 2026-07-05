@@ -36,6 +36,7 @@ function makeQueue(): ReviewQueue {
     size: vi.fn().mockReturnValue(0),
     onEnqueue: vi.fn().mockReturnValue(() => undefined),
     onReReviewRequested: vi.fn().mockReturnValue(() => undefined),
+    listenerCounts: vi.fn().mockReturnValue({ onEnqueue: 0, onReReviewRequested: 0 }),
   };
 }
 

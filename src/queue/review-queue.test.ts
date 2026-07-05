@@ -232,6 +232,30 @@ describe("createReviewQueue", () => {
     });
   });
 
+  describe("listenerCounts", () => {
+    test("初期状態では両方 0", () => {
+      const q = createReviewQueue();
+      expect(q.listenerCounts()).toEqual({ onEnqueue: 0, onReReviewRequested: 0 });
+    });
+
+    test("登録した listener 数を反映する", () => {
+      const q = createReviewQueue();
+      q.onEnqueue(() => {});
+      q.onEnqueue(() => {});
+      q.onReReviewRequested(() => {});
+
+      expect(q.listenerCounts()).toEqual({ onEnqueue: 2, onReReviewRequested: 1 });
+    });
+
+    test("dispose された listener はカウントされない", () => {
+      const q = createReviewQueue();
+      const dispose = q.onEnqueue(() => {});
+      dispose();
+
+      expect(q.listenerCounts()).toEqual({ onEnqueue: 0, onReReviewRequested: 0 });
+    });
+  });
+
   describe("onReReviewRequested", () => {
     test("re-review-requested enqueue 時のみ listener を呼ぶ", () => {
       const q = createReviewQueue();

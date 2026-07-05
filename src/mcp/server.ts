@@ -9,6 +9,7 @@ import {
   SubscribeRequestSchema,
   UnsubscribeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { Logger } from "../config/logging.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
 import { createSubscriptionSession } from "./subscriptions/listen.js";
 import { createQueueNotifier } from "./subscriptions/notify.js";
@@ -57,6 +58,8 @@ export interface McpServerOptions {
 export interface McpServerDeps extends ToolDeps {
   /** 渡した場合、queue://review/queue resource と subscribe 通知が有効になる */
   queue?: ReviewQueue;
+  /** 渡すと通知配信の subscribe/unsubscribe/失敗を診断ログに記録する（#117 診断用）。 */
+  logger?: Logger;
 }
 
 // tool 実行結果を MCP CallToolResult（text content）に変換する。失敗時は isError で返す。
@@ -145,20 +148,28 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       (args) => runTool(() => enqueueReviewTool({ ...deps, queue }, args)),
     );
 
+    const diagnostics = deps.logger
+      ? { logger: deps.logger, listenerCount: () => queue.listenerCounts().onEnqueue }
+      : undefined;
     const session = createSubscriptionSession();
     const notifier = createQueueNotifier(
       (listener) => queue.onEnqueue(listener),
       (uri) => server.server.sendResourceUpdated({ uri }),
       session,
       QUEUE_RESOURCE_URI,
+      diagnostics,
     );
 
+    const reReviewDiagnostics = deps.logger
+      ? { logger: deps.logger, listenerCount: () => queue.listenerCounts().onReReviewRequested }
+      : undefined;
     const reReviewSession = createSubscriptionSession();
     const reReviewNotifier = createQueueNotifier(
       (listener) => queue.onReReviewRequested(listener),
       (uri) => server.server.sendResourceUpdated({ uri }),
       reReviewSession,
       RE_REVIEW_RESOURCE_URI,
+      reReviewDiagnostics,
     );
 
     const prevOnclose = server.server.onclose;

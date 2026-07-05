@@ -6,6 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import type { Logger } from "../config/logging.js";
 
 export type McpServerFactory = () => McpServer;
 
@@ -16,6 +17,8 @@ export interface McpHttpServerOptions {
   onError?: (error: unknown) => void;
   /** MCP パス以外のリクエストを処理するハンドラ。未指定時は 404 を返す。combined モードで使用。 */
   fallbackHandler?: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+  /** 渡すとセッションの作成・削除のたびに現在のセッション数をログする（#117 診断用）。 */
+  logger?: Logger;
 }
 
 export interface StartedMcpHttpServer {
@@ -45,10 +48,18 @@ export async function startMcpHttpServer(
   const normalizedPath = normalizeEndpointPath(path);
   const sessions = new Map<string, McpHttpSession>();
 
+  // 通知配信の長時間稼働後サイレント停止（#117）の診断用。セッション数の推移を追える。
+  // 既定の LOG_LEVEL（info）でも記録されるよう info を使う（事後に debug へ切り替えると
+  // 再現に必要な状態がリセットされてしまうため）。
+  const logSessionCount = (event: string) => {
+    options.logger?.info(event, { event, sessionCount: sessions.size });
+  };
+
   const closeSession = async (session: McpHttpSession) => {
     const sessionId = session.transport.sessionId;
     if (sessionId && sessions.get(sessionId) === session) {
       sessions.delete(sessionId);
+      logSessionCount("mcp.session.closed");
     }
     if (session.server.isConnected()) {
       await session.server.close();
@@ -64,9 +75,14 @@ export async function startMcpHttpServer(
       sessionIdGenerator: randomUUID,
       onsessioninitialized: (sessionId) => {
         sessions.set(sessionId, session);
+        logSessionCount("mcp.session.initialized");
       },
       onsessionclosed: (sessionId) => {
-        sessions.delete(sessionId);
+        // 実際に削除できた場合のみログする。transport.onclose と重複しうる経路のため。
+        if (sessions.get(sessionId) === session) {
+          sessions.delete(sessionId);
+          logSessionCount("mcp.session.closed");
+        }
       },
     });
     session = { server, transport };
@@ -75,6 +91,7 @@ export async function startMcpHttpServer(
       const sessionId = transport.sessionId;
       if (sessionId && sessions.get(sessionId) === session) {
         sessions.delete(sessionId);
+        logSessionCount("mcp.session.closed");
       }
     };
 
