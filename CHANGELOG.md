@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-05
+
 ### Added
 - 長時間稼働時の queue 購読通知配信サイレント停止（#117）の診断ログを追加: `ReviewQueue.listenerCounts()` で現在の `onEnqueue` / `onReReviewRequested` listener 数を取得可能にし、`mcp.subscription.subscribed` / `mcp.subscription.unsubscribed` / `mcp.subscription.notify.failed`（listener 数・エラー内容付き）と `mcp.session.initialized` / `mcp.session.closed`（HTTP セッション数）をログ出力する。根本原因の修正ではなく、実機再現時に状態推移を追うための計装
 - `enqueue_review` MCP tool（#118）: webhook 以外の正規 enqueue 入口を追加。`owner` / `repo` / `prNumber` / `reason`（`opened` | `synchronized` | `re-review-requested`）/ `requestedBy`（任意）を受け取り、既存の `ReviewQueue.enqueue()` を呼ぶ。`allowedRepos` チェックを webhook ハンドラと同様に適用し、範囲外は installation token 発行前に拒否する。`installationId` は既存の `resolveInstallationId`（GitHub App API lookup）で owner/repo から解決する。`notifications/resources/updated` は既存の `onEnqueue` / `onReReviewRequested` フックで自動発火するため購読側は無変更。`queue` が注入されるモード（`--webhook-mcp-http` combined）でのみ登録される
