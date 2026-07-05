@@ -8,6 +8,8 @@ import { type IssueTokenDeps, issueToken } from "../internal-api/token-source.js
 export interface ToolDeps {
   getClient: (owner: string, repo: string) => Promise<GitHubClient>;
   getWriteContext: (owner: string, repo: string) => Promise<WriteContext>;
+  allowedRepos: readonly string[];
+  resolveInstallationId: (owner: string, repo: string) => Promise<number>;
 }
 
 // 各 tool は owner/repo から installation token を都度発行し、認証済み client を得る。
@@ -24,5 +26,13 @@ export function buildToolDeps(deps: IssueTokenDeps): ToolDeps {
       allowedRepos: deps.config.policy.allowedRepos,
       logger: deps.logger,
     }),
+    allowedRepos: deps.config.policy.allowedRepos,
+    resolveInstallationId: async (owner: string, repo: string): Promise<number> => {
+      const jwt = await deps.generateAppJwt({
+        appId: deps.config.github.appId,
+        privateKey: deps.config.github.privateKey,
+      });
+      return deps.resolveInstallationId(jwt.token, owner, repo);
+    },
   };
 }

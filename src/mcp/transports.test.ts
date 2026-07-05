@@ -12,6 +12,8 @@ function makeServerFactory() {
         getWriteContext: async (): Promise<never> => {
           throw new Error("not used");
         },
+        allowedRepos: ["org/repo"],
+        resolveInstallationId: async (): Promise<number> => 1,
       },
       { name: "test", version: "0.0.0" },
     );

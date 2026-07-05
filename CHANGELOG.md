@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- `enqueue_review` MCP tool（#118）: webhook 以外の正規 enqueue 入口を追加。`owner` / `repo` / `prNumber` / `reason`（`opened` | `synchronized` | `re-review-requested`）/ `requestedBy`（任意）を受け取り、既存の `ReviewQueue.enqueue()` を呼ぶ。`allowedRepos` チェックを webhook ハンドラと同様に適用し、範囲外は installation token 発行前に拒否する。`installationId` は既存の `resolveInstallationId`（GitHub App API lookup）で owner/repo から解決する。`notifications/resources/updated` は既存の `onEnqueue` / `onReReviewRequested` フックで自動発火するため購読側は無変更。`queue` が注入されるモード（`--webhook-mcp-http` combined）でのみ登録される
+
 ### Fixed
 - MCP Streamable HTTP endpoint で設定 path の末尾スラッシュ有無を同一視し、`/mcp` と `/mcp/` の両方を受け付ける（#98）。子 path は従来どおり 404 を返す
 
