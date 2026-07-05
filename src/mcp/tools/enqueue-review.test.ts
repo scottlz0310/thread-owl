@@ -95,6 +95,34 @@ describe("enqueueReviewTool", () => {
     expect(count).toBe(1);
   });
 
+  test("ignores requestedBy when reason is not re-review-requested", async () => {
+    const deps = makeDeps();
+
+    await enqueueReviewTool(deps, {
+      owner: "org",
+      repo: "repo",
+      prNumber: 1,
+      reason: "opened",
+      requestedBy: "alice",
+    });
+
+    expect(deps.queue.list()[0].requestedBy).toBeUndefined();
+  });
+
+  test("dedups same PR across owner/repo casing variants", async () => {
+    const deps = makeDeps({ allowedRepos: ["org/repo"] });
+
+    await enqueueReviewTool(deps, { owner: "org", repo: "repo", prNumber: 1, reason: "opened" });
+    await enqueueReviewTool(deps, {
+      owner: "ORG",
+      repo: "REPO",
+      prNumber: 1,
+      reason: "synchronized",
+    });
+
+    expect(deps.queue.size()).toBe(1);
+  });
+
   test("triggers onReReviewRequested listener only for re-review-requested", async () => {
     const deps = makeDeps();
     let count = 0;

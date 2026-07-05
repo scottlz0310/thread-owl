@@ -38,7 +38,7 @@ export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: Enqu
     installationId,
     queuedAt: new Date(),
     reason,
-    ...(requestedBy !== undefined ? { requestedBy } : {}),
+    ...(reason === "re-review-requested" && requestedBy !== undefined ? { requestedBy } : {}),
   });
 
   return { ok: true };

@@ -82,6 +82,14 @@ describe("createReviewQueue", () => {
 
       expect(q.size()).toBe(2);
     });
+
+    test("owner/repo の大小文字違いは同一 PR として dedup される", () => {
+      const q = createReviewQueue();
+      q.enqueue({ ...makeCandidate(1), owner: "org", repo: "repo" });
+      q.enqueue({ ...makeCandidate(1), owner: "ORG", repo: "REPO" });
+
+      expect(q.size()).toBe(1);
+    });
   });
 
   describe("re-review-requested 優先度", () => {
