@@ -101,13 +101,13 @@ docker pull ghcr.io/scottlz0310/thread-owl:main
 
 ```bash
 # 1. package.json と src/index.ts の version / VERSION を同じ値に更新してコミット
-#    （例: 0.1.0 → 0.2.0）
+#    （例: 0.2.0 → 0.3.0）
 # 2. タグを付けて push
-git tag v0.2.0
-git push origin v0.2.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-RC 等のプレリリース版（タグに `-` を含む場合、例: `v0.2.0-rc.1`）は GitHub Release が prerelease として作成され、Docker イメージに `:latest` は付与されない。
+RC 等のプレリリース版（タグに `-` を含む場合、例: `vX.Y.Z-rc.1`）は GitHub Release が prerelease として作成され、Docker イメージに `:latest` は付与されない。
 
 ## GitHub App 権限
 

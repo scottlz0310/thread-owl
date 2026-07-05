@@ -7,11 +7,6 @@
 ### Added
 - 長時間稼働時の queue 購読通知配信サイレント停止（#117）の診断ログを追加: `ReviewQueue.listenerCounts()` で現在の `onEnqueue` / `onReReviewRequested` listener 数を取得可能にし、`mcp.subscription.subscribed` / `mcp.subscription.unsubscribed` / `mcp.subscription.notify.failed`（listener 数・エラー内容付き）と `mcp.session.initialized` / `mcp.session.closed`（HTTP セッション数）をログ出力する。根本原因の修正ではなく、実機再現時に状態推移を追うための計装
 - `enqueue_review` MCP tool（#118）: webhook 以外の正規 enqueue 入口を追加。`owner` / `repo` / `prNumber` / `reason`（`opened` | `synchronized` | `re-review-requested`）/ `requestedBy`（任意）を受け取り、既存の `ReviewQueue.enqueue()` を呼ぶ。`allowedRepos` チェックを webhook ハンドラと同様に適用し、範囲外は installation token 発行前に拒否する。`installationId` は既存の `resolveInstallationId`（GitHub App API lookup）で owner/repo から解決する。`notifications/resources/updated` は既存の `onEnqueue` / `onReReviewRequested` フックで自動発火するため購読側は無変更。`queue` が注入されるモード（`--webhook-mcp-http` combined）でのみ登録される
-
-### Fixed
-- MCP Streamable HTTP endpoint で設定 path の末尾スラッシュ有無を同一視し、`/mcp` と `/mcp/` の両方を受け付ける（#98）。子 path は従来どおり 404 を返す
-
-### Added
 - `README.md` に Thread Owl のアバターアイコンを表示
 - `docs/skills/thread-owl-pr-reviewer/` を新規配置: mcp-resource-subscriber `--json` モード対応済みの skill 定義（SKILL.md + agents/openai.yaml）
 - `approvePR` のユニットテスト追加（#90）: allowlist ガード・expectedHeadSha 不一致エラー・正常系（監査ログ記録・body 転送）の 4 ケースを網羅
@@ -22,6 +17,9 @@
 - `docs/operations.md` の mcp-resource-subscriber 呼び出し例を `--json` モードに更新（#83）: `--json` フラグを primary に変更し、JSON 出力フィールド（`route` / `errorCode` / `recommendedNextAction` / `finalText` 等）の説明テーブルを追記。line-based 出力例は `<details>` 補足に格下げ。「将来の `--json` mode」注記を削除
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新: 安全性の観点から自律的な `APPROVE` 送信を禁止し、ユーザーの明示的指示を必須とすること、およびレビュー結果でマージ推奨の判断を明確に報告する運用ルールを追加
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#94）: 再レビュー・thread follow-up で元 thread の `isResolved` / `isOutdated` 状態を投稿経路の判断材料とする運用を追加。resolved / outdated thread に問題が残る場合は元 thread へ返信せず current diff 上に新規 inline thread を作成し、投稿可能行がない場合は PR-level summary にフォールバックする。新規 inline 投稿前の Snapshot Guard 再実行を明記。ユーザー報告で新規 inline と thread 返信の件数・残存 blocking を区別できるよう更新
+
+### Fixed
+- MCP Streamable HTTP endpoint で設定 path の末尾スラッシュ有無を同一視し、`/mcp` と `/mcp/` の両方を受け付ける（#98）。子 path は従来どおり 404 を返す
 
 ## [0.2.0] - 2026-06-10
 
