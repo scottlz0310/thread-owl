@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-05
+
 ### Fixed
 - `--mcp-http`（webhook 未使用の Streamable HTTP MCP モード）に `ReviewQueue` が注入されておらず、`queue://review/queue` / `queue://review/re-review-requests` resources・`resources/subscribe`・`enqueue_review` tool がすべて未登録になっていた（#122）。`--mcp-http` にも `ReviewQueue` を生成・注入し、webhook 受信を追加せずに queue 機能のみを有効化できるようにした
 
