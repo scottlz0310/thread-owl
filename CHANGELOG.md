@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- `ci.yml` / `release.yml` の `pnpm/action-setup@v6` が `version: latest` で pnpm を毎回最新版に切り替えていたため、pnpm 側のリグレッション（self-installer が `Cannot use 'in' operator to search for 'integrity' in undefined` でクラッシュ）に巻き込まれ CI が failing になっていた（#133 review）。`package.json` に `packageManager: "pnpm@11.7.0"` を追加して固定バージョンを明示し、両ワークフローの `version: latest` 指定を削除。以後は Renovate の `packageManager` フィールド更新経由で計画的にバージョンを上げる
+
 ## [0.3.1] - 2026-07-05
 
 ### Fixed
