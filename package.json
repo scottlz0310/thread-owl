@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.9",
+    "@hono/node-server": "^2.0.10",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/auth-app": "^8.2.0",
     "@octokit/graphql": "^9.0.3",
@@ -24,7 +24,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.3",
+    "@biomejs/biome": "^2.5.4",
     "@types/node": "^24.13.3",
     "@vitest/coverage-v8": "^4.1.10",
     "lefthook": "^2.1.10",
