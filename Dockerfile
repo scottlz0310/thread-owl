@@ -1,24 +1,27 @@
+# Bun バイナリのみを公式イメージから取得する（.bun-version と同じ version に固定する）。
+FROM oven/bun:1.3.14-alpine AS bun
+
 FROM node:24.18.0-alpine AS builder
 
-RUN npm install -g pnpm@11
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY package.json bun.lock bunfig.toml ./
+RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY tsconfig.json .
 COPY src ./src
-RUN pnpm run build
+RUN bun run build
 
 # ---
 
 FROM node:24.18.0-alpine AS runtime
 
-RUN npm install -g pnpm@11
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+COPY package.json bun.lock bunfig.toml ./
+RUN bun install --frozen-lockfile --prod
 
 COPY --from=builder /app/dist ./dist
 

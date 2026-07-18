@@ -16,24 +16,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".node-version"
-          cache: "pnpm"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: ".bun-version"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Check (biome)
-        run: pnpm run check
+        run: bun run check
 
       - name: Typecheck
-        run: pnpm run typecheck
+        run: bun run typecheck
 
       - name: Test
-        run: pnpm run test:coverage
+        run: bun run test:coverage
 
       - name: Upload coverage to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
@@ -44,4 +45,4 @@ jobs:
           fail_ci_if_error: true
 
       - name: Build
-        run: pnpm run build
+        run: bun run build

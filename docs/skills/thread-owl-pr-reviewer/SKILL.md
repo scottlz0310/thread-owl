@@ -56,7 +56,7 @@ PR が明示されず queue 待機を依頼された場合だけ subscription �
 native `resources/subscribe` が使えなければ、repository の運用ガイドに従って `mcp-resource-subscriber` を使う。
 
 ```powershell
-pnpm dlx mcp-resource-subscriber `
+bunx mcp-resource-subscriber `
   --url $env:THREAD_OWL_MCP_URL `
   --uri queue://review/re-review-requests `
   --timeout-ms 900000 `
