@@ -16,6 +16,12 @@
     {
       "groupName": "Node.js runtime",
       "matchPackageNames": ["node", "@types/node"]
+    },
+    {
+      "description": "bun-version manager（.bun-version）と dockerfile manager（Dockerfile の oven/bun イメージ）を同一グループに束ね、Bun version を原子的に更新する。別グループのままだと automerge で別 PR に分かれ、CI/開発環境と Docker build の Bun version が乖離する。",
+      "matchManagers": ["bun-version", "dockerfile"],
+      "matchPackageNames": ["bun", "oven/bun"],
+      "groupName": "Bun runtime"
     }
   ]
 }
