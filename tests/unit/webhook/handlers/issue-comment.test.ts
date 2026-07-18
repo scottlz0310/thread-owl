@@ -154,27 +154,25 @@ describe("handleIssueCommentEvent", () => {
     expect(deps.queue.enqueue).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["re-review"],
-    ["rereview"],
-    ["review again"],
-    ["再レビュー"],
-  ])("intent キーワード '%s' を含む mention は enqueue する", async (keyword) => {
-    const deps = makeDeps();
-    const event = makeEvent({
-      comment: {
-        id: 1,
-        body: `@thread-owl ${keyword}`,
-        user: { login: "someone" },
-      },
-    });
-    await handleIssueCommentEvent(event, deps);
+  it.each([["re-review"], ["rereview"], ["review again"], ["再レビュー"]])(
+    "intent キーワード '%s' を含む mention は enqueue する",
+    async (keyword) => {
+      const deps = makeDeps();
+      const event = makeEvent({
+        comment: {
+          id: 1,
+          body: `@thread-owl ${keyword}`,
+          user: { login: "someone" },
+        },
+      });
+      await handleIssueCommentEvent(event, deps);
 
-    expect(deps.queue.enqueue).toHaveBeenCalledOnce();
-    expect(deps.queue.enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: "re-review-requested" }),
-    );
-  });
+      expect(deps.queue.enqueue).toHaveBeenCalledOnce();
+      expect(deps.queue.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "re-review-requested" }),
+      );
+    },
+  );
 
   it("comment.user が欠落しても requestedBy を undefined で enqueue する", async () => {
     const deps = makeDeps();

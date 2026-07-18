@@ -12,11 +12,10 @@ describe("resolveAppMode", () => {
     expect(resolveAppMode(args)).toBe(expected);
   });
 
-  it.each([
-    [["--mcp", "--mcp-http"]],
-    [["--mcp", "--webhook"]],
-    [["--mcp-http", "--webhook"]],
-  ])("複数モードの同時指定を拒否する: %j", (args) => {
-    expect(() => resolveAppMode(args)).toThrow();
-  });
+  it.each([[["--mcp", "--mcp-http"]], [["--mcp", "--webhook"]], [["--mcp-http", "--webhook"]]])(
+    "複数モードの同時指定を拒否する: %j",
+    (args) => {
+      expect(() => resolveAppMode(args)).toThrow();
+    },
+  );
 });
