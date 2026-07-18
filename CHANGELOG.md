@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- package manager を pnpm から Bun に移行（#140）: `pnpm-lock.yaml` / `pnpm-workspace.yaml` を廃止し `bun.lock` に一本化。`bunfig.toml` で linker を `isolated` に固定（pnpm 相当の厳格な依存分離を維持）。lifecycle script は `package.json` の `trustedDependencies`（`@biomejs/biome` / `esbuild` / `lefthook`）で明示許可。CI（`ci.yml` / `release.yml`）は `oven-sh/setup-bun` + `.bun-version` を正本にし、`Dockerfile` は `oven/bun` イメージから Bun バイナリのみを取得する方式に変更。`node` runtime・Vitest はそのまま維持し、runtime 側の変更は対象外とした。Renovate の `bun` / `bun-version` manager 対応は別 ISSUE で扱う
+
 ### Fixed
 - `packageManager` の競合を `pnpm@11.13.0` にアップデートすることで解決。一部の `pnpm` バージョン（`11.12.0` など）で発生していた Corepack 実行時の `Cannot use 'in' operator to search for 'integrity' in undefined` エラーを回避し、正常動作することを確認
 - `ci.yml` / `release.yml` の `pnpm/action-setup@v6` が `version: latest` で pnpm を毎回最新版に切り替えていたため、pnpm 側のリグレッション（self-installer が `Cannot use 'in' operator to search for 'integrity' in undefined` でクラッシュ）に巻き込まれ CI が failing になっていた（#133 review）。`package.json` に `packageManager: "pnpm@11.7.0"` を追加して固定バージョンを明示し、両ワークフローの `version: latest` 指定を削除。以後は Renovate の `packageManager` フィールド更新経由で計画的にバージョンを上げる

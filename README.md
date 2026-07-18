@@ -54,12 +54,12 @@ GitHub
 ## 動作要件
 
 - Node.js >= 20.0.0
-- pnpm
+- Bun
 
 ## セットアップ
 
 ```bash
-pnpm install
+bun install
 cp .env.example .env
 # .env に GitHub App の認証情報を記入する
 ```
@@ -69,10 +69,10 @@ GitHub App の登録手順は [docs/github-app-setup.md](docs/github-app-setup.m
 ## 開発コマンド
 
 ```bash
-pnpm run check      # Biome lint + フォーマット確認
-pnpm run typecheck  # TypeScript 型チェック
-pnpm test           # テスト実行
-pnpm run build      # dist/ へコンパイル
+bun run check      # Biome lint + フォーマット確認
+bun run typecheck  # TypeScript 型チェック
+bun run test       # テスト実行
+bun run build      # dist/ へコンパイル
 ```
 
 ## Docker イメージ

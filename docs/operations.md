@@ -21,10 +21,10 @@
 ## ローカル実行
 
 ```bash
-pnpm install
+bun install
 cp .env.example .env
 # .env を編集して認証情報を記入する
-pnpm run build
+bun run build
 
 # 内部 API サーバー（HTTP）
 node dist/index.js
@@ -301,7 +301,7 @@ CLI agent が long-lived subscription を安定保持できない場合（Claude
 **通常レビュー**（opened / synchronized を含む全 enqueue を検知）:
 
 ```sh
-pnpm dlx mcp-resource-subscriber \
+bunx mcp-resource-subscriber \
   --url http://localhost:3000/mcp \
   --uri queue://review/queue \
   --timeout-ms 900000 \
@@ -311,7 +311,7 @@ pnpm dlx mcp-resource-subscriber \
 **re-review handoff**（re-review-requested のみを検知。push-first 経路での early termination を防ぐ）:
 
 ```sh
-pnpm dlx mcp-resource-subscriber \
+bunx mcp-resource-subscriber \
   --url http://localhost:3000/mcp \
   --uri queue://review/re-review-requests \
   --timeout-ms 900000 \
