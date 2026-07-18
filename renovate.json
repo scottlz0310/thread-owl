@@ -5,6 +5,7 @@
     "github>scottlz0310/renovate-config//presets/languages/nodejs",
     "github>scottlz0310/renovate-config//presets/languages/typescript",
     "github>scottlz0310/renovate-config//presets/languages/docker",
+    "github>scottlz0310/renovate-config//presets/package-managers/bun",
     "github>scottlz0310/renovate-config//presets/tools/biome",
     "github>scottlz0310/renovate-config//presets/tools/lefthook",
     "github>scottlz0310/renovate-config//presets/options/automerge",
