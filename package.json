@@ -20,7 +20,7 @@
     "@octokit/graphql": "^9.0.3",
     "@octokit/rest": "^22.0.1",
     "hono": "^4.12.31",
-    "jose": "^6.2.3",
+    "jose": "^6.2.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
