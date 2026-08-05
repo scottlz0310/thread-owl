@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@octokit/auth-app": "^8.2.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@octokit/auth-app": "^8.3.0",
     "@octokit/graphql": "^9.0.4",
     "@octokit/rest": "^22.0.1",
     "hono": "^4.12.34",
