@@ -1,7 +1,7 @@
 # Bun バイナリのみを公式イメージから取得する（.bun-version と同じ version に固定する）。
 FROM oven/bun:1.3.14-alpine AS bun
 
-FROM node:24.18.1-alpine AS builder
+FROM node:24.19.0-alpine AS builder
 
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
@@ -15,7 +15,7 @@ RUN bun run build
 
 # ---
 
-FROM node:24.18.1-alpine AS runtime
+FROM node:24.19.0-alpine AS runtime
 
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
