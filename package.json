@@ -19,17 +19,17 @@
     "@octokit/auth-app": "^8.3.0",
     "@octokit/graphql": "^9.0.4",
     "@octokit/rest": "^22.0.1",
-    "hono": "^4.13.2",
+    "hono": "^4.13.3",
     "jose": "^6.2.9",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.9",
     "@types/node": "^26.2.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "lefthook": "^2.1.10",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=24.19.0"
