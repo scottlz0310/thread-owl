@@ -1,18 +1,7 @@
 // Transport-independent MCP server setup
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  ErrorCode,
-  ListResourcesRequestSchema,
-  McpError,
-  ReadResourceRequestSchema,
-  SubscribeRequestSchema,
-  UnsubscribeRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
-import type { Logger } from "../config/logging.js";
+import { McpServer, ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
 import type { ReviewQueue } from "../queue/review-queue.js";
-import { createSubscriptionSession } from "./subscriptions/listen.js";
-import { createQueueNotifier } from "./subscriptions/notify.js";
 import type { ToolDeps } from "./tool-deps.js";
 import {
   APPROVE_PULL_REQUEST_TOOL_NAME,
@@ -56,10 +45,8 @@ export interface McpServerOptions {
 }
 
 export interface McpServerDeps extends ToolDeps {
-  /** 渡した場合、queue://review/queue resource と subscribe 通知が有効になる */
+  /** 渡した場合、queue://review/queue resource が有効になる。通知配信は呼び出し側が ServerNotifier 経由で行う。 */
   queue?: ReviewQueue;
-  /** 渡すと通知配信の subscribe/unsubscribe/失敗を診断ログに記録する（#117 診断用）。 */
-  logger?: Logger;
 }
 
 // tool 実行結果を MCP CallToolResult（text content）に変換する。失敗時は isError で返す。
@@ -148,43 +135,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       (args) => runTool(() => enqueueReviewTool({ ...deps, queue }, args)),
     );
 
-    const diagnostics = deps.logger
-      ? { logger: deps.logger, listenerCount: () => queue.listenerCounts().onEnqueue }
-      : undefined;
-    const session = createSubscriptionSession();
-    const notifier = createQueueNotifier(
-      (listener) => queue.onEnqueue(listener),
-      (uri) => server.server.sendResourceUpdated({ uri }),
-      session,
-      QUEUE_RESOURCE_URI,
-      diagnostics,
-    );
-
-    const reReviewDiagnostics = deps.logger
-      ? { logger: deps.logger, listenerCount: () => queue.listenerCounts().onReReviewRequested }
-      : undefined;
-    const reReviewSession = createSubscriptionSession();
-    const reReviewNotifier = createQueueNotifier(
-      (listener) => queue.onReReviewRequested(listener),
-      (uri) => server.server.sendResourceUpdated({ uri }),
-      reReviewSession,
-      RE_REVIEW_RESOURCE_URI,
-      reReviewDiagnostics,
-    );
-
-    const prevOnclose = server.server.onclose;
-    server.server.onclose = () => {
-      try {
-        prevOnclose?.();
-      } finally {
-        notifier.dispose();
-        session.dispose();
-        reReviewNotifier.dispose();
-        reReviewSession.dispose();
-      }
-    };
-
-    server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    server.server.setRequestHandler("resources/list", async () => ({
       resources: [
         {
           uri: QUEUE_RESOURCE_URI,
@@ -203,7 +154,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       ],
     }));
 
-    server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    server.server.setRequestHandler("resources/read", async (request) => {
       if (request.params.uri === QUEUE_RESOURCE_URI) {
         return {
           contents: [
@@ -230,29 +181,10 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
           ],
         };
       }
-      throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
-    });
-
-    server.server.setRequestHandler(SubscribeRequestSchema, async (request) => {
-      if (request.params.uri === QUEUE_RESOURCE_URI) {
-        notifier.handleSubscribe();
-      } else if (request.params.uri === RE_REVIEW_RESOURCE_URI) {
-        reReviewNotifier.handleSubscribe();
-      } else {
-        throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
-      }
-      return {};
-    });
-
-    server.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
-      if (request.params.uri === QUEUE_RESOURCE_URI) {
-        notifier.handleUnsubscribe();
-      } else if (request.params.uri === RE_REVIEW_RESOURCE_URI) {
-        reReviewNotifier.handleUnsubscribe();
-      } else {
-        throw new McpError(ErrorCode.InvalidParams, `Unknown resource URI: ${request.params.uri}`);
-      }
-      return {};
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Unknown resource URI: ${request.params.uri}`,
+      );
     });
   }
 

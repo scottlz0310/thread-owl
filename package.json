@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@octokit/auth-app": "^8.3.0",
     "@octokit/graphql": "^9.0.4",
     "@octokit/rest": "^22.0.1",
@@ -25,6 +26,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/core": "^2.0.0",
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.11",
     "lefthook": "^2.1.10",

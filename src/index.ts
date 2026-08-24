@@ -15,7 +15,7 @@ import { createLogger } from "./config/logging.js";
 import { getHealth } from "./internal-api/health.js";
 import { getStatus } from "./internal-api/status.js";
 import { type IssueTokenDeps, issueToken } from "./internal-api/token-source.js";
-import { createMcpServer } from "./mcp/server.js";
+import { createMcpServer, QUEUE_RESOURCE_URI, RE_REVIEW_RESOURCE_URI } from "./mcp/server.js";
 import { buildToolDeps } from "./mcp/tool-deps.js";
 import { startMcpHttpServer, startMcpStdioServer } from "./mcp/transports.js";
 import { RepositoryNotAllowedError } from "./policy/allowlist.js";
@@ -52,32 +52,32 @@ const createConfiguredMcpServer = () =>
   });
 
 if (mode === "mcp-stdio") {
-  const server = createConfiguredMcpServer();
-  await startMcpStdioServer(server);
+  startMcpStdioServer(createConfiguredMcpServer);
   logger.info("mcp.started", { event: "mcp.started", transport: "stdio" });
 } else if (mode === "mcp-http") {
   // webhook receiver は起動しないため、GitHub イベントからの自動 enqueue は行わない。
-  // enqueue_review tool と resources/subscribe のみで queue 機能を提供する（#122）。
+  // enqueue_review tool と subscriptions/listen のみで queue 機能を提供する（#122）。
   const reviewQueue = createReviewQueue();
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
-        { ...buildToolDeps(issueTokenDeps), queue: reviewQueue, logger },
+        { ...buildToolDeps(issueTokenDeps), queue: reviewQueue },
         { name: "thread-owl", version: VERSION },
       ),
     {
       host: config.server.host,
       port: config.server.port,
       path: config.server.mcpHttpPath,
-      logger,
       onError: (error) => {
         logger.error("mcp.request.error", {
           event: "mcp.request.error",
-          errorName: error instanceof Error ? error.name : "UnknownError",
+          errorName: error.name,
         });
       },
     },
   );
+  reviewQueue.onEnqueue(() => httpServer.notify.resourceUpdated(QUEUE_RESOURCE_URI));
+  reviewQueue.onReReviewRequested(() => httpServer.notify.resourceUpdated(RE_REVIEW_RESOURCE_URI));
   logger.info("mcp.started", {
     event: "mcp.started",
     transport: "streamable-http",
@@ -211,24 +211,27 @@ if (mode === "mcp-stdio") {
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
-        { ...buildToolDeps(runtime.issueTokenDeps), queue: runtime.reviewQueue, logger },
+        { ...buildToolDeps(runtime.issueTokenDeps), queue: runtime.reviewQueue },
         { name: "thread-owl", version: VERSION },
       ),
     {
       host: config.server.host,
       port: config.server.port,
       path: config.server.mcpHttpPath,
-      logger,
       onError: (error) => {
         logger.error("mcp.request.error", {
           event: "mcp.request.error",
-          errorName: error instanceof Error ? error.name : "UnknownError",
+          errorName: error.name,
         });
       },
       fallbackHandler: async (req, res) => {
         await honoHandler(req, res);
       },
     },
+  );
+  runtime.reviewQueue.onEnqueue(() => httpServer.notify.resourceUpdated(QUEUE_RESOURCE_URI));
+  runtime.reviewQueue.onReReviewRequested(() =>
+    httpServer.notify.resourceUpdated(RE_REVIEW_RESOURCE_URI),
   );
 
   logger.info("webhook-mcp-http.started", {
