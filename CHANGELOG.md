@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- MCP プロトコル `2026-07-28` へ移行し、stateful な Streamable HTTP session 管理を撤去（#176、横断 tracker #165）: `@modelcontextprotocol/sdk` v1 を `@modelcontextprotocol/{server,node,client,core}` v2 へ置き換え、`transports.ts` の `Mcp-Session-Id` セッション map を削除して `createMcpHandler`（HTTP）/ `serveStdio`（stdio）ベースの stateless エントリに書き換えた。`legacy: 'reject'` を明示し、2025-era（`resources/subscribe` / standalone GET SSE stream / protocol-level session）には一切フォールバックしない。queue resource の更新通知は `resources/subscribe` ハンドラと自前の listener 管理（`subscriptions/listen.ts` の `SubscriptionSession`、`subscriptions/notify.ts` の `createQueueNotifier`）を廃止し、`subscriptions/listen` の SDK 標準経路（`handler.notify.resourceUpdated(uri)` → 開いている全 stream へ配信）に一本化した。SSE stream への `X-Accel-Buffering: no` ヘッダー付与を実装（mcp-gateway 経由でのバッファリング抑止）。長時間稼働時の通知配信サイレント停止（#117）の診断ログ（`mcp.session.*` / `mcp.subscription.*`）はセッション概念自体の消滅に伴い併せて削除
 - package manager を pnpm から Bun に移行（#140）: `pnpm-lock.yaml` / `pnpm-workspace.yaml` を廃止し `bun.lock` に一本化。`bunfig.toml` で linker を `isolated` に固定（pnpm 相当の厳格な依存分離を維持）。lifecycle script は `package.json` の `trustedDependencies`（`@biomejs/biome` / `esbuild` / `lefthook`）で明示許可。CI（`ci.yml` / `release.yml`）は `oven-sh/setup-bun` + `.bun-version` を正本にし、`Dockerfile` は `oven/bun` イメージから Bun バイナリのみを取得する方式に変更。`node` runtime・Vitest はそのまま維持し、runtime 側の変更は対象外とした。`renovate.json` に `renovate-config` の `package-managers/bun` プリセットを追加し、`bun.lock` / `.bun-version` の自動更新を有効化
 
 ### Fixed

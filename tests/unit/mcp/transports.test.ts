@@ -1,36 +1,40 @@
 import { PassThrough } from "node:stream";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import type { Transport } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMcpServer } from "../../../src/mcp/server.js";
+import { createMcpServer, QUEUE_RESOURCE_URI } from "../../../src/mcp/server.js";
 import type { ToolDeps } from "../../../src/mcp/tool-deps.js";
 import {
   type StartedMcpHttpServer,
   startMcpHttpServer,
   startMcpStdioServer,
+  wrapTransportStart,
 } from "../../../src/mcp/transports.js";
+import { createReviewQueue } from "../../../src/queue/review-queue.js";
 
 function makeDeps(): ToolDeps {
-  return { getClient: vi.fn(), getWriteContext: vi.fn() };
+  return {
+    getClient: vi.fn(),
+    getWriteContext: vi.fn(),
+    allowedRepos: ["org/repo"],
+    resolveInstallationId: vi.fn(async () => 1),
+  };
 }
 
 function makeServer() {
   return createMcpServer(makeDeps(), { name: "thread-owl", version: "0.1.0" });
 }
 
-describe("startMcpStdioServer", () => {
-  it("StdioServerTransport に接続して従来の stdio 経路を起動する", async () => {
-    const server = makeServer();
-    const transport = new StdioServerTransport(new PassThrough(), new PassThrough());
-
-    await startMcpStdioServer(server, transport);
-
-    expect(server.isConnected()).toBe(true);
-    await server.close();
-  });
-});
+async function connectModernClient(port: number, path = "/mcp") {
+  const client = new Client(
+    { name: "test-client", version: "1.0.0" },
+    { versionNegotiation: { mode: "auto" } },
+  );
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}${path}`));
+  await client.connect(transport);
+  return { client, transport };
+}
 
 describe("startMcpHttpServer", () => {
   let startedServer: StartedMcpHttpServer | undefined;
@@ -60,48 +64,12 @@ describe("startMcpHttpServer", () => {
       port: 0,
       path: configuredPath,
     });
-    const endpoint = `http://127.0.0.1:${startedServer.port}${requestPath}`;
-    const alternateEndpoint = requestPath.endsWith("/") ? endpoint.slice(0, -1) : `${endpoint}/`;
 
-    const initializeResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/event-stream",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2025-03-26",
-          capabilities: {},
-          clientInfo: { name: "test-client", version: "1.0.0" },
-        },
-      }),
-    });
-    const sessionId = initializeResponse.headers.get("mcp-session-id");
-    await initializeResponse.text();
+    const { client } = await connectModernClient(startedServer.port, requestPath);
+    const result = await client.listTools();
 
-    expect(initializeResponse.status).toBe(200);
-    expect(sessionId).toBeDefined();
-
-    const initializedResponse = await fetch(alternateEndpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/event-stream",
-        "content-type": "application/json",
-        "mcp-session-id": sessionId as string,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
-    });
-    expect(initializedResponse.status).toBe(202);
-
-    const deleteResponse = await fetch(endpoint, {
-      method: "DELETE",
-      headers: { "mcp-session-id": sessionId as string },
-    });
-    expect(deleteResponse.status).toBe(200);
+    expect(result.tools.map((tool) => tool.name)).toContain("get_pr");
+    await client.close();
   });
 
   it("Streamable HTTP client から tools/list を呼び出せる", async () => {
@@ -110,12 +78,8 @@ describe("startMcpHttpServer", () => {
       host: "127.0.0.1",
       port: 0,
     });
-    const client = new Client({ name: "test-client", version: "1.0.0" });
-    const transport = new StreamableHTTPClientTransport(
-      new URL(`http://127.0.0.1:${startedServer.port}/mcp`),
-    );
 
-    await client.connect(transport);
+    const { client } = await connectModernClient(startedServer.port);
     const result = await client.listTools();
 
     expect(result.tools.map((tool) => tool.name)).toEqual([
@@ -126,271 +90,7 @@ describe("startMcpHttpServer", () => {
       "reply_review_thread",
       "approve_pull_request",
     ]);
-    expect(transport.sessionId).toBeDefined();
-    expect(createServer).toHaveBeenCalledTimes(1);
 
-    await transport.terminateSession();
-    await client.close();
-  });
-
-  it("client session ごとに McpServer と transport を生成する", async () => {
-    const createServer = vi.fn(makeServer);
-    startedServer = await startMcpHttpServer(createServer, {
-      host: "127.0.0.1",
-      port: 0,
-    });
-    const endpoint = new URL(`http://127.0.0.1:${startedServer.port}/mcp`);
-    const clients = [
-      {
-        client: new Client({ name: "client-1", version: "1.0.0" }),
-        transport: new StreamableHTTPClientTransport(endpoint),
-      },
-      {
-        client: new Client({ name: "client-2", version: "1.0.0" }),
-        transport: new StreamableHTTPClientTransport(endpoint),
-      },
-    ];
-
-    for (const { client, transport } of clients) {
-      await client.connect(transport);
-    }
-
-    expect(createServer).toHaveBeenCalledTimes(2);
-    expect(clients[0].transport.sessionId).toBeDefined();
-    expect(clients[1].transport.sessionId).toBeDefined();
-    expect(clients[0].transport.sessionId).not.toBe(clients[1].transport.sessionId);
-
-    for (const { client, transport } of clients) {
-      await transport.terminateSession();
-      await client.close();
-    }
-  });
-
-  it("session close 後は同じ session ID を 404 で拒否する", async () => {
-    startedServer = await startMcpHttpServer(makeServer, {
-      host: "127.0.0.1",
-      port: 0,
-    });
-    const endpoint = `http://127.0.0.1:${startedServer.port}/mcp`;
-    const client = new Client({ name: "test-client", version: "1.0.0" });
-    const transport = new StreamableHTTPClientTransport(new URL(endpoint));
-    await client.connect(transport);
-    const sessionId = transport.sessionId;
-    expect(sessionId).toBeDefined();
-
-    await transport.terminateSession();
-
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "mcp-session-id": sessionId as string,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
-    });
-
-    expect(response.status).toBe(404);
-    await client.close();
-  });
-
-  it("session ID なしの非 initialize request を 400 で拒否する", async () => {
-    const createServer = vi.fn(makeServer);
-    startedServer = await startMcpHttpServer(createServer, {
-      host: "127.0.0.1",
-      port: 0,
-    });
-
-    const response = await fetch(`http://127.0.0.1:${startedServer.port}/mcp`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-    });
-
-    expect(response.status).toBe(400);
-    expect(createServer).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    {
-      name: "MCP endpoint 以外",
-      path: "/health",
-      init: { method: "GET" },
-      status: 404,
-    },
-    {
-      name: "MCP endpoint の子 path",
-      path: "/mcp/foo",
-      init: { method: "POST" },
-      status: 404,
-    },
-    {
-      name: "session ID なしの GET",
-      path: "/mcp",
-      init: { method: "GET" },
-      status: 400,
-    },
-    {
-      name: "不正な JSON",
-      path: "/mcp",
-      init: {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{",
-      },
-      status: 400,
-    },
-  ])("$name を $status で拒否する", async ({ path, init, status }) => {
-    const createServer = vi.fn(makeServer);
-    startedServer = await startMcpHttpServer(createServer, {
-      host: "127.0.0.1",
-      port: 0,
-    });
-
-    const response = await fetch(`http://127.0.0.1:${startedServer.port}${path}`, init);
-
-    expect(response.status).toBe(status);
-    expect(createServer).not.toHaveBeenCalled();
-  });
-
-  it("session 初期化の異常終了を記録して 500 を返す", async () => {
-    const onError = vi.fn();
-    startedServer = await startMcpHttpServer(
-      () => {
-        throw new Error("initialization failed");
-      },
-      {
-        host: "127.0.0.1",
-        port: 0,
-        onError,
-      },
-    );
-
-    const response = await fetch(`http://127.0.0.1:${startedServer.port}/mcp`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2025-03-26",
-          capabilities: {},
-          clientInfo: { name: "test-client", version: "1.0.0" },
-        },
-      }),
-    });
-
-    expect(response.status).toBe(500);
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "initialization failed" }),
-    );
-  });
-
-  it("transport 接続失敗時に cleanup して 500 を返す", async () => {
-    const server = makeServer();
-    vi.spyOn(server, "connect").mockRejectedValue(new Error("connect failed"));
-    const onError = vi.fn();
-    startedServer = await startMcpHttpServer(() => server, {
-      host: "127.0.0.1",
-      port: 0,
-      onError,
-    });
-
-    const response = await fetch(`http://127.0.0.1:${startedServer.port}/mcp`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2025-03-26",
-          capabilities: {},
-          clientInfo: { name: "test-client", version: "1.0.0" },
-        },
-      }),
-    });
-
-    expect(response.status).toBe(500);
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "connect failed" }));
-  });
-
-  it("transport request の異常終了時に session を破棄する", async () => {
-    startedServer = await startMcpHttpServer(makeServer, {
-      host: "127.0.0.1",
-      port: 0,
-    });
-    const endpoint = `http://127.0.0.1:${startedServer.port}/mcp`;
-    const initializeResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/event-stream",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2025-03-26",
-          capabilities: {},
-          clientInfo: { name: "test-client", version: "1.0.0" },
-        },
-      }),
-    });
-    const sessionId = initializeResponse.headers.get("mcp-session-id") as string;
-    await initializeResponse.text();
-    const handleRequest = vi
-      .spyOn(StreamableHTTPServerTransport.prototype, "handleRequest")
-      .mockRejectedValueOnce(new Error("request failed"));
-
-    const failedResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/event-stream",
-        "content-type": "application/json",
-        "mcp-session-id": sessionId,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
-    });
-    handleRequest.mockRestore();
-    const retryResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/event-stream",
-        "content-type": "application/json",
-        "mcp-session-id": sessionId,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
-    });
-
-    expect(failedResponse.status).toBe(500);
-    expect(retryResponse.status).toBe(404);
-  });
-
-  it("transport close 時に session を Map から削除する", async () => {
-    const server = makeServer();
-    startedServer = await startMcpHttpServer(() => server, {
-      host: "127.0.0.1",
-      port: 0,
-    });
-    const endpoint = `http://127.0.0.1:${startedServer.port}/mcp`;
-    const client = new Client({ name: "test-client", version: "1.0.0" });
-    const transport = new StreamableHTTPClientTransport(new URL(endpoint));
-    await client.connect(transport);
-    const sessionId = transport.sessionId as string;
-
-    await server.close();
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "mcp-session-id": sessionId,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
-    });
-
-    expect(response.status).toBe(404);
     await client.close();
   });
 
@@ -408,61 +108,357 @@ describe("startMcpHttpServer", () => {
     ).rejects.toMatchObject({ code: "EADDRINUSE" });
   });
 
-  it("HTTP server shutdown 時に active session をすべて close する", async () => {
-    const servers = [makeServer(), makeServer()];
-    const closeSpies = servers.map((server) => vi.spyOn(server, "close"));
-    startedServer = await startMcpHttpServer(
-      () => {
-        const server = servers.shift();
-        if (!server) {
-          throw new Error("unexpected server creation");
-        }
-        return server;
-      },
-      {
-        host: "127.0.0.1",
-        port: 0,
-      },
-    );
-    const endpoint = new URL(`http://127.0.0.1:${startedServer.port}/mcp`);
-    const clients = [
-      {
-        client: new Client({ name: "client-1", version: "1.0.0" }),
-        transport: new StreamableHTTPClientTransport(endpoint),
-      },
-      {
-        client: new Client({ name: "client-2", version: "1.0.0" }),
-        transport: new StreamableHTTPClientTransport(endpoint),
-      },
-    ];
-    for (const { client, transport } of clients) {
-      await client.connect(transport);
-    }
-
-    await startedServer.close();
-    startedServer = undefined;
-
-    expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
-    for (const { client } of clients) {
-      await client.close();
-    }
-  });
-
-  it("session close の失敗を cleanup 後に呼び出し元へ伝播する", async () => {
-    const server = makeServer();
-    vi.spyOn(server, "close").mockRejectedValue(new Error("close failed"));
-    startedServer = await startMcpHttpServer(() => server, {
+  it("close() は handler.close() を呼んで in-flight exchange を畳む", async () => {
+    startedServer = await startMcpHttpServer(makeServer, {
       host: "127.0.0.1",
       port: 0,
     });
-    const client = new Client({ name: "test-client", version: "1.0.0" });
-    const transport = new StreamableHTTPClientTransport(
-      new URL(`http://127.0.0.1:${startedServer.port}/mcp`),
-    );
-    await client.connect(transport);
+    const { client } = await connectModernClient(startedServer.port);
+    await client.listTools();
 
-    await expect(startedServer.close()).rejects.toThrow("Failed to close MCP HTTP server");
+    await startedServer.close();
+    const closedServer = startedServer;
     startedServer = undefined;
+
+    // close 後は同じ port へ再度 bind できる（HTTP server が確実に閉じている）
+    const reopened = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: closedServer.port,
+    });
+    startedServer = reopened;
+
     await client.close();
+  });
+});
+
+describe("startMcpHttpServer - non-MCP path routing", () => {
+  it("calls fallbackHandler for requests outside the MCP path", async () => {
+    let fallbackCalled = false;
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+      fallbackHandler: async (_req, res) => {
+        fallbackCalled = true;
+        res.writeHead(200).end("ok");
+      },
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/health`);
+    expect(fallbackCalled).toBe(true);
+    expect(res.status).toBe(200);
+
+    await srv.close();
+  });
+
+  it("returns 404 for non-MCP paths when fallbackHandler is not set", async () => {
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/health`);
+    expect(res.status).toBe(404);
+
+    await srv.close();
+  });
+
+  it("fallbackHandler が例外を投げた場合 500 を返し onError へ報告する", async () => {
+    const onError = vi.fn();
+    const handlerError = new Error("fallback boom");
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+      onError,
+      fallbackHandler: async () => {
+        throw handlerError;
+      },
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/health`);
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error?: { code: number; message: string } };
+    expect(body.error).toEqual({ code: -32603, message: "Internal server error" });
+    expect(onError).toHaveBeenCalledWith(handlerError);
+
+    await srv.close();
+  });
+
+  it("ヘッダー送信後に fallbackHandler が例外を投げた場合は 500 を書かず onError のみ報告する", async () => {
+    const onError = vi.fn();
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+      onError,
+      fallbackHandler: async (_req, res) => {
+        res.writeHead(200).end("partial");
+        throw new Error("boom after headers sent");
+      },
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/health`);
+    // ヘッダー送信済みのため 500 では上書きされず、fallbackHandler が書いた 200 のまま。
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "boom after headers sent" }),
+      );
+    });
+
+    await srv.close();
+  });
+});
+
+describe("startMcpHttpServer - legacy (2025-11-25) rejection (#176)", () => {
+  it("GET は 405 を返し Mcp-Session-Id を mint しない", async () => {
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/mcp`, { method: "GET" });
+    expect(res.status).toBe(405);
+    expect(res.headers.get("mcp-session-id")).toBeNull();
+
+    await srv.close();
+  });
+
+  it("DELETE は 405 を返し Mcp-Session-Id を mint しない", async () => {
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/mcp`, { method: "DELETE" });
+    expect(res.status).toBe(405);
+    expect(res.headers.get("mcp-session-id")).toBeNull();
+
+    await srv.close();
+  });
+
+  it("2025-era の initialize は unsupported-protocol-version エラーで拒否される", async () => {
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/mcp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "legacy-client", version: "0.0.0" },
+        },
+      }),
+    });
+    expect(res.headers.get("mcp-session-id")).toBeNull();
+    const body = (await res.json()) as { error?: { code: number } };
+    expect(body.error?.code).toBe(-32022);
+
+    await srv.close();
+  });
+
+  it("応答に X-Accel-Buffering: no を付与する（リバースプロキシのバッファリング抑止）", async () => {
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/mcp`, { method: "GET" });
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+
+    await srv.close();
+  });
+});
+
+describe("startMcpHttpServer - subscriptions/listen contract (#176)", () => {
+  it("listen → ack → resources/updated → resources/read", async () => {
+    const queue = createReviewQueue();
+    const srv = await startMcpHttpServer(
+      () => createMcpServer({ ...makeDeps(), queue }, { name: "test", version: "0.0.0" }),
+      { host: "127.0.0.1", port: 0, path: "/mcp" },
+    );
+    queue.onEnqueue(() => srv.notify.resourceUpdated(QUEUE_RESOURCE_URI));
+
+    const { client } = await connectModernClient(srv.port);
+    const notifications: string[] = [];
+    client.setNotificationHandler("notifications/resources/updated", (n) => {
+      notifications.push(n.params.uri);
+    });
+
+    const subscription = await client.listen({ resourceSubscriptions: [QUEUE_RESOURCE_URI] });
+    expect(subscription.honoredFilter.resourceSubscriptions).toContain(QUEUE_RESOURCE_URI);
+
+    queue.enqueue({
+      owner: "org",
+      repo: "repo",
+      prNumber: 1,
+      installationId: 1,
+      queuedAt: new Date(),
+      reason: "opened",
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(notifications).toContain(QUEUE_RESOURCE_URI);
+
+    const result = await client.readResource({ uri: QUEUE_RESOURCE_URI });
+    const parsed = JSON.parse((result.contents[0] as { text: string }).text) as unknown[];
+    expect(parsed).toHaveLength(1);
+
+    await subscription.close();
+    await client.close();
+    await srv.close();
+  });
+});
+
+describe("startMcpStdioServer", () => {
+  it("stdio 経路で server/discover に応答する（2026-07-28 のみを受け付ける）", async () => {
+    const stdin = new PassThrough();
+    const stdout = new PassThrough();
+    const transport = new StdioServerTransport(stdin, stdout);
+    const handle = startMcpStdioServer(makeServer, { transport });
+
+    const responseBody = new Promise<string>((resolve) => {
+      stdout.once("data", (chunk: Buffer) => resolve(chunk.toString()));
+    });
+    stdin.write(
+      `${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "server/discover",
+        params: {
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientInfo": { name: "test-client", version: "0.0.0" },
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      })}\n`,
+    );
+
+    const response = JSON.parse(await responseBody) as {
+      id: number;
+      result?: { supportedVersions?: string[] };
+      error?: unknown;
+    };
+    expect(response.id).toBe(1);
+    expect(response.error).toBeUndefined();
+    expect(response.result?.supportedVersions).toContain("2026-07-28");
+
+    await handle.close();
+  });
+
+  it("transport.start() が reject した場合、onStartError で起動失敗を報告する", async () => {
+    const startError = new Error("boom: failed to open stdio");
+    const failingTransport: Transport = {
+      start: async () => {
+        throw startError;
+      },
+      close: async () => {},
+      send: async () => {},
+    };
+    const onStartError = vi.fn();
+
+    startMcpStdioServer(makeServer, { transport: failingTransport, onStartError });
+
+    await vi.waitFor(() => {
+      expect(onStartError).toHaveBeenCalledWith(startError);
+    });
+  });
+
+  it("legacy 拒否応答は onError が呼ばれても最後まで届く（起動失敗と混同しない）", async () => {
+    const stdin = new PassThrough();
+    const stdout = new PassThrough();
+    const transport = new StdioServerTransport(stdin, stdout);
+    const onError = vi.fn();
+    const onStartError = vi.fn();
+    const handle = startMcpStdioServer(makeServer, { transport, onError, onStartError });
+
+    const responseBody = new Promise<string>((resolve) => {
+      stdout.once("data", (chunk: Buffer) => resolve(chunk.toString()));
+    });
+    stdin.write(
+      `${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "legacy-client", version: "0.0.0" },
+        },
+      })}\n`,
+    );
+
+    const response = JSON.parse(await responseBody) as { id: number; error?: { code: number } };
+    expect(response.id).toBe(1);
+    expect(response.error?.code).toBe(-32022);
+    // onError（reporting only）は呼ばれるが、onStartError（fatal 判定用）は呼ばれない。
+    expect(onError).toHaveBeenCalled();
+    expect(onStartError).not.toHaveBeenCalled();
+
+    await handle.close();
+  });
+});
+
+describe("wrapTransportStart", () => {
+  function makeInnerTransport(): Transport {
+    return {
+      start: async () => {},
+      close: async () => {},
+      send: async () => {},
+      onclose: undefined,
+      onerror: undefined,
+      onmessage: undefined,
+    };
+  }
+
+  it("onclose / onerror / onmessage の getter/setter を委譲先の transport へ橋渡しする", () => {
+    const inner = makeInnerTransport();
+    const wrapped = wrapTransportStart(inner);
+
+    const onCloseHandler = () => {};
+    const onErrorHandler = () => {};
+    const onMessageHandler = () => {};
+
+    wrapped.onclose = onCloseHandler;
+    wrapped.onerror = onErrorHandler;
+    wrapped.onmessage = onMessageHandler;
+
+    expect(inner.onclose).toBe(onCloseHandler);
+    expect(inner.onerror).toBe(onErrorHandler);
+    expect(inner.onmessage).toBe(onMessageHandler);
+    expect(wrapped.onclose).toBe(onCloseHandler);
+    expect(wrapped.onerror).toBe(onErrorHandler);
+    expect(wrapped.onmessage).toBe(onMessageHandler);
+  });
+
+  it("close() / send() を委譲先の transport へ橋渡しする", async () => {
+    const inner = makeInnerTransport();
+    const closeSpy = vi.spyOn(inner, "close");
+    const sendSpy = vi.spyOn(inner, "send");
+    const wrapped = wrapTransportStart(inner);
+
+    const message = { jsonrpc: "2.0" as const, method: "ping" };
+    await wrapped.send(message);
+    await wrapped.close();
+
+    expect(sendSpy).toHaveBeenCalledWith(message, undefined);
+    expect(closeSpy).toHaveBeenCalled();
   });
 });
