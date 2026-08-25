@@ -1,5 +1,6 @@
 import { PassThrough } from "node:stream";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import type { Transport } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMcpServer, QUEUE_RESOURCE_URI } from "../../../src/mcp/server.js";
@@ -282,7 +283,7 @@ describe("startMcpStdioServer", () => {
     const stdin = new PassThrough();
     const stdout = new PassThrough();
     const transport = new StdioServerTransport(stdin, stdout);
-    const handle = startMcpStdioServer(makeServer, transport);
+    const handle = startMcpStdioServer(makeServer, { transport });
 
     const responseBody = new Promise<string>((resolve) => {
       stdout.once("data", (chunk: Buffer) => resolve(chunk.toString()));
@@ -312,5 +313,23 @@ describe("startMcpStdioServer", () => {
     expect(response.result?.supportedVersions).toContain("2026-07-28");
 
     await handle.close();
+  });
+
+  it("transport.start() が reject した場合、onError で起動失敗を報告する", async () => {
+    const startError = new Error("boom: failed to open stdio");
+    const failingTransport: Transport = {
+      start: async () => {
+        throw startError;
+      },
+      close: async () => {},
+      send: async () => {},
+    };
+    const onError = vi.fn();
+
+    startMcpStdioServer(makeServer, { transport: failingTransport, onError });
+
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(startError);
+    });
   });
 });

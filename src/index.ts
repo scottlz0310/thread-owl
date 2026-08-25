@@ -52,7 +52,15 @@ const createConfiguredMcpServer = () =>
   });
 
 if (mode === "mcp-stdio") {
-  startMcpStdioServer(createConfiguredMcpServer);
+  startMcpStdioServer(createConfiguredMcpServer, {
+    onError: (error) => {
+      logger.error("mcp.stdio.error", {
+        event: "mcp.stdio.error",
+        errorName: error.name,
+      });
+      process.exit(1);
+    },
+  });
   logger.info("mcp.started", { event: "mcp.started", transport: "stdio" });
 } else if (mode === "mcp-http") {
   // webhook receiver は起動しないため、GitHub イベントからの自動 enqueue は行わない。

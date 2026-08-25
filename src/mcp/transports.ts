@@ -26,11 +26,21 @@ export interface StartedMcpHttpServer {
   close(): Promise<void>;
 }
 
+export interface McpStdioServerOptions {
+  transport?: Transport;
+  /** transport.start() の非同期失敗を報告する（serveStdio がレスポンス無しで rejection を内部消費するため）。 */
+  onError?: (error: Error) => void;
+}
+
 export function startMcpStdioServer(
   factory: McpServerFactory,
-  transport?: Transport,
+  options?: McpStdioServerOptions,
 ): StdioServerHandle {
-  return serveStdio(factory, { legacy: "reject", transport });
+  return serveStdio(factory, {
+    legacy: "reject",
+    transport: options?.transport,
+    onerror: options?.onError,
+  });
 }
 
 export async function startMcpHttpServer(
