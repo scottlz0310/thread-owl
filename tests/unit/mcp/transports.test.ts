@@ -9,6 +9,7 @@ import {
   type StartedMcpHttpServer,
   startMcpHttpServer,
   startMcpStdioServer,
+  wrapTransportStart,
 } from "../../../src/mcp/transports.js";
 import { createReviewQueue } from "../../../src/queue/review-queue.js";
 
@@ -159,6 +160,53 @@ describe("startMcpHttpServer - non-MCP path routing", () => {
 
     const res = await fetch(`http://127.0.0.1:${srv.port}/health`);
     expect(res.status).toBe(404);
+
+    await srv.close();
+  });
+
+  it("fallbackHandler が例外を投げた場合 500 を返し onError へ報告する", async () => {
+    const onError = vi.fn();
+    const handlerError = new Error("fallback boom");
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+      onError,
+      fallbackHandler: async () => {
+        throw handlerError;
+      },
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/health`);
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error?: { code: number; message: string } };
+    expect(body.error).toEqual({ code: -32603, message: "Internal server error" });
+    expect(onError).toHaveBeenCalledWith(handlerError);
+
+    await srv.close();
+  });
+
+  it("ヘッダー送信後に fallbackHandler が例外を投げた場合は 500 を書かず onError のみ報告する", async () => {
+    const onError = vi.fn();
+    const srv = await startMcpHttpServer(makeServer, {
+      host: "127.0.0.1",
+      port: 0,
+      path: "/mcp",
+      onError,
+      fallbackHandler: async (_req, res) => {
+        res.writeHead(200).end("partial");
+        throw new Error("boom after headers sent");
+      },
+    });
+
+    const res = await fetch(`http://127.0.0.1:${srv.port}/health`);
+    // ヘッダー送信済みのため 500 では上書きされず、fallbackHandler が書いた 200 のまま。
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "boom after headers sent" }),
+      );
+    });
 
     await srv.close();
   });
@@ -365,5 +413,52 @@ describe("startMcpStdioServer", () => {
     expect(onStartError).not.toHaveBeenCalled();
 
     await handle.close();
+  });
+});
+
+describe("wrapTransportStart", () => {
+  function makeInnerTransport(): Transport {
+    return {
+      start: async () => {},
+      close: async () => {},
+      send: async () => {},
+      onclose: undefined,
+      onerror: undefined,
+      onmessage: undefined,
+    };
+  }
+
+  it("onclose / onerror / onmessage の getter/setter を委譲先の transport へ橋渡しする", () => {
+    const inner = makeInnerTransport();
+    const wrapped = wrapTransportStart(inner);
+
+    const onCloseHandler = () => {};
+    const onErrorHandler = () => {};
+    const onMessageHandler = () => {};
+
+    wrapped.onclose = onCloseHandler;
+    wrapped.onerror = onErrorHandler;
+    wrapped.onmessage = onMessageHandler;
+
+    expect(inner.onclose).toBe(onCloseHandler);
+    expect(inner.onerror).toBe(onErrorHandler);
+    expect(inner.onmessage).toBe(onMessageHandler);
+    expect(wrapped.onclose).toBe(onCloseHandler);
+    expect(wrapped.onerror).toBe(onErrorHandler);
+    expect(wrapped.onmessage).toBe(onMessageHandler);
+  });
+
+  it("close() / send() を委譲先の transport へ橋渡しする", async () => {
+    const inner = makeInnerTransport();
+    const closeSpy = vi.spyOn(inner, "close");
+    const sendSpy = vi.spyOn(inner, "send");
+    const wrapped = wrapTransportStart(inner);
+
+    const message = { jsonrpc: "2.0" as const, method: "ping" };
+    await wrapped.send(message);
+    await wrapped.close();
+
+    expect(sendSpy).toHaveBeenCalledWith(message, undefined);
+    expect(closeSpy).toHaveBeenCalled();
   });
 });

@@ -62,7 +62,7 @@ export function startMcpStdioServer(
 // serveStdio の onerror に一本化すると、legacy 拒否応答の書き込み直前にも
 // 同じコールバックが呼ばれてしまい、fatal 処理（process.exit 等）が正常な
 // プロトコルエラー応答を潰してしまう。
-function wrapTransportStart(
+export function wrapTransportStart(
   transport: Transport,
   onStartError?: (error: Error) => void,
 ): Transport {
