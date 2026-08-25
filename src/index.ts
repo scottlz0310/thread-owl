@@ -53,12 +53,20 @@ const createConfiguredMcpServer = () =>
 
 if (mode === "mcp-stdio") {
   startMcpStdioServer(createConfiguredMcpServer, {
+    // transport.start() の失敗のみ致命的として終了する。serveStdio の onerror は
+    // legacy 拒否応答の書き込み直前など正常系でも発火するため fatal 判定には使わない。
+    onStartError: (error) => {
+      logger.error("mcp.stdio.start.error", {
+        event: "mcp.stdio.start.error",
+        errorName: error.name,
+      });
+      process.exit(1);
+    },
     onError: (error) => {
       logger.error("mcp.stdio.error", {
         event: "mcp.stdio.error",
         errorName: error.name,
       });
-      process.exit(1);
     },
   });
   logger.info("mcp.started", { event: "mcp.started", transport: "stdio" });

@@ -315,7 +315,7 @@ describe("startMcpStdioServer", () => {
     await handle.close();
   });
 
-  it("transport.start() が reject した場合、onError で起動失敗を報告する", async () => {
+  it("transport.start() が reject した場合、onStartError で起動失敗を報告する", async () => {
     const startError = new Error("boom: failed to open stdio");
     const failingTransport: Transport = {
       start: async () => {
@@ -324,12 +324,46 @@ describe("startMcpStdioServer", () => {
       close: async () => {},
       send: async () => {},
     };
-    const onError = vi.fn();
+    const onStartError = vi.fn();
 
-    startMcpStdioServer(makeServer, { transport: failingTransport, onError });
+    startMcpStdioServer(makeServer, { transport: failingTransport, onStartError });
 
     await vi.waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(startError);
+      expect(onStartError).toHaveBeenCalledWith(startError);
     });
+  });
+
+  it("legacy 拒否応答は onError が呼ばれても最後まで届く（起動失敗と混同しない）", async () => {
+    const stdin = new PassThrough();
+    const stdout = new PassThrough();
+    const transport = new StdioServerTransport(stdin, stdout);
+    const onError = vi.fn();
+    const onStartError = vi.fn();
+    const handle = startMcpStdioServer(makeServer, { transport, onError, onStartError });
+
+    const responseBody = new Promise<string>((resolve) => {
+      stdout.once("data", (chunk: Buffer) => resolve(chunk.toString()));
+    });
+    stdin.write(
+      `${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "legacy-client", version: "0.0.0" },
+        },
+      })}\n`,
+    );
+
+    const response = JSON.parse(await responseBody) as { id: number; error?: { code: number } };
+    expect(response.id).toBe(1);
+    expect(response.error?.code).toBe(-32022);
+    // onError（reporting only）は呼ばれるが、onStartError（fatal 判定用）は呼ばれない。
+    expect(onError).toHaveBeenCalled();
+    expect(onStartError).not.toHaveBeenCalled();
+
+    await handle.close();
   });
 });

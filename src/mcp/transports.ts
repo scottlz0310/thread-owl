@@ -6,7 +6,11 @@ import {
   type ServerNotifier,
   type Transport,
 } from "@modelcontextprotocol/server";
-import { type StdioServerHandle, serveStdio } from "@modelcontextprotocol/server/stdio";
+import {
+  type StdioServerHandle,
+  StdioServerTransport,
+  serveStdio,
+} from "@modelcontextprotocol/server/stdio";
 
 export interface McpHttpServerOptions {
   host: string;
@@ -28,7 +32,14 @@ export interface StartedMcpHttpServer {
 
 export interface McpStdioServerOptions {
   transport?: Transport;
-  /** transport.start() の非同期失敗を報告する（serveStdio がレスポンス無しで rejection を内部消費するため）。 */
+  /**
+   * transport.start() が reject した場合にのみ呼ばれる（起動失敗の fatal 通知）。
+   * serveStdio 自身の onerror は out-of-band error 全般（legacy 拒否など正常系の
+   * プロトコルエラー応答を書き出す直前にも発火する）の reporting 用であり、
+   * 起動失敗専用ではないため、fatal 判定にはこちらではなく本オプションを使う。
+   */
+  onStartError?: (error: Error) => void;
+  /** serveStdio の out-of-band error 全般を報告する（reporting only、致命的ではない）。 */
   onError?: (error: Error) => void;
 }
 
@@ -36,11 +47,55 @@ export function startMcpStdioServer(
   factory: McpServerFactory,
   options?: McpStdioServerOptions,
 ): StdioServerHandle {
+  const transport = wrapTransportStart(
+    options?.transport ?? new StdioServerTransport(),
+    options?.onStartError,
+  );
   return serveStdio(factory, {
     legacy: "reject",
-    transport: options?.transport,
+    transport,
     onerror: options?.onError,
   });
+}
+
+// transport.start() の失敗だけを onStartError で報告する薄い委譲ラッパー。
+// serveStdio の onerror に一本化すると、legacy 拒否応答の書き込み直前にも
+// 同じコールバックが呼ばれてしまい、fatal 処理（process.exit 等）が正常な
+// プロトコルエラー応答を潰してしまう。
+function wrapTransportStart(
+  transport: Transport,
+  onStartError?: (error: Error) => void,
+): Transport {
+  return {
+    start: async () => {
+      try {
+        await transport.start();
+      } catch (error) {
+        onStartError?.(error instanceof Error ? error : new Error(String(error)));
+        throw error;
+      }
+    },
+    close: () => transport.close(),
+    send: (message, sendOptions) => transport.send(message, sendOptions),
+    get onclose() {
+      return transport.onclose;
+    },
+    set onclose(handler) {
+      transport.onclose = handler;
+    },
+    get onerror() {
+      return transport.onerror;
+    },
+    set onerror(handler) {
+      transport.onerror = handler;
+    },
+    get onmessage() {
+      return transport.onmessage;
+    },
+    set onmessage(handler) {
+      transport.onmessage = handler;
+    },
+  };
 }
 
 export async function startMcpHttpServer(
