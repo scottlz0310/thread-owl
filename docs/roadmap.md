@@ -45,6 +45,8 @@
 
 stdio MCP（Phase 3）の自然な拡張として Streamable HTTP transport を追加し、リバースプロキシ `mcp-gateway` 配下の remote MCP server として動作させる。
 
+> 以下は策定当時の計画である。session ID ごとの server/transport 生成は v0.4.0（#176）の MCP `2026-07-28` 移行で stateless 化により撤去された。現行仕様は [architecture.md の「MCP プロトコル」](./architecture.md#mcp-プロトコル)を参照。
+
 - `StreamableHTTPServerTransport` を実装する（`createMcpServer(deps, options)` を transport 非依存のまま再利用）
 - 起動部を `startMcpStdioServer(server)` / `startMcpHttpServer(createServer, options)` に分離し、HTTP は session ID ごとに server/transport を生成する
 - 起動フラグで stdio / streamable-http / internal-api を切り替える

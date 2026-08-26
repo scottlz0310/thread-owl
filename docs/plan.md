@@ -454,6 +454,8 @@ review_stale
 
 目的: stdio MCP（Phase 3）を拡張し、リバースプロキシ `mcp-gateway` 配下の remote MCP server として利用できるようにする。
 
+> 以下は策定当時の計画である。session ID ごとの server/transport 生成は v0.4.0（#176）の MCP `2026-07-28` 移行で stateless 化により撤去された。現行仕様は [architecture.md の「MCP プロトコル」](./architecture.md#mcp-プロトコル)を参照。
+
 * StreamableHTTPServerTransport 実装
 * `createMcpServer(deps, options)` を transport 非依存のまま再利用
 * 起動部を `startMcpStdioServer(server)` / `startMcpHttpServer(createServer, options)` に分離
