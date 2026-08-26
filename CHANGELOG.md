@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- 公開 docs を MCP `2026-07-28`（v0.4.0 / #176）の実装に追従（#176 の後続 docs PR、横断 tracker #165）: `docs/architecture.md` に「MCP プロトコル」節を新設し、`legacy: "reject"`・stateless・`server/discover`・`GET`/`DELETE` の 405・client 側の必要バージョン（mcp-gateway v0.10.0 / mcp-resource-subscriber v0.6.0 / SDK v2）と protocol version の pin 推奨を明記。`docs/operations.md` の `resources/subscribe` 前提の購読手順を `subscriptions/listen`（ack 検証を含む）へ書き換え、Streamable HTTP 節の session 記述を stateless 版へ差し替え、mcp-resource-subscriber の出力例を v0.6.0 スキーマ（`listenAcknowledged` / `honoredUris` / `notificationCount` / `closeReason` / `initialText`、`route` の `pre-completion` と `failed`、新 errorCode）へ更新。`docs/skills/thread-owl-pr-reviewer/SKILL.md` の queue 待機手順も同スキーマへ追従。削除済みの `src/mcp/subscriptions/{listen,notify}.ts` を参照していた設計判断の記述を実態（SDK の `ServerNotifier` へ委譲）へ修正し、`docs/plan.md` / `docs/roadmap.md` の Phase 4 には当時の計画である旨の注記を追加
+
 ## [0.4.0] - 2026-08-25
 
 ### Changed

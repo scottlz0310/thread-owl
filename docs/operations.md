@@ -113,7 +113,7 @@ Webhook 受信と MCP HTTP を同一プロセス・同一ポートで提供す�
 | パス | 説明 |
 |------|------|
 | `POST /webhook` | GitHub App Webhook 受信（HMAC-SHA256 署名検証） |
-| `/mcp` | MCP Streamable HTTP（`queue://review/queue` resource subscribe 対応） |
+| `/mcp` | MCP Streamable HTTP（`queue://review/queue` を `subscriptions/listen` で購読可能） |
 | `GET /health` | ヘルスチェック |
 | `GET /status` | バージョン・起動時刻 |
 
@@ -156,8 +156,9 @@ HOST=127.0.0.1 PORT=3000 node dist/index.js --mcp-http
 ```
 
 - endpoint は `http://127.0.0.1:3000/mcp`
-- MCP session ID ごとに独立した `McpServer` と `StreamableHTTPServerTransport` を生成する
-- session の DELETE、transport close、HTTP server shutdown 時に session を破棄する
+- protocol は `2026-07-28` のみ（`legacy: "reject"`）。stateless であり `Mcp-Session-Id` は発行しない
+- `POST /mcp` のみを受け付ける。`GET /mcp` / `DELETE /mcp` は `405` を返す
+- `subscriptions/listen` の long-lived stream をリバースプロキシにバッファリングさせないため、応答に `X-Accel-Buffering: no` を付与する
 - 既定 bind は `127.0.0.1`。Thread Owl の Streamable HTTP endpoint を直接 public exposure する構成は非対応
 - caller 認証は mcp-gateway の責務であり、Thread Owl 側の Bearer 認証は本実装に含まれない
 - mcp-gateway と別コンテナで接続する場合のみ、private Docker network 内で `HOST=0.0.0.0` とし、Thread Owl の port をホストへ publish しない
@@ -169,7 +170,7 @@ HOST=127.0.0.1 PORT=3000 node dist/index.js --mcp-http
 | 機能 | 説明 |
 |------|------|
 | `enqueue_review` tool | webhook 以外の正規経路で PR を queue に投入する |
-| `queue://review/queue` resource | `resources/subscribe` で enqueue 通知を受信 |
+| `queue://review/queue` resource | `subscriptions/listen` で enqueue 通知を受信 |
 | `queue://review/re-review-requests` resource | `re-review-requested` のみ通知 |
 
 mcp-gateway から指定する内部 URL の例:
@@ -269,7 +270,7 @@ Webhook の設定手順・疎通確認は [webhook-operations.md](./webhook-oper
 | コンポーネント | 立場 | 役割 |
 |---|---|---|
 | **Thread Owl (MCP server)** | review する側 / subscribe **される**側 | レビュアー側 GitHub App 権限での review 操作（PR/スレッド取得・コメント投稿・返信）を MCP tools として提供。`queue://review/queue` を expose し通知を出す。LLM は内蔵しない |
-| **`mcp-resource-subscriber`** | subscribe **する**側 / agent workflow bridge | `queue://review/queue` を subscribe し、`notifications/resources/updated` 受信後に `resources/read` → structured JSON を返す。CLI agent が long-lived subscription を安定保持できない場合に使用する |
+| **`mcp-resource-subscriber`** | subscribe **する**側 / agent workflow bridge | `queue://review/queue` を `subscriptions/listen` で購読し、`notifications/resources/updated` 受信後に `resources/read` → structured JSON を返す。CLI agent が long-lived subscription を安定保持できない場合に使用する（**v0.6.0 以降が必要**） |
 | **`pr-review-subscribe`（Claude Code skill）** | ワークフロー管理 | PR レビューサイクルの管理（レビュー取得 → スレッド分類 → 修正 → reply → resolve → サマリ）。acquisition provider（`thread-owl` / `copilot-review` / `codex` / `external` / `existing`）を抽象化する |
 | **`github-mcp`** | review を受けて直す側 | 修正側のユーザー権限で review thread への返信・resolve を行う |
 | **`copilot-review-mcp`（MCP server 登録名: `copilot-review`）** | review を受けて直す側 | GitHub Copilot review の取得経路。修正側のユーザー権限で review thread への返信・resolve も行う |
@@ -293,6 +294,21 @@ Thread Owl は 2 つの購読可能なリソースを expose する。用途に�
 **re-review handoff subscriber は必ず `queue://review/re-review-requests` を購読すること。**  
 `queue://review/queue` を購読すると、commit push による `synchronized` 通知で subscriber が先に終端し、
 直後の `re-review-requested` 通知を見逃す（push-first 経路での early termination）。
+
+### 前提となる protocol バージョン
+
+v0.4.0 以降の Thread Owl は MCP `2026-07-28` のみを受け付け、2025-era の client にはフォールバックしない
+（`legacy: "reject"`、#176）。`resources/subscribe` / `resources/unsubscribe` は**存在しない**ため、
+購読は `subscriptions/listen` で行う。2025-era の client は `initialize` の時点で `-32022` により拒否される。
+
+| client | 必要バージョン |
+|---|---|
+| `mcp-gateway` | v0.10.0 以降 |
+| `mcp-resource-subscriber` | v0.6.0 以降 |
+| MCP SDK を直接使う client | TypeScript `@modelcontextprotocol/client` v2 / C# `ModelContextProtocol.Core` 2.2.0 以降 |
+
+client 側の protocol version は `auto` ではなく `2026-07-28` に pin すること。`auto` は legacy への
+暗黙のフォールバックを許すが、Thread Owl 側にフォールバック先が無いため、降格を観測できないまま失敗する。
 
 ### mcp-resource-subscriber を使う場合
 
@@ -327,11 +343,15 @@ bunx mcp-resource-subscriber \
   "route": "subscription",
   "serverUrl": "http://localhost:3000/mcp",
   "resourceUri": "queue://review/re-review-requests",
-  "subscribed": true,
+  "listenAcknowledged": true,
+  "honoredUris": ["queue://review/re-review-requests"],
   "notificationReceived": true,
+  "notificationCount": 1,
+  "closeReason": "local",
   "errorCode": null,
-  "recommendedNextAction": "READ_REVIEW_THREADS",
-  "finalText": "[{\"owner\":\"org\",\"repo\":\"my-repo\",\"prNumber\":42,\"installationId\":12345,\"queuedAt\":\"2026-06-08T00:00:00.000Z\",\"reason\":\"re-review-requested\",\"sourceCommentId\":99,\"requestedBy\":\"human-user\"}]"
+  "initialText": "[]",
+  "finalText": "[{\"owner\":\"org\",\"repo\":\"my-repo\",\"prNumber\":42,\"installationId\":12345,\"queuedAt\":\"2026-06-08T00:00:00.000Z\",\"reason\":\"re-review-requested\",\"sourceCommentId\":99,\"requestedBy\":\"human-user\"}]",
+  "recommendedNextAction": "READ_REVIEW_THREADS"
 }
 ```
 
@@ -342,11 +362,15 @@ bunx mcp-resource-subscriber \
   "route": "timeout",
   "serverUrl": "http://localhost:3000/mcp",
   "resourceUri": "queue://review/re-review-requests",
-  "subscribed": true,
+  "listenAcknowledged": true,
+  "honoredUris": ["queue://review/re-review-requests"],
   "notificationReceived": false,
+  "notificationCount": 0,
+  "closeReason": "local",
   "errorCode": "NOTIFICATION_TIMEOUT",
-  "recommendedNextAction": null,
-  "finalText": null
+  "initialText": "[]",
+  "finalText": null,
+  "recommendedNextAction": null
 }
 ```
 
@@ -354,29 +378,48 @@ bunx mcp-resource-subscriber \
 
 ```json
 {
-  "route": "error",
+  "route": "failed",
   "serverUrl": null,
   "resourceUri": "queue://review/re-review-requests",
-  "subscribed": false,
+  "listenAcknowledged": false,
+  "honoredUris": [],
   "notificationReceived": false,
+  "notificationCount": 0,
+  "closeReason": null,
   "errorCode": "SERVER_URL_UNKNOWN",
-  "recommendedNextAction": null,
-  "finalText": null
+  "initialText": null,
+  "finalText": null,
+  "recommendedNextAction": null
 }
 ```
 
 | フィールド | 説明 |
 |---|---|
-| `route` | `"subscription"`: 通知受信成功 / `"timeout"`: タイムアウト / `"error"`: 接続・購読失敗 |
+| `route` | `"subscription"`: 通知受信成功 / `"pre-completion"`: listen 確立前に更新済みだったことを読み直しで検知 / `"timeout"`: タイムアウト / `"failed"`: 接続・購読失敗 |
 | `serverUrl` | 接続した MCP サーバー URL（接続失敗時は `null`） |
 | `resourceUri` | 購読した resource URI |
-| `subscribed` | 購読成功フラグ |
+| `listenAcknowledged` | `subscriptions/listen` の ack をサーバーから受信したか |
+| `honoredUris` | ack でサーバーが実際に購読を受け入れた URI 一覧。要求した URI が含まれない場合は `SUBSCRIPTION_NOT_HONORED` |
 | `notificationReceived` | 通知受信フラグ |
-| `errorCode` | エラーコード（`null` / `"NOTIFICATION_TIMEOUT"` / `"SERVER_URL_UNKNOWN"` 等） |
+| `notificationCount` | 受信した `notifications/resources/updated` の件数 |
+| `closeReason` | stream の終了理由（`"local"`: 自分で閉じた / `"graceful"`: サーバーが正常終了 / `"remote"`: 異常切断） |
+| `errorCode` | エラーコード（下表） |
+| `initialText` | listen 確立前に読んだ resource content の raw JSON 文字列 |
+| `finalText` | 更新後に読んだ resource content の raw JSON 文字列（未取得時は `null`） |
 | `recommendedNextAction` | agent への推奨次アクション（`"READ_REVIEW_THREADS"` 等。エラー時は `null`） |
-| `finalText` | 受信した resource content の raw JSON 文字列（エラー時は `null`） |
 
-CLI agent は `json.route === "subscription"` を確認し、`json.recommendedNextAction` / `json.finalText` を使って Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
+主な `errorCode`:
+
+| errorCode | 意味 |
+|---|---|
+| `NOTIFICATION_TIMEOUT` | `--timeout-ms` 内に通知が来なかった |
+| `SUBSCRIPTION_NOT_HONORED` | ack に要求した URI が含まれなかった |
+| `SUBSCRIPTION_DISCONNECTED` | listen stream が応答なしに切断された |
+| `SUBSCRIPTION_CLOSED` | サーバーが listen stream を正常終了した |
+| `PROTOCOL_UNSUPPORTED` | protocol negotiation に失敗した（サーバー未移行・認証失敗・到達不能のいずれか。SDK 側で区別できない） |
+| `SERVER_URL_UNKNOWN` | `--url` / `MCP_PROBE_URL` が解決できなかった |
+
+CLI agent は `json.route` が `"subscription"` または `"pre-completion"` であることを確認し、`json.recommendedNextAction` / `json.finalText` を使って Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
 
 <details>
 <summary>--json なし（line-based 出力）</summary>
@@ -393,10 +436,12 @@ server-url http://localhost:3000/mcp
 initial
 []
 route subscription
-subscribed true
+listen-acknowledged true
+honored-uris ["queue://review/re-review-requests"]
 notification-received true
 notification-count 1
-unsubscribed true
+close-reason local
+recommended_next_action READ_REVIEW_THREADS
 error-code null
 notification queue://review/re-review-requests
 final
@@ -411,19 +456,26 @@ error-code NOTIFICATION_TIMEOUT
 phase-summary route=timeout url=http://localhost:3000/mcp uri=queue://review/re-review-requests error-code=NOTIFICATION_TIMEOUT
 ```
 
-CLI agent は `phase-summary` の `route=subscription` を確認し、`final` ブロックの JSON をパースする。
+CLI agent は `phase-summary` の `route=subscription`（または `route=pre-completion`）を確認し、`final` ブロックの JSON をパースする。
 
 </details>
 
 ### MCP client が native subscribe を使う場合
 
-MCP client が `resources/subscribe` を native にサポートし、long-lived 接続を安定保持できる場合は、
-直接 subscribe して `notifications/resources/updated` を受信し、`resources/read` で最新キューを取得する。
+MCP client が `subscriptions/listen` を native にサポートし、long-lived 接続を安定保持できる場合は、
+直接 listen して `notifications/resources/updated` を受信し、`resources/read` で最新キューを取得する。
 
 ```
 # re-review handoff subscriber
-client.subscribeResource({ uri: "queue://review/re-review-requests" })
+const subscription = await client.listen({
+  resourceSubscriptions: ["queue://review/re-review-requests"],
+})
+  → subscription.honoredFilter.resourceSubscriptions に URI が含まれることを確認する
   → notifications/resources/updated 受信（re-review-requested 時のみ）
   → client.readResource({ uri: "queue://review/re-review-requests" })
   → re-review-requested エントリのみ含む ReviewCandidate[] を取得してワークフローへ
+  → subscription.close()
 ```
+
+ack（`honoredFilter`）の検証は必須である。サーバーが URI を受け入れなかった場合、listen 自体は成功する
+一方で通知は一切届かず、client 側は timeout まで待ち続けることになる。

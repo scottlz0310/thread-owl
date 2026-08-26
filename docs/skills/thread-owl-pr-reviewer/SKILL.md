@@ -53,7 +53,7 @@ PR が明示されず queue 待機を依頼された場合だけ subscription �
 
 再レビュー待機では必ず `queue://review/re-review-requests` を使う。通常 queue では先行する `synchronized` 通知で待機が終了し、直後の再レビュー依頼を見逃す可能性がある。
 
-native `resources/subscribe` が使えなければ、repository の運用ガイドに従って `mcp-resource-subscriber` を使う。
+native `subscriptions/listen` が使えなければ、repository の運用ガイドに従って `mcp-resource-subscriber`（v0.6.0 以降）を使う。
 
 ```powershell
 bunx mcp-resource-subscriber `
@@ -63,7 +63,7 @@ bunx mcp-resource-subscriber `
   --json
 ```
 
-`json.route === "subscription"` を確認し、`json.finalText` をパースして `owner`、`repo`、`prNumber`、`reason` を取得する。`route` が `"timeout"` または `"error"` の場合はレビュー完了として扱わない。
+`json.route` が `"subscription"` または `"pre-completion"` であることを確認し、`json.finalText` をパースして `owner`、`repo`、`prNumber`、`reason` を取得する。`route` が `"timeout"` または `"failed"` の場合はレビュー完了として扱わない。
 
 ## モード選択
 
