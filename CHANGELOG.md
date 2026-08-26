@@ -2,8 +2,10 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-26
+
 ### Changed
-- 公開 docs を MCP `2026-07-28`（v0.4.0 / #176）の実装に追従（#176 の後続 docs PR、横断 tracker #165）: `docs/architecture.md` に「MCP プロトコル」節を新設し、`legacy: "reject"`・stateless・`server/discover`・`GET`/`DELETE` の 405・client 側の必要バージョン（mcp-gateway v0.10.0 / mcp-resource-subscriber v0.6.0 / SDK v2）と protocol version の pin 推奨を明記。`docs/operations.md` の `resources/subscribe` 前提の購読手順を `subscriptions/listen`（ack 検証を含む）へ書き換え、Streamable HTTP 節の session 記述を stateless 版へ差し替え、mcp-resource-subscriber の出力例を v0.6.0 スキーマ（`listenAcknowledged` / `honoredUris` / `notificationCount` / `closeReason` / `initialText`、`route` の `pre-completion` と `failed`、新 errorCode）へ更新。`docs/skills/thread-owl-pr-reviewer/SKILL.md` の queue 待機手順も同スキーマへ追従。削除済みの `src/mcp/subscriptions/{listen,notify}.ts` を参照していた設計判断の記述を実態（SDK の `ServerNotifier` へ委譲）へ修正し、`docs/plan.md` / `docs/roadmap.md` の Phase 4 には当時の計画である旨の注記を追加
+- 公開 docs を MCP `2026-07-28`（v0.4.0 / #176）の実装に追従（#176 の後続 docs PR、横断 tracker #165）: `docs/architecture.md` に「MCP プロトコル」節を新設し、`legacy: "reject"`・stateless・`server/discover`・`GET`/`DELETE` の 405・client 側の必要バージョン（mcp-gateway v0.10.0 / mcp-resource-subscriber v0.6.0 / SDK v2）と protocol version の pin 推奨を明記。`docs/operations.md` の `resources/subscribe` 前提の購読手順を `subscriptions/listen`（ack 検証を含む）へ書き換え、Streamable HTTP 節の session 記述を stateless 版へ差し替え、mcp-resource-subscriber の出力例を v0.6.0 スキーマ（`listenAcknowledged` / `honoredUris` / `notificationCount` / `closeReason` / `initialText`、`route` の `pre-completion` と `failed`、新 errorCode）へ更新。`docs/skills/thread-owl-pr-reviewer/SKILL.md` の queue 待機手順も同スキーマへ追従。`recommendedNextAction` は subscriber が `finalText` 内の `recommended_next_action` を抽出して生成するが、Thread Owl の queue resource は `ReviewCandidate[]` でこのフィールドを含めないため常に `null` になる点を明記。`PROTOCOL_UNSUPPORTED` は「サーバーが `2026-07-28` を提供しなかった」に限定し、到達不能（`DNS_LOOKUP_FAILED` / `CONNECTION_REFUSED` / `TLS_CERT_UNTRUSTED`）と認証系（`AUTH_LOGIN_REQUIRED` / `AUTH_TIMEOUT` / `AUTH_REFRESH_FAILED`）を独立した errorCode として記載。削除済みの `src/mcp/subscriptions/{listen,notify}.ts` を参照していた設計判断の記述を実態（SDK の `ServerNotifier` へ委譲）へ修正し、`docs/plan.md` / `docs/roadmap.md` の Phase 4 には当時の計画である旨の注記を追加
 
 ## [0.4.0] - 2026-08-25
 
