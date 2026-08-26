@@ -351,9 +351,13 @@ bunx mcp-resource-subscriber \
   "errorCode": null,
   "initialText": "[]",
   "finalText": "[{\"owner\":\"org\",\"repo\":\"my-repo\",\"prNumber\":42,\"installationId\":12345,\"queuedAt\":\"2026-06-08T00:00:00.000Z\",\"reason\":\"re-review-requested\",\"sourceCommentId\":99,\"requestedBy\":\"human-user\"}]",
-  "recommendedNextAction": "READ_REVIEW_THREADS"
+  "recommendedNextAction": null
 }
 ```
+
+`recommendedNextAction` は subscriber が `finalText` の中から `recommended_next_action` フィールドを
+抽出して生成する。Thread Owl の queue resource は `ReviewCandidate[]` を返し、このフィールドを含めない
+契約なので、**Thread Owl を購読している限り常に `null` になる**。agent は `route` と `finalText` で分岐すること。
 
 **stdout（タイムアウト時）**:
 
@@ -406,7 +410,7 @@ bunx mcp-resource-subscriber \
 | `errorCode` | エラーコード（下表） |
 | `initialText` | listen 確立前に読んだ resource content の raw JSON 文字列 |
 | `finalText` | 更新後に読んだ resource content の raw JSON 文字列（未取得時は `null`） |
-| `recommendedNextAction` | agent への推奨次アクション（`"READ_REVIEW_THREADS"` 等。エラー時は `null`） |
+| `recommendedNextAction` | `finalText` 内の `recommended_next_action` を抽出した値。Thread Owl の queue resource は含めないため常に `null` |
 
 主な `errorCode`:
 
@@ -416,10 +420,16 @@ bunx mcp-resource-subscriber \
 | `SUBSCRIPTION_NOT_HONORED` | ack に要求した URI が含まれなかった |
 | `SUBSCRIPTION_DISCONNECTED` | listen stream が応答なしに切断された |
 | `SUBSCRIPTION_CLOSED` | サーバーが listen stream を正常終了した |
-| `PROTOCOL_UNSUPPORTED` | protocol negotiation に失敗した（サーバー未移行・認証失敗・到達不能のいずれか。SDK 側で区別できない） |
+| `PROTOCOL_UNSUPPORTED` | サーバーが `2026-07-28` を提供しなかった（未移行）。到達不能は下記の専用コードへ振り分けられるため、このコードには含まれない |
+| `DNS_LOOKUP_FAILED` / `CONNECTION_REFUSED` / `TLS_CERT_UNTRUSTED` | `--url` のホストに到達できなかった（DNS 解決失敗 / 接続拒否 / TLS 証明書が信頼されない） |
+| `AUTH_LOGIN_REQUIRED` / `AUTH_TIMEOUT` / `AUTH_REFRESH_FAILED` | mcp-gateway の token 解決に失敗した（再ログインが必要 / 応答なし / refresh 失敗） |
 | `SERVER_URL_UNKNOWN` | `--url` / `MCP_PROBE_URL` が解決できなかった |
 
-CLI agent は `json.route` が `"subscription"` または `"pre-completion"` であることを確認し、`json.recommendedNextAction` / `json.finalText` を使って Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
+`PROTOCOL_UNSUPPORTED` は「サーバー側が未移行」を意味する。subscriber は接続失敗を negotiation 失敗として
+包む SDK の挙動を打ち消し、到達不能・認証失敗を上記の専用コードへ振り分けてから残りを
+`PROTOCOL_UNSUPPORTED` としているため、このコードが出たら Thread Owl / mcp-gateway のバージョンを疑うこと。
+
+CLI agent は `json.route` が `"subscription"` または `"pre-completion"` であることを確認し、`json.finalText` をパースして Thread Owl の MCP tools（`get_pr` → `list_review_threads` → `post_inline_comment` 等）を呼び出す。
 
 <details>
 <summary>--json なし（line-based 出力）</summary>
@@ -441,7 +451,6 @@ honored-uris ["queue://review/re-review-requests"]
 notification-received true
 notification-count 1
 close-reason local
-recommended_next_action READ_REVIEW_THREADS
 error-code null
 notification queue://review/re-review-requests
 final
