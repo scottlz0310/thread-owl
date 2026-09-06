@@ -22,7 +22,7 @@
     "@octokit/rest": "^22.0.1",
     "hono": "^4.13.7",
     "jose": "^6.2.12",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
