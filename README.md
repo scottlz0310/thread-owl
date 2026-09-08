@@ -53,7 +53,7 @@ GitHub
 
 ## 動作要件
 
-- Node.js >= 20.0.0
+- Node.js >= 26.8.1
 - Bun
 
 ## セットアップ
@@ -65,6 +65,10 @@ cp .env.example .env
 ```
 
 GitHub App の登録手順は [docs/github-app-setup.md](docs/github-app-setup.md) を参照。
+
+## レビュー用 skill
+
+`thread-owl-pr-reviewer` の正本は [Mcp-Docker の skills/thread-owl-pr-reviewer/](https://github.com/scottlz0310/Mcp-Docker/tree/main/skills/thread-owl-pr-reviewer) に収蔵している。各 CLI への配置・更新は `mcp-docker skill install`、配置状態の確認は `mcp-docker skill status` を使う。詳細は [skill の所在と配置](docs/skills/README.md) を参照。
 
 ## 開発コマンド
 

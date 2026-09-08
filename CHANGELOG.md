@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- `thread-owl-pr-reviewer` の二重管理を解消し、Mcp-Docker を唯一の収蔵先とした（#198）。ローカルの skill 本体とエージェント設定を削除し、README と `docs/skills/README.md` に正本へのリンクおよび `mcp-docker skill install/status` による配置・更新・確認手順を追加。
+- Node.js の基準を26.8.1へ更新し、CI・Release が参照する `.node-version`、Docker のビルド／実行環境、`package.json` と README の動作要件を統一。
+
+### Fixed
+- Vitest の対象を `src/**/*.test.ts` と `tests/**/*.test.ts` に明示し、既存テストをすべて維持したまま `dist/` の旧テスト生成物の混入を防止。通常実行と CI のカバレッジ実行で同じ設定を使用する。
+
 ## [0.4.1] - 2026-08-26
 
 ### Changed
