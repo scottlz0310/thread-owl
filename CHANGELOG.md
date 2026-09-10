@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-10
+
 ### Changed
 - allowlist の適用範囲を write 専用に整理（#200）: MCP の `get_pr` / `list_review_threads` は GitHub App installation の repo scope に委ね、コメント投稿・返信・approve・enqueue と内部 `/token` API は allowlist を要求するよう token 発行経路を分離。
 - `thread-owl-pr-reviewer` の二重管理を解消し、Mcp-Docker を唯一の収蔵先とした（#198）。ローカルの skill 本体とエージェント設定を削除し、README と `docs/skills/README.md` に正本へのリンクおよび `mcp-docker skill install/status` による配置・更新・確認手順を追加。
