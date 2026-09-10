@@ -22,6 +22,12 @@ export interface TokenSourceResponse {
   expiresAt: string;
 }
 
+export type TokenAccess = "read" | "write";
+
+export interface IssueTokenOptions {
+  access?: TokenAccess;
+}
+
 export interface IssueTokenDeps {
   config: AppConfig;
   logger: Logger;
@@ -36,16 +42,19 @@ export interface IssueTokenDeps {
   getInstallationToken: (options: GetInstallationTokenOptions) => Promise<InstallationToken>;
 }
 
-// allowlist チェックは token 発行前に行う（拒否時は発行コストも secret 露出も発生させない）。
+// access の既定値は write とし、allowlist のない呼び出しが誤って書き込み境界を迂回しないようにする。
+// write access の allowlist チェックは token 発行前に行う（拒否時は発行コストも secret 露出も発生させない）。
 // 発行した token は repo スコープで cache し、再取得を抑制する。
 export async function issueToken(
   request: TokenSourceRequest,
   deps: IssueTokenDeps,
+  options: IssueTokenOptions = {},
 ): Promise<TokenSourceResponse> {
   const { owner, repo } = request;
   const { config, logger, tokenCache } = deps;
+  const access = options.access ?? "write";
 
-  if (!isAllowed(config.policy.allowedRepos, owner, repo)) {
+  if (access === "write" && !isAllowed(config.policy.allowedRepos, owner, repo)) {
     logger.warn("token.denied", { event: "token.denied", owner, repo });
     throw new RepositoryNotAllowedError(owner, repo);
   }
