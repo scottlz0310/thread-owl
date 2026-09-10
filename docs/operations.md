@@ -143,7 +143,7 @@ node dist/index.js --mcp
 | `post_inline_comment` | インラインレビューコメント投稿 |
 | `reply_review_thread` | レビュースレッドへ返信 |
 
-- 各 tool は `owner`/`repo` から installation token を都度発行する（allowlist ゲートが token 発行時に効くため、allowlist 外リポジトリは read/write とも拒否される）
+- 各 tool は `owner`/`repo` から installation token を都度発行する。read は GitHub App installation の repo scope に委ね、write は token 発行前に allowlist を要求する
 - MCP stdio モードではログを stderr に出力する（stdout は JSON-RPC 専用のため）
 - review thread の resolve は、PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review-mcp`（MCP server 登録名: `copilot-review`）等で行う
 

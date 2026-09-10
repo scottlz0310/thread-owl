@@ -47,7 +47,10 @@ function baseDeps() {
 }
 
 describe("issueToken", () => {
-  it("allowlist 外は token 発行前に拒否し、auth 系を呼ばない", async () => {
+  it.each([
+    { label: "既定の access", options: undefined },
+    { label: "write access", options: { access: "write" as const } },
+  ])("$label では allowlist 外を token 発行前に拒否し、auth 系を呼ばない", async ({ options }) => {
     const deps = {
       config: makeConfig([]),
       logger: makeLogger(),
@@ -55,12 +58,30 @@ describe("issueToken", () => {
       ...baseDeps(),
     };
 
-    await expect(issueToken({ owner: "octo-org", repo: "octo-repo" }, deps)).rejects.toBeInstanceOf(
-      RepositoryNotAllowedError,
-    );
+    await expect(
+      issueToken({ owner: "octo-org", repo: "octo-repo" }, deps, options),
+    ).rejects.toBeInstanceOf(RepositoryNotAllowedError);
     expect(deps.generateAppJwt).not.toHaveBeenCalled();
     expect(deps.resolveInstallationId).not.toHaveBeenCalled();
     expect(deps.getInstallationToken).not.toHaveBeenCalled();
+  });
+
+  it("read access は allowlist 外でも installation token を発行する", async () => {
+    const deps = {
+      config: makeConfig([]),
+      logger: makeLogger(),
+      tokenCache: makeCache(),
+      ...baseDeps(),
+    };
+
+    const res = await issueToken({ owner: "octo-org", repo: "octo-repo" }, deps, {
+      access: "read",
+    });
+
+    expect(res.token).toBe(INSTALLATION_TOKEN);
+    expect(deps.generateAppJwt).toHaveBeenCalledTimes(1);
+    expect(deps.resolveInstallationId).toHaveBeenCalledTimes(1);
+    expect(deps.getInstallationToken).toHaveBeenCalledTimes(1);
   });
 
   it("cache ミス時に token を発行して cache に保存する", async () => {

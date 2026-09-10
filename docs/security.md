@@ -27,8 +27,8 @@ Thread Owl は GitHub App の private key と installation token を扱う。
 
 ### Allowlist 適用
 
-- `ALLOWED_REPOS` は必ず明示的に設定する。空の場合は全操作をブロックする
-- allowlist チェックはすべての GitHub API 呼び出しの前に実行する
+- `ALLOWED_REPOS` は write の対象を制限するため必ず明示的に設定する。空の場合は write 操作と Webhook / enqueue をブロックする
+- allowlist チェックは write の GitHub API 呼び出し前に実行し、read は GitHub App installation の repo scope に委ねる
 - allowlist はサービス起動時にバリデーションする
 
 ### Streamable HTTP の公開境界

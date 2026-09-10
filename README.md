@@ -130,7 +130,7 @@ RC 等のプレリリース版（タグに `-` を含む場合、例: `vX.Y.Z-rc
 
 - GitHub App private key は環境変数で管理し、リポジトリにコミットしない
 - Webhook 署名検証は必須
-- すべての操作に対して repository allowlist を適用する
+- write 操作に repository allowlist を適用し、read は GitHub App installation の repo scope に委ねる
 
 詳細は [docs/security.md](docs/security.md) を参照。
 

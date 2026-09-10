@@ -37,4 +37,5 @@ Thread Owl は Phase 1〜3 に必要な最小限の権限からスタートす�
 GitHub App installation で権限が付与されていても、Thread Owl は
 環境変数 `ALLOWED_REPOS` による追加の allowlist を適用する。
 
-Allowlist に含まれないリポジトリへの操作は、GitHub API 呼び出しの前に拒否される。
+Allowlist はコメント投稿・スレッド返信・approve・enqueue などの write 操作に適用し、
+GitHub API 呼び出し前に拒否する。read 操作は GitHub App installation の repo scope に委ねる。

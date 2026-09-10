@@ -22,7 +22,9 @@ describe("buildToolDeps", () => {
     const deps = buildToolDeps(issueTokenDeps);
     const client = await deps.getClient("o", "r");
 
-    expect(tokenSource.issueToken).toHaveBeenCalledWith({ owner: "o", repo: "r" }, issueTokenDeps);
+    expect(tokenSource.issueToken).toHaveBeenCalledWith({ owner: "o", repo: "r" }, issueTokenDeps, {
+      access: "read",
+    });
     expect(clientModule.createClient).toHaveBeenCalledWith("ghs_x");
     expect(client).toBe(fakeClient);
   });
@@ -35,6 +37,9 @@ describe("buildToolDeps", () => {
     const deps = buildToolDeps(issueTokenDeps);
     const ctx = await deps.getWriteContext("o", "r");
 
+    expect(tokenSource.issueToken).toHaveBeenCalledWith({ owner: "o", repo: "r" }, issueTokenDeps, {
+      access: "write",
+    });
     expect(ctx.client).toBe(fakeClient);
     expect(ctx.allowedRepos).toEqual(["o/r"]);
     expect(ctx.logger).toBe(issueTokenDeps.logger);
