@@ -9,12 +9,14 @@ import type { DeliveryDedup } from "../queue/delivery-dedup.js";
 import { createDeliveryDedup } from "../queue/delivery-dedup.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
 import { createReviewQueue } from "../queue/review-queue.js";
+import { createReviewStatusStore, type ReviewStatusStore } from "../queue/review-status.js";
 
 export interface SharedRuntime {
   config: AppConfig;
   logger: Logger;
   issueTokenDeps: IssueTokenDeps;
   reviewQueue: ReviewQueue;
+  reviewStatus: ReviewStatusStore;
   deliveryDedup: DeliveryDedup;
 }
 
@@ -29,6 +31,7 @@ export function createSharedRuntime(config: AppConfig, logger: Logger): SharedRu
     getInstallationToken,
   };
   const reviewQueue = createReviewQueue();
+  const reviewStatus = createReviewStatusStore();
   const deliveryDedup = createDeliveryDedup();
-  return { config, logger, issueTokenDeps, reviewQueue, deliveryDedup };
+  return { config, logger, issueTokenDeps, reviewQueue, reviewStatus, deliveryDedup };
 }

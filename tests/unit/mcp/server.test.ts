@@ -9,11 +9,16 @@ import {
   createMcpServer,
   QUEUE_RESOURCE_URI,
   RE_REVIEW_RESOURCE_URI,
+  REVIEW_STATUS_URI_TEMPLATE,
   runTool,
 } from "../../../src/mcp/server.js";
 import type { ToolDeps } from "../../../src/mcp/tool-deps.js";
 import { ENQUEUE_REVIEW_TOOL_NAME } from "../../../src/mcp/tools/enqueue-review.js";
 import { createReviewQueue, type ReviewCandidate } from "../../../src/queue/review-queue.js";
+import {
+  createReviewStatusStore,
+  type ReviewStatusStore,
+} from "../../../src/queue/review-status.js";
 
 function makeDeps(): ToolDeps {
   return {
@@ -35,9 +40,18 @@ function makeCandidate(prNumber = 1): ReviewCandidate {
   };
 }
 
-async function setupServerAndClient(queue: ReturnType<typeof createReviewQueue>) {
+async function setupServerAndClient(
+  queue: ReturnType<typeof createReviewQueue>,
+  reviewStatus?: ReviewStatusStore,
+) {
   const server = createMcpServer(
-    { ...makeDeps(), allowedRepos: ["org/repo"], resolveInstallationId: async () => 1, queue },
+    {
+      ...makeDeps(),
+      allowedRepos: ["org/repo"],
+      resolveInstallationId: async () => 1,
+      queue,
+      reviewStatus,
+    },
     { name: "test", version: "0.0.0" },
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -251,6 +265,93 @@ describe("createMcpServer — enqueue_review tool", () => {
 
     expect(result.isError).toBe(true);
     expect(queue.size()).toBe(0);
+
+    await client.close();
+    await server.close();
+  });
+});
+
+describe("createMcpServer — review status resource", () => {
+  const pr = { owner: "Org", repo: "Repo", prNumber: 7 };
+  const uri = "review://status/org/repo/7";
+
+  async function setup() {
+    const reviewStatus = createReviewStatusStore();
+    const { server, client } = await setupServerAndClient(createReviewQueue(), reviewStatus);
+    return { reviewStatus, server, client };
+  }
+
+  test("listResourceTemplates returns the review status template", async () => {
+    const { server, client } = await setup();
+
+    const result = await client.listResourceTemplates();
+
+    expect(result.resourceTemplates.map((t) => t.uriTemplate)).toEqual([
+      REVIEW_STATUS_URI_TEMPLATE,
+    ]);
+
+    await client.close();
+    await server.close();
+  });
+
+  test("listResources includes tracked PRs with lowercased URI", async () => {
+    const { reviewStatus, server, client } = await setup();
+
+    expect((await client.listResources()).resources.map((r) => r.uri)).not.toContain(uri);
+    reviewStatus.markPending(pr);
+    expect((await client.listResources()).resources.map((r) => r.uri)).toContain(uri);
+
+    await client.close();
+    await server.close();
+  });
+
+  test.each([uri, "review://status/ORG/Repo/7"])(
+    "readResource(%s) returns the status JSON",
+    async (requestUri) => {
+      const { reviewStatus, server, client } = await setup();
+      reviewStatus.markReviewed(pr, { summaryCommentId: 100, headSha: "abc", round: undefined });
+
+      const result = await client.readResource({ uri: requestUri });
+
+      const parsed = JSON.parse((result.contents[0] as { text: string }).text) as unknown;
+      expect(parsed).toMatchObject({
+        owner: "Org",
+        repo: "Repo",
+        prNumber: 7,
+        headSha: "abc",
+        status: "reviewed",
+        summaryCommentId: 100,
+      });
+      expect(typeof (parsed as { updatedAt: unknown }).updatedAt).toBe("string");
+
+      await client.close();
+      await server.close();
+    },
+  );
+
+  test.each([uri, "review://status/org/repo/0", "review://status/org/7"])(
+    "readResource(%s) for an untracked or malformed URI returns MCP error",
+    async (requestUri) => {
+      const { server, client } = await setup();
+
+      await expect(client.readResource({ uri: requestUri })).rejects.toThrow();
+
+      await client.close();
+      await server.close();
+    },
+  );
+
+  test("enqueue_review initializes the PR status as pending", async () => {
+    const { reviewStatus, server, client } = await setup();
+    reviewStatus.markReviewed(pr, { summaryCommentId: 100, round: undefined });
+
+    const result = await client.callTool({
+      name: ENQUEUE_REVIEW_TOOL_NAME,
+      arguments: { owner: "org", repo: "repo", prNumber: 7, reason: "re-review-requested" },
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(reviewStatus.get(pr)?.status).toBe("pending");
 
     await client.close();
     await server.close();

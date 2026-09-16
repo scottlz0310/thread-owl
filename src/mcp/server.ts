@@ -1,7 +1,8 @@
 // Transport-independent MCP server setup
 
-import { McpServer, ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
+import { McpServer, ResourceNotFoundError } from "@modelcontextprotocol/server";
 import type { ReviewQueue } from "../queue/review-queue.js";
+import type { PullRequestRef, ReviewStatusStore } from "../queue/review-status.js";
 import type { ToolDeps } from "./tool-deps.js";
 import {
   APPROVE_PULL_REQUEST_TOOL_NAME,
@@ -37,7 +38,20 @@ import {
 
 export const QUEUE_RESOURCE_URI = "queue://review/queue";
 export const RE_REVIEW_RESOURCE_URI = "queue://review/re-review-requests";
-const QUEUE_RESOURCE_MIME_TYPE = "application/json";
+export const REVIEW_STATUS_URI_TEMPLATE = "review://status/{owner}/{repo}/{prNumber}";
+const JSON_MIME_TYPE = "application/json";
+const REVIEW_STATUS_URI_PATTERN = /^review:\/\/status\/([^/]+)\/([^/]+)\/([1-9]\d*)$/i;
+
+// subscriptions/listen の URI フィルタは完全一致のため、通知と resources/list の URI は小文字に正規化する。
+export function reviewStatusUri(pr: PullRequestRef): string {
+  return `review://status/${pr.owner}/${pr.repo}/${pr.prNumber}`.toLowerCase();
+}
+
+function parseReviewStatusUri(uri: string): PullRequestRef | undefined {
+  const match = REVIEW_STATUS_URI_PATTERN.exec(uri);
+  if (!match) return undefined;
+  return { owner: match[1], repo: match[2], prNumber: Number(match[3]) };
+}
 
 export interface McpServerOptions {
   name: string;
@@ -45,8 +59,14 @@ export interface McpServerOptions {
 }
 
 export interface McpServerDeps extends ToolDeps {
-  /** 渡した場合、queue://review/queue resource が有効になる。通知配信は呼び出し側が ServerNotifier 経由で行う。 */
+  /** 渡した場合、queue://review/* resource が有効になる。通知配信は呼び出し側が ServerNotifier 経由で行う。 */
   queue?: ReviewQueue;
+  /** 渡した場合、review://status/* resource が有効になる。通知配信は呼び出し側が ServerNotifier 経由で行う。 */
+  reviewStatus?: ReviewStatusStore;
+}
+
+function jsonResource(uri: string, data: unknown) {
+  return { contents: [{ uri, mimeType: JSON_MIME_TYPE, text: JSON.stringify(data, null, 2) }] };
 }
 
 // tool 実行結果を MCP CallToolResult（text content）に変換する。失敗時は isError で返す。
@@ -65,10 +85,11 @@ export async function runTool(fn: () => Promise<unknown>) {
 }
 
 export function createMcpServer(deps: McpServerDeps, options: McpServerOptions): McpServer {
-  const hasQueue = deps.queue !== undefined;
+  const { queue, reviewStatus } = deps;
+  const hasResources = queue !== undefined || reviewStatus !== undefined;
   const server = new McpServer(
     { name: options.name, version: options.version },
-    hasQueue ? { capabilities: { resources: { subscribe: true, listChanged: false } } } : {},
+    hasResources ? { capabilities: { resources: { subscribe: true, listChanged: false } } } : {},
   );
 
   server.registerTool(
@@ -122,9 +143,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
     (args) => runTool(() => approvePullRequestTool(deps, args)),
   );
 
-  if (deps.queue) {
-    const queue = deps.queue;
-
+  if (queue) {
     server.registerTool(
       ENQUEUE_REVIEW_TOOL_NAME,
       {
@@ -134,59 +153,72 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       },
       (args) => runTool(() => enqueueReviewTool({ ...deps, queue }, args)),
     );
+  }
 
-    server.server.setRequestHandler("resources/list", async () => ({
-      resources: [
+  if (!hasResources) {
+    return server;
+  }
+
+  server.server.setRequestHandler("resources/list", async () => ({
+    resources: [
+      ...(queue
+        ? [
+            {
+              uri: QUEUE_RESOURCE_URI,
+              name: "Review Queue",
+              description:
+                "レビュー待ちの PR 一覧。opened / synchronized で enqueue されると notifications/resources/updated が push される。",
+              mimeType: JSON_MIME_TYPE,
+            },
+            {
+              uri: RE_REVIEW_RESOURCE_URI,
+              name: "Re-review Requests",
+              description:
+                "再レビュー依頼のみを通知するキュー。re-review-requested で enqueue されたときだけ notifications/resources/updated が push される。",
+              mimeType: JSON_MIME_TYPE,
+            },
+          ]
+        : []),
+      ...(reviewStatus?.list() ?? []).map((status) => ({
+        uri: reviewStatusUri(status),
+        name: `Review Status ${status.owner}/${status.repo}#${status.prNumber}`,
+        mimeType: JSON_MIME_TYPE,
+      })),
+    ],
+  }));
+
+  if (reviewStatus) {
+    server.server.setRequestHandler("resources/templates/list", async () => ({
+      resourceTemplates: [
         {
-          uri: QUEUE_RESOURCE_URI,
-          name: "Review Queue",
+          uriTemplate: REVIEW_STATUS_URI_TEMPLATE,
+          name: "Review Status",
           description:
-            "レビュー待ちの PR 一覧。opened / synchronized で enqueue されると notifications/resources/updated が push される。",
-          mimeType: QUEUE_RESOURCE_MIME_TYPE,
-        },
-        {
-          uri: RE_REVIEW_RESOURCE_URI,
-          name: "Re-review Requests",
-          description:
-            "再レビュー依頼のみを通知するキュー。re-review-requested で enqueue されたときだけ notifications/resources/updated が push される。",
-          mimeType: QUEUE_RESOURCE_MIME_TYPE,
+            "PR 単位のレビュー状態。enqueue_review で pending に初期化され、post_summary_comment（reviewed）/ approve_pull_request（approved）で notifications/resources/updated が push される。",
+          mimeType: JSON_MIME_TYPE,
         },
       ],
     }));
-
-    server.server.setRequestHandler("resources/read", async (request) => {
-      if (request.params.uri === QUEUE_RESOURCE_URI) {
-        return {
-          contents: [
-            {
-              uri: QUEUE_RESOURCE_URI,
-              mimeType: QUEUE_RESOURCE_MIME_TYPE,
-              text: JSON.stringify(queue.list(), null, 2),
-            },
-          ],
-        };
-      }
-      if (request.params.uri === RE_REVIEW_RESOURCE_URI) {
-        return {
-          contents: [
-            {
-              uri: RE_REVIEW_RESOURCE_URI,
-              mimeType: QUEUE_RESOURCE_MIME_TYPE,
-              text: JSON.stringify(
-                queue.list().filter((c) => c.reason === "re-review-requested"),
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-      throw new ProtocolError(
-        ProtocolErrorCode.InvalidParams,
-        `Unknown resource URI: ${request.params.uri}`,
-      );
-    });
   }
+
+  server.server.setRequestHandler("resources/read", async (request) => {
+    const { uri } = request.params;
+    if (queue && uri === QUEUE_RESOURCE_URI) {
+      return jsonResource(uri, queue.list());
+    }
+    if (queue && uri === RE_REVIEW_RESOURCE_URI) {
+      return jsonResource(
+        uri,
+        queue.list().filter((c) => c.reason === "re-review-requested"),
+      );
+    }
+    const pr = parseReviewStatusUri(uri);
+    const status = pr && reviewStatus?.get(pr);
+    if (status) {
+      return jsonResource(uri, status);
+    }
+    throw new ResourceNotFoundError(uri, `Unknown resource URI: ${uri}`);
+  });
 
   return server;
 }

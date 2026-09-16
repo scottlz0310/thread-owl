@@ -122,6 +122,8 @@ Webhook 受信と MCP HTTP を同一プロセス・同一ポートで提供す�
 | URI | mimeType | 内容 |
 |-----|----------|------|
 | `queue://review/queue` | `application/json` | レビュー待ち PR 一覧。`enqueue` 時に `notifications/resources/updated` を push |
+| `queue://review/re-review-requests` | `application/json` | `re-review-requested` の PR のみ。該当 enqueue 時に push |
+| `review://status/{owner}/{repo}/{prNumber}` | `application/json` | PR 単位のレビュー状態。`reviewed` / `approved` の記録時に push（[レビュー完了の待機](#レビュー完了の待機実装側)） |
 
 **セキュリティ上の注意**: combined モードでは `/mcp` が `POST /webhook` と同じ公開面に乗る。`POST /webhook` は GitHub HMAC-SHA256 署名検証で保護されているが、`/mcp` は保護なし。production では nginx / Caddy 等のリバースプロキシで `/mcp` の公開範囲と認証を制御すること。
 
@@ -172,6 +174,7 @@ HOST=127.0.0.1 PORT=3000 node dist/index.js --mcp-http
 | `enqueue_review` tool | webhook 以外の正規経路で PR を queue に投入する |
 | `queue://review/queue` resource | `subscriptions/listen` で enqueue 通知を受信 |
 | `queue://review/re-review-requests` resource | `re-review-requested` のみ通知 |
+| `review://status/{owner}/{repo}/{prNumber}` resource | 対象 PR のレビュー投稿完了（`reviewed` / `approved`）を通知 |
 
 mcp-gateway から指定する内部 URL の例:
 
@@ -468,6 +471,43 @@ phase-summary route=timeout url=http://localhost:3000/mcp uri=queue://review/re-
 CLI agent は `phase-summary` の `route=subscription`（または `route=pre-completion`）を確認し、`final` ブロックの JSON をパースする。
 
 </details>
+
+### レビュー完了の待機（実装側）
+
+PR を実装したエージェントが、同一セッションのままレビュー投稿の完了を待つ場合は
+`review://status/{owner}/{repo}/{prNumber}` を購読する（#214）。
+
+```sh
+bunx mcp-resource-subscriber   --url http://localhost:3000/mcp   --uri review://status/scottlz0310/thread-owl/123   --timeout-ms 1800000   --json
+```
+
+`resources/read` の内容:
+
+```json
+{
+  "owner": "scottlz0310",
+  "repo": "thread-owl",
+  "prNumber": 123,
+  "headSha": "abc1234...",
+  "status": "reviewed",
+  "summaryCommentId": 12345678,
+  "updatedAt": "2026-09-16T04:30:00.000Z"
+}
+```
+
+| 呼び出し | `status` | `headSha` | 通知 |
+|---|---|---|---|
+| `enqueue_review` | `pending`（`summaryCommentId` も `null` にリセット） | `null` | しない |
+| `post_summary_comment` | `reviewed` | 入力の `headSha`（省略時 `null`） | する |
+| `approve_pull_request` | `approved`（直前の `summaryCommentId` を引き継ぐ） | 照合済みの `expectedHeadSha` | する |
+
+- **`enqueue_review` の直後に subscriber を起動する**。`resources/list` には状態を保持している PR だけが載るため、
+  enqueue 前に起動すると `RESOURCE_NOT_FOUND` になる。`pending` 初期化は過去ラウンドの `reviewed` / `approved` による誤検知を防ぐ
+- `post_summary_comment` / `approve_pull_request` の GitHub への書き込みが終わる前に `enqueue_review` で次ラウンドが始まった場合、その完了は古いラウンドのものとして**記録も通知もしない**（新ラウンドの `pending` を上書きして誤検知させないため）
+- 通知・`resources/list` の URI は owner / repo を**小文字に正規化**する。`subscriptions/listen` の URI 照合は完全一致のため、`--uri` も小文字で指定する（`resources/read` は大文字小文字を区別しない）
+- `finalText` の `status` が `reviewed` / `approved` であることを確認してから、review-response 系の対応（修正・返信・再レビュー依頼）へ進む
+- 状態は in-memory で直近 100 PR 分のみ保持する。Thread Owl の再起動や上限超過で失われるため、`RESOURCE_NOT_FOUND` になった場合は `enqueue_review` からやり直す
+- `--mcp`（stdio）モードでは本 resource を提供しない
 
 ### MCP client が native subscribe を使う場合
 

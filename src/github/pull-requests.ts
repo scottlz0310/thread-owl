@@ -39,7 +39,7 @@ export async function postSummaryComment(
   repo: string,
   prNumber: number,
   body: string,
-): Promise<void> {
+): Promise<number> {
   assertRepoWritable(ctx.allowedRepos, owner, repo);
   const commentId = await createIssueComment(ctx.client, owner, repo, prNumber, body);
   auditWrite(ctx.logger, "summary_comment", {
@@ -49,6 +49,7 @@ export async function postSummaryComment(
     commentId,
     bodyLength: body.length,
   });
+  return commentId;
 }
 
 // PR を APPROVE する（allowlist ガード + head SHA 照合 + 監査ログ付き）。

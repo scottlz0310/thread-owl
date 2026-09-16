@@ -16,6 +16,7 @@ import { listReviewThreadsTool } from "../../../src/mcp/tools/list-review-thread
 import { postInlineCommentTool } from "../../../src/mcp/tools/post-inline-comment.js";
 import { postSummaryTool } from "../../../src/mcp/tools/post-summary.js";
 import { replyThreadTool } from "../../../src/mcp/tools/reply-thread.js";
+import { createReviewStatusStore } from "../../../src/queue/review-status.js";
 
 const client = {} as GitHubClient;
 const ctx = { client, allowedRepos: ["o/r"], logger: {} } as unknown as WriteContext;
@@ -52,13 +53,50 @@ describe("MCP tools", () => {
 
   it("post_summary_comment: WriteContext で投稿する", async () => {
     const deps = makeDeps();
-    vi.mocked(pullRequests.postSummaryComment).mockResolvedValue();
+    vi.mocked(pullRequests.postSummaryComment).mockResolvedValue(100);
 
     const result = await postSummaryTool(deps, { owner: "o", repo: "r", prNumber: 7, body: "b" });
 
     expect(deps.getWriteContext).toHaveBeenCalledWith("o", "r");
     expect(pullRequests.postSummaryComment).toHaveBeenCalledWith(ctx, "o", "r", 7, "b");
     expect(result).toEqual({ ok: true });
+  });
+
+  it.each([
+    { headSha: "abc123", expected: "abc123" },
+    { headSha: undefined, expected: null },
+  ])(
+    "post_summary_comment: review status を reviewed にする（headSha=$headSha）",
+    async ({ headSha, expected }) => {
+      const reviewStatus = createReviewStatusStore();
+      vi.mocked(pullRequests.postSummaryComment).mockResolvedValue(100);
+
+      await postSummaryTool(
+        { ...makeDeps(), reviewStatus },
+        { owner: "o", repo: "r", prNumber: 7, body: "b", headSha },
+      );
+
+      expect(reviewStatus.get({ owner: "o", repo: "r", prNumber: 7 })).toMatchObject({
+        status: "reviewed",
+        summaryCommentId: 100,
+        headSha: expected,
+      });
+    },
+  );
+
+  it("post_summary_comment: 投稿に失敗したら review status を更新しない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    reviewStatus.markPending({ owner: "o", repo: "r", prNumber: 7 });
+    vi.mocked(pullRequests.postSummaryComment).mockRejectedValue(new Error("boom"));
+
+    await expect(
+      postSummaryTool(
+        { ...makeDeps(), reviewStatus },
+        { owner: "o", repo: "r", prNumber: 7, body: "b" },
+      ),
+    ).rejects.toThrow("boom");
+
+    expect(reviewStatus.get({ owner: "o", repo: "r", prNumber: 7 })?.status).toBe("pending");
   });
 
   it("post_inline_comment: commitId/path/line 付きで投稿する", async () => {
@@ -111,5 +149,70 @@ describe("MCP tools", () => {
     expect(deps.getWriteContext).toHaveBeenCalledWith("o", "r");
     expect(pullRequests.approvePR).toHaveBeenCalledWith(ctx, "o", "r", 7, "abc123", undefined);
     expect(result).toEqual({ ok: true });
+  });
+
+  it("post_summary_comment: 投稿中に次ラウンドが enqueue されたら pending を上書きしない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    const pr = { owner: "o", repo: "r", prNumber: 7 };
+    reviewStatus.markPending(pr);
+    const updated = vi.fn();
+    reviewStatus.onUpdated(updated);
+    vi.mocked(pullRequests.postSummaryComment).mockImplementation(async () => {
+      reviewStatus.markPending(pr);
+      return 100;
+    });
+
+    await postSummaryTool({ ...makeDeps(), reviewStatus }, { ...pr, body: "b", headSha: "abc" });
+
+    expect(reviewStatus.get(pr)).toMatchObject({ status: "pending", summaryCommentId: null });
+    expect(updated).not.toHaveBeenCalled();
+  });
+
+  it("approve_pull_request: approve 中に次ラウンドが enqueue されたら pending を上書きしない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    const pr = { owner: "o", repo: "r", prNumber: 7 };
+    reviewStatus.markPending(pr);
+    const updated = vi.fn();
+    reviewStatus.onUpdated(updated);
+    vi.mocked(pullRequests.approvePR).mockImplementation(async () => {
+      reviewStatus.markPending(pr);
+    });
+
+    await approvePullRequestTool(
+      { ...makeDeps(), reviewStatus },
+      { ...pr, expectedHeadSha: "abc123" },
+    );
+
+    expect(reviewStatus.get(pr)?.status).toBe("pending");
+    expect(updated).not.toHaveBeenCalled();
+  });
+
+  it("approve_pull_request: review status を照合済み head で approved にする", async () => {
+    const reviewStatus = createReviewStatusStore();
+    vi.mocked(pullRequests.approvePR).mockResolvedValue();
+
+    await approvePullRequestTool(
+      { ...makeDeps(), reviewStatus },
+      { owner: "o", repo: "r", prNumber: 7, expectedHeadSha: "abc123" },
+    );
+
+    expect(reviewStatus.get({ owner: "o", repo: "r", prNumber: 7 })).toMatchObject({
+      status: "approved",
+      headSha: "abc123",
+    });
+  });
+
+  it("approve_pull_request: approve に失敗したら review status を更新しない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    vi.mocked(pullRequests.approvePR).mockRejectedValue(new Error("Head SHA mismatch"));
+
+    await expect(
+      approvePullRequestTool(
+        { ...makeDeps(), reviewStatus },
+        { owner: "o", repo: "r", prNumber: 7, expectedHeadSha: "stale" },
+      ),
+    ).rejects.toThrow("Head SHA mismatch");
+
+    expect(reviewStatus.get({ owner: "o", repo: "r", prNumber: 7 })).toBeUndefined();
   });
 });

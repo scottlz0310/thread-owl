@@ -137,13 +137,14 @@ Claude Code / agent workflow
 |-----|-------------|------|
 | `queue://review/queue` | `opened` / `synchronized` / `re-review-requested` | 通常レビューの subscriber 起動 |
 | `queue://review/re-review-requests` | `re-review-requested` のみ | re-review handoff subscriber 起動（push-first 経路での early termination を防ぐ） |
+| `review://status/{owner}/{repo}/{prNumber}` | `post_summary_comment`（`reviewed`）/ `approve_pull_request`（`approved`）。`enqueue_review` では `pending` に初期化するが通知しない | 実装側エージェントが対象 PR のレビュー完了を待機（[#214](https://github.com/scottlz0310/thread-owl/issues/214)） |
 
 `--mcp-http`（webhook 受信なし）も同じ resources を expose するが、GitHub イベントからの自動 enqueue は行わない。enqueue は `enqueue_review` tool 呼び出し経由に限られる（[#122](https://github.com/scottlz0310/thread-owl/issues/122)）。
 
 ### 設計原則
 
 - Thread Owl 本体に subscription client / watcher CLI / agent wait loop を内蔵しない
-- Thread Owl は `queue://review/queue` と `queue://review/re-review-requests` を expose し、subscribe される側に徹する
+- Thread Owl は `queue://review/queue` / `queue://review/re-review-requests` / `review://status/{owner}/{repo}/{prNumber}` を expose し、subscribe される側に徹する
 - MCP client が `subscriptions/listen` の stream を native に安定保持できる場合は直接利用してよい
 - CLI agent が long-lived subscription を安定保持できない場合は `mcp-resource-subscriber` を外部コマンドとして呼び出す
 - review を受けて直す側の操作（resolve / unresolve / 再レビュー依頼）は Thread Owl ではなく review-response 系 repo に寄せる
@@ -160,5 +161,5 @@ Claude Code / agent workflow
 - **LLM を内蔵しない**: Thread Owl はプロキシであり、AI システムではない
 - **Allowlist を write のハードゲートとする**: write の GitHub API 呼び出し前に allowlist チェックを行い、read は GitHub App installation の repo scope に委ねる
 - **resolve は修正側の責務とする**: Thread Owl はレビュアー側 GitHub App であり、スレッドの resolve は PR author または repository write access を持つ修正側の MCP が行う
-- **subscription 状態を自前で持たない**: 購読の受け付けと通知の宛先管理は SDK（`subscriptions/listen`）の責務とし、Thread Owl は `ServerNotifier.resourceUpdated(uri)` を呼ぶだけにする。`ReviewQueue` の `onEnqueue` / `onReReviewRequested` フックを `src/index.ts` で notifier に接続する
+- **subscription 状態を自前で持たない**: 購読の受け付けと通知の宛先管理は SDK（`subscriptions/listen`）の責務とし、Thread Owl は `ServerNotifier.resourceUpdated(uri)` を呼ぶだけにする。`ReviewQueue` の `onEnqueue` / `onReReviewRequested` と `ReviewStatusStore` の `onUpdated` フックを `src/index.ts` で notifier に接続する
 - **Thread Owl は subscribe される側**: subscription client / watcher CLI を内蔵しない。長期待機と通知受信は `mcp-resource-subscriber` に委譲する
