@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- PR 単位のレビュー状態を購読できる MCP Resource `review://status/{owner}/{repo}/{prNumber}` を追加（#214）: 実装側エージェントが `mcp-resource-subscriber` 経由でポーリングなしにレビュー投稿完了を待機できる。`enqueue_review` で `pending` に初期化（過去ラウンドの完了状態による誤検知を防止）し、`post_summary_comment` で `reviewed`、`approve_pull_request` で `approved` を記録して `notifications/resources/updated` を送出する。状態は直近 100 PR 分を in-memory で保持し、保持中の PR は `resources/list` に、URI テンプレートは `resources/templates/list` に載せる。`post_summary_comment` にレビュー対象 head を記録する任意入力 `headSha` を追加（`approved` は照合済みの `expectedHeadSha` を記録）。通知 URI は `subscriptions/listen` の完全一致照合に合わせて owner / repo を小文字に正規化する
+
 ## [0.4.2] - 2026-09-10
 
 ### Changed

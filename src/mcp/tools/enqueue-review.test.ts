@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { RepositoryNotAllowedError } from "../../policy/allowlist.js";
 import { createReviewQueue } from "../../queue/review-queue.js";
+import { createReviewStatusStore } from "../../queue/review-status.js";
 import { type EnqueueReviewToolDeps, enqueueReviewTool } from "./enqueue-review.js";
 
 function makeDeps(overrides: Partial<EnqueueReviewToolDeps> = {}): EnqueueReviewToolDeps {
@@ -83,6 +84,34 @@ describe("enqueueReviewTool", () => {
 
     expect(resolveInstallationId).toHaveBeenCalledWith("org", "repo");
     expect(deps.queue.list()[0].installationId).toBe(999);
+  });
+
+  test("resets review status to pending", async () => {
+    const reviewStatus = createReviewStatusStore();
+    reviewStatus.markReviewed({ owner: "org", repo: "repo", prNumber: 1 }, { summaryCommentId: 5 });
+    const deps = makeDeps({ reviewStatus });
+
+    await enqueueReviewTool(deps, {
+      owner: "org",
+      repo: "repo",
+      prNumber: 1,
+      reason: "re-review-requested",
+    });
+
+    expect(reviewStatus.get({ owner: "org", repo: "repo", prNumber: 1 })).toMatchObject({
+      status: "pending",
+      summaryCommentId: null,
+    });
+  });
+
+  test("does not touch review status when repo is not allowed", async () => {
+    const reviewStatus = createReviewStatusStore();
+    const deps = makeDeps({ allowedRepos: ["other/repo"], reviewStatus });
+
+    await expect(
+      enqueueReviewTool(deps, { owner: "org", repo: "repo", prNumber: 1, reason: "opened" }),
+    ).rejects.toThrow(RepositoryNotAllowedError);
+    expect(reviewStatus.list()).toHaveLength(0);
   });
 
   test("triggers onEnqueue listener", async () => {

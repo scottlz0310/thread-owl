@@ -64,7 +64,9 @@ describe("postSummaryComment", () => {
       logger,
     };
 
-    await postSummaryComment(ctx, "o", "r", 7, "summary body");
+    const commentId = await postSummaryComment(ctx, "o", "r", 7, "summary body");
+
+    expect(commentId).toBe(100);
 
     expect(createComment).toHaveBeenCalledWith({
       owner: "o",

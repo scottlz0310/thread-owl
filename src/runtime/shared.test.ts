@@ -25,6 +25,7 @@ describe("createSharedRuntime", () => {
     expect(runtime.config).toBe(mockConfig);
     expect(runtime.logger).toBe(mockLogger);
     expect(runtime.reviewQueue).toBeDefined();
+    expect(runtime.reviewStatus).toBeDefined();
     expect(runtime.deliveryDedup).toBeDefined();
     expect(runtime.issueTokenDeps).toBeDefined();
     expect(runtime.issueTokenDeps.config).toBe(mockConfig);

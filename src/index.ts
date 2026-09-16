@@ -15,12 +15,18 @@ import { createLogger } from "./config/logging.js";
 import { getHealth } from "./internal-api/health.js";
 import { getStatus } from "./internal-api/status.js";
 import { type IssueTokenDeps, issueToken } from "./internal-api/token-source.js";
-import { createMcpServer, QUEUE_RESOURCE_URI, RE_REVIEW_RESOURCE_URI } from "./mcp/server.js";
+import {
+  createMcpServer,
+  QUEUE_RESOURCE_URI,
+  RE_REVIEW_RESOURCE_URI,
+  reviewStatusUri,
+} from "./mcp/server.js";
 import { buildToolDeps } from "./mcp/tool-deps.js";
 import { startMcpHttpServer, startMcpStdioServer } from "./mcp/transports.js";
 import { RepositoryNotAllowedError } from "./policy/allowlist.js";
 import { createDeliveryDedup } from "./queue/delivery-dedup.js";
 import { createReviewQueue } from "./queue/review-queue.js";
+import { createReviewStatusStore } from "./queue/review-status.js";
 import { createSharedRuntime } from "./runtime/shared.js";
 import { resolveAppMode } from "./startup/mode.js";
 import { createWebhookReceiver } from "./webhook/receiver.js";
@@ -74,10 +80,11 @@ if (mode === "mcp-stdio") {
   // webhook receiver は起動しないため、GitHub イベントからの自動 enqueue は行わない。
   // enqueue_review tool と subscriptions/listen のみで queue 機能を提供する（#122）。
   const reviewQueue = createReviewQueue();
+  const reviewStatus = createReviewStatusStore();
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
-        { ...buildToolDeps(issueTokenDeps), queue: reviewQueue },
+        { ...buildToolDeps(issueTokenDeps), queue: reviewQueue, reviewStatus },
         { name: "thread-owl", version: VERSION },
       ),
     {
@@ -94,6 +101,7 @@ if (mode === "mcp-stdio") {
   );
   reviewQueue.onEnqueue(() => httpServer.notify.resourceUpdated(QUEUE_RESOURCE_URI));
   reviewQueue.onReReviewRequested(() => httpServer.notify.resourceUpdated(RE_REVIEW_RESOURCE_URI));
+  reviewStatus.onUpdated((status) => httpServer.notify.resourceUpdated(reviewStatusUri(status)));
   logger.info("mcp.started", {
     event: "mcp.started",
     transport: "streamable-http",
@@ -227,7 +235,11 @@ if (mode === "mcp-stdio") {
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
-        { ...buildToolDeps(runtime.issueTokenDeps), queue: runtime.reviewQueue },
+        {
+          ...buildToolDeps(runtime.issueTokenDeps),
+          queue: runtime.reviewQueue,
+          reviewStatus: runtime.reviewStatus,
+        },
         { name: "thread-owl", version: VERSION },
       ),
     {
@@ -248,6 +260,9 @@ if (mode === "mcp-stdio") {
   runtime.reviewQueue.onEnqueue(() => httpServer.notify.resourceUpdated(QUEUE_RESOURCE_URI));
   runtime.reviewQueue.onReReviewRequested(() =>
     httpServer.notify.resourceUpdated(RE_REVIEW_RESOURCE_URI),
+  );
+  runtime.reviewStatus.onUpdated((status) =>
+    httpServer.notify.resourceUpdated(reviewStatusUri(status)),
   );
 
   logger.info("webhook-mcp-http.started", {

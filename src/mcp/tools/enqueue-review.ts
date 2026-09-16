@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { isAllowed, RepositoryNotAllowedError } from "../../policy/allowlist.js";
 import type { ReviewQueue } from "../../queue/review-queue.js";
+import type { ReviewStatusStore } from "../../queue/review-status.js";
 import type { ToolDeps } from "../tool-deps.js";
 
 export const ENQUEUE_REVIEW_TOOL_NAME = "enqueue_review";
@@ -20,6 +21,7 @@ type EnqueueReviewInput = z.infer<z.ZodObject<typeof enqueueReviewInputSchema>>;
 
 export interface EnqueueReviewToolDeps extends ToolDeps {
   queue: ReviewQueue;
+  reviewStatus?: ReviewStatusStore;
 }
 
 export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: EnqueueReviewInput) {
@@ -40,6 +42,7 @@ export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: Enqu
     reason,
     ...(reason === "re-review-requested" && requestedBy !== undefined ? { requestedBy } : {}),
   });
+  deps.reviewStatus?.markPending({ owner, repo, prNumber });
 
   return { ok: true };
 }
