@@ -20,7 +20,7 @@
     "@octokit/auth-app": "^8.3.1",
     "@octokit/graphql": "^9.0.5",
     "@octokit/rest": "^22.0.1",
-    "hono": "^4.13.7",
+    "hono": "^4.13.8",
     "jose": "^6.2.12",
     "zod": "^4.6.5"
   },
@@ -29,10 +29,10 @@
     "@modelcontextprotocol/client": "^2.0.0",
     "@modelcontextprotocol/core": "^2.0.0",
     "@types/node": "^26.5.1",
-    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/coverage-v8": "^5.0.1",
     "lefthook": "^2.1.14",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   },
   "engines": {
     "node": ">=26.8.2"
