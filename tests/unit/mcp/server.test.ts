@@ -309,7 +309,7 @@ describe("createMcpServer — review status resource", () => {
     "readResource(%s) returns the status JSON",
     async (requestUri) => {
       const { reviewStatus, server, client } = await setup();
-      reviewStatus.markReviewed(pr, { summaryCommentId: 100, headSha: "abc" });
+      reviewStatus.markReviewed(pr, { summaryCommentId: 100, headSha: "abc", round: undefined });
 
       const result = await client.readResource({ uri: requestUri });
 
@@ -343,7 +343,7 @@ describe("createMcpServer — review status resource", () => {
 
   test("enqueue_review initializes the PR status as pending", async () => {
     const { reviewStatus, server, client } = await setup();
-    reviewStatus.markReviewed(pr, { summaryCommentId: 100 });
+    reviewStatus.markReviewed(pr, { summaryCommentId: 100, round: undefined });
 
     const result = await client.callTool({
       name: ENQUEUE_REVIEW_TOOL_NAME,

@@ -503,6 +503,7 @@ bunx mcp-resource-subscriber   --url http://localhost:3000/mcp   --uri review://
 
 - **`enqueue_review` の直後に subscriber を起動する**。`resources/list` には状態を保持している PR だけが載るため、
   enqueue 前に起動すると `RESOURCE_NOT_FOUND` になる。`pending` 初期化は過去ラウンドの `reviewed` / `approved` による誤検知を防ぐ
+- `post_summary_comment` / `approve_pull_request` の GitHub への書き込みが終わる前に `enqueue_review` で次ラウンドが始まった場合、その完了は古いラウンドのものとして**記録も通知もしない**（新ラウンドの `pending` を上書きして誤検知させないため）
 - 通知・`resources/list` の URI は owner / repo を**小文字に正規化**する。`subscriptions/listen` の URI 照合は完全一致のため、`--uri` も小文字で指定する（`resources/read` は大文字小文字を区別しない）
 - `finalText` の `status` が `reviewed` / `approved` であることを確認してから、review-response 系の対応（修正・返信・再レビュー依頼）へ進む
 - 状態は in-memory で直近 100 PR 分のみ保持する。Thread Owl の再起動や上限超過で失われるため、`RESOURCE_NOT_FOUND` になった場合は `enqueue_review` からやり直す

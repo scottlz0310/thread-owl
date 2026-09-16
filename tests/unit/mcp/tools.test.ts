@@ -151,6 +151,42 @@ describe("MCP tools", () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it("post_summary_comment: 投稿中に次ラウンドが enqueue されたら pending を上書きしない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    const pr = { owner: "o", repo: "r", prNumber: 7 };
+    reviewStatus.markPending(pr);
+    const updated = vi.fn();
+    reviewStatus.onUpdated(updated);
+    vi.mocked(pullRequests.postSummaryComment).mockImplementation(async () => {
+      reviewStatus.markPending(pr);
+      return 100;
+    });
+
+    await postSummaryTool({ ...makeDeps(), reviewStatus }, { ...pr, body: "b", headSha: "abc" });
+
+    expect(reviewStatus.get(pr)).toMatchObject({ status: "pending", summaryCommentId: null });
+    expect(updated).not.toHaveBeenCalled();
+  });
+
+  it("approve_pull_request: approve 中に次ラウンドが enqueue されたら pending を上書きしない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    const pr = { owner: "o", repo: "r", prNumber: 7 };
+    reviewStatus.markPending(pr);
+    const updated = vi.fn();
+    reviewStatus.onUpdated(updated);
+    vi.mocked(pullRequests.approvePR).mockImplementation(async () => {
+      reviewStatus.markPending(pr);
+    });
+
+    await approvePullRequestTool(
+      { ...makeDeps(), reviewStatus },
+      { ...pr, expectedHeadSha: "abc123" },
+    );
+
+    expect(reviewStatus.get(pr)?.status).toBe("pending");
+    expect(updated).not.toHaveBeenCalled();
+  });
+
   it("approve_pull_request: review status を照合済み head で approved にする", async () => {
     const reviewStatus = createReviewStatusStore();
     vi.mocked(pullRequests.approvePR).mockResolvedValue();

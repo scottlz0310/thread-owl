@@ -88,7 +88,13 @@ describe("enqueueReviewTool", () => {
 
   test("resets review status to pending", async () => {
     const reviewStatus = createReviewStatusStore();
-    reviewStatus.markReviewed({ owner: "org", repo: "repo", prNumber: 1 }, { summaryCommentId: 5 });
+    reviewStatus.markReviewed(
+      { owner: "org", repo: "repo", prNumber: 1 },
+      {
+        summaryCommentId: 5,
+        round: undefined,
+      },
+    );
     const deps = makeDeps({ reviewStatus });
 
     await enqueueReviewTool(deps, {

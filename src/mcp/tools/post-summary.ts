@@ -23,6 +23,8 @@ export interface PostSummaryToolDeps extends ToolDeps {
 }
 
 export async function postSummaryTool(deps: PostSummaryToolDeps, input: PostSummaryInput) {
+  // 投稿の完了待ちの間に次ラウンドの enqueue_review が入った場合、その pending を上書きしないよう開始時に捕捉する。
+  const round = deps.reviewStatus?.currentRound(input);
   const ctx = await deps.getWriteContext(input.owner, input.repo);
   const summaryCommentId = await postSummaryComment(
     ctx,
@@ -31,6 +33,6 @@ export async function postSummaryTool(deps: PostSummaryToolDeps, input: PostSumm
     input.prNumber,
     input.body,
   );
-  deps.reviewStatus?.markReviewed(input, { summaryCommentId, headSha: input.headSha });
+  deps.reviewStatus?.markReviewed(input, { summaryCommentId, headSha: input.headSha, round });
   return { ok: true };
 }
