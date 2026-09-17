@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { postSummaryComment } from "../../github/pull-requests.js";
+import { assertNoVerdictContent } from "../../github/review-verdict.js";
 import type { ReviewStatusStore } from "../../queue/review-status.js";
 import type { ToolDeps } from "../tool-deps.js";
 
@@ -23,6 +24,8 @@ export interface PostSummaryToolDeps extends ToolDeps {
 }
 
 export async function postSummaryTool(deps: PostSummaryToolDeps, input: PostSummaryInput) {
+  // getWriteContext は installation token を発行するため、Verdict らしい本文では到達させない。
+  assertNoVerdictContent(input.body);
   // 投稿の完了待ちの間に次ラウンドの enqueue_review が入った場合、その pending を上書きしないよう開始時に捕捉する。
   const round = deps.reviewStatus?.currentRound(input);
   const ctx = await deps.getWriteContext(input.owner, input.repo);

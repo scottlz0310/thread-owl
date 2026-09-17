@@ -115,7 +115,8 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
   server.registerTool(
     POST_SUMMARY_TOOL_NAME,
     {
-      description: "PR 本文へサマリーコメントを投稿する（allowlist 内のみ）",
+      description:
+        "PR 本文へサマリーコメントを投稿する（allowlist 内のみ）。Verdict の投稿には post_review_verdict を使用する",
       inputSchema: postSummaryInputSchema,
     },
     (args) => runTool(() => postSummaryTool(deps, args)),

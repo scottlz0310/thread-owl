@@ -12,6 +12,7 @@ import {
 } from "./rest.js";
 import {
   assertFullCommitSha,
+  assertNoVerdictContent,
   buildVerdictBody,
   normalizeVerdictSummary,
 } from "./review-verdict.js";
@@ -45,6 +46,7 @@ export async function postSummaryComment(
   prNumber: number,
   body: string,
 ): Promise<number> {
+  assertNoVerdictContent(body);
   assertRepoWritable(ctx.allowedRepos, owner, repo);
   const commentId = await createIssueComment(ctx.client, owner, repo, prNumber, body);
   auditWrite(ctx.logger, "summary_comment", {

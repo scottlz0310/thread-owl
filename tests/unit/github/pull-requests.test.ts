@@ -82,6 +82,38 @@ describe("postSummaryComment", () => {
     );
   });
 
+  it("通常本文中の Verdict の語だけなら issue comment を投稿する", async () => {
+    const createComment = vi.fn().mockResolvedValue({ data: { id: 101 } });
+    const ctx: WriteContext = {
+      client: { rest: { issues: { createComment } } } as unknown as GitHubClient,
+      allowedRepos: ["o/r"],
+      logger: makeLogger(),
+    };
+
+    await expect(
+      postSummaryComment(ctx, "o", "r", 7, "Verdict の根拠を確認しました"),
+    ).resolves.toBe(101);
+  });
+
+  it.each([
+    { name: "正式な Verdict 見出し", body: "## @thread-owl Review Verdict: APPROVED" },
+    { name: "崩れた Verdict 見出し", body: "## Verdict" },
+    { name: "本文中の Review Verdict", body: "レビュー完了。Review Verdict を参照してください" },
+    { name: "CRLF の Verdict 見出し", body: "前段\r\n### Verdict\r\n後段" },
+  ])("$name は投稿前に拒否する", async ({ body }) => {
+    const createComment = vi.fn();
+    const ctx: WriteContext = {
+      client: { rest: { issues: { createComment } } } as unknown as GitHubClient,
+      allowedRepos: ["o/r"],
+      logger: makeLogger(),
+    };
+
+    await expect(postSummaryComment(ctx, "o", "r", 7, body)).rejects.toThrow(
+      InvalidVerdictInputError,
+    );
+    expect(createComment).not.toHaveBeenCalled();
+  });
+
   it("allowlist 外なら RepositoryNotAllowedError を throw し投稿しない", async () => {
     const createComment = vi.fn();
     const ctx: WriteContext = {
