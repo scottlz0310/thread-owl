@@ -65,6 +65,28 @@ describe("MCP tools", () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it("post_summary_comment: Verdict らしい本文を WriteContext 取得前に拒否する", async () => {
+    const reviewStatus = createReviewStatusStore();
+    const pr = { owner: "o", repo: "r", prNumber: 7 };
+    reviewStatus.markPending(pr);
+    const deps = { ...makeDeps(), reviewStatus };
+    const postSummaryComment = vi.mocked(pullRequests.postSummaryComment);
+    postSummaryComment.mockClear();
+
+    await expect(
+      postSummaryTool(deps, {
+        owner: "o",
+        repo: "r",
+        prNumber: 7,
+        body: "## Verdict",
+      }),
+    ).rejects.toThrow(/post_review_verdict/);
+
+    expect(deps.getWriteContext).not.toHaveBeenCalled();
+    expect(postSummaryComment).not.toHaveBeenCalled();
+    expect(reviewStatus.get(pr)).toMatchObject({ status: "pending", summaryCommentId: null });
+  });
+
   it.each([
     { headSha: "abc123", expected: "abc123" },
     { headSha: undefined, expected: null },

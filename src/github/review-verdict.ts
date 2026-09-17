@@ -15,8 +15,9 @@ const RESERVED_LINE_PATTERNS = [
   /^- Status: `READY_TO_MERGE`$/,
 ] as const;
 
-/** 照合規則が Verdict 候補を選ぶ目印。summary に混ぜると候補の特定が壊れる。 */
+/** 照合規則が Verdict 候補を選ぶ目印。投稿本文に混ぜると候補の特定が壊れる。 */
 const VERDICT_MARKER = "Review Verdict";
+const VERDICT_HEADING_PATTERN = /^#{1,6}\s.*Verdict/;
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
@@ -31,6 +32,20 @@ export function assertFullCommitSha(headSha: string): void {
   if (!FULL_SHA.test(headSha)) {
     throw new InvalidVerdictInputError(
       "headSha must be a full 40-character lowercase hex commit SHA",
+    );
+  }
+}
+
+// Verdict の投稿経路を post_review_verdict に限定するため、通常コメント内の Verdict らしい表現を拒否する。
+export function assertNoVerdictContent(body: string): void {
+  if (body.includes(VERDICT_MARKER)) {
+    throw new InvalidVerdictInputError(
+      `content must not contain "${VERDICT_MARKER}"; use post_review_verdict for Verdict comments`,
+    );
+  }
+  if (splitLines(body).some((line) => VERDICT_HEADING_PATTERN.test(line))) {
+    throw new InvalidVerdictInputError(
+      "content must not contain a Verdict heading; use post_review_verdict for Verdict comments",
     );
   }
 }

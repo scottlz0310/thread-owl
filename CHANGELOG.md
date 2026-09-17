@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- `post_summary_comment` から Verdict を投稿できないようにした（#218）: `Review Verdict` を含む本文、または `Verdict` を含む Markdown 見出しを拒否し、専用の `post_review_verdict` の利用を促す。MCP tool では installation token 発行前に検証する。
+
 ## [0.5.0] - 2026-09-17
 
 ### Added
