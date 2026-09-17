@@ -14,12 +14,14 @@ import { approvePullRequestTool } from "../../../src/mcp/tools/approve-pull-requ
 import { getPrTool } from "../../../src/mcp/tools/get-pr.js";
 import { listReviewThreadsTool } from "../../../src/mcp/tools/list-review-threads.js";
 import { postInlineCommentTool } from "../../../src/mcp/tools/post-inline-comment.js";
+import { postReviewVerdictTool } from "../../../src/mcp/tools/post-review-verdict.js";
 import { postSummaryTool } from "../../../src/mcp/tools/post-summary.js";
 import { replyThreadTool } from "../../../src/mcp/tools/reply-thread.js";
 import { createReviewStatusStore } from "../../../src/queue/review-status.js";
 
 const client = {} as GitHubClient;
 const ctx = { client, allowedRepos: ["o/r"], logger: {} } as unknown as WriteContext;
+const VERDICT_HEAD_SHA = "3facb641b17b1f31e9fb1895b558548cd48dcb78";
 
 function makeDeps(): ToolDeps {
   return {
@@ -97,6 +99,81 @@ describe("MCP tools", () => {
     ).rejects.toThrow("boom");
 
     expect(reviewStatus.get({ owner: "o", repo: "r", prNumber: 7 })?.status).toBe("pending");
+  });
+
+  it("post_review_verdict: WriteContext で投稿し comment ID を返す", async () => {
+    const deps = makeDeps();
+    vi.mocked(pullRequests.postReviewVerdict).mockResolvedValue(200);
+
+    const result = await postReviewVerdictTool(deps, {
+      owner: "o",
+      repo: "r",
+      prNumber: 7,
+      headSha: VERDICT_HEAD_SHA,
+      summary: "s",
+    });
+
+    expect(deps.getWriteContext).toHaveBeenCalledWith("o", "r");
+    expect(pullRequests.postReviewVerdict).toHaveBeenCalledWith(
+      ctx,
+      "o",
+      "r",
+      7,
+      VERDICT_HEAD_SHA,
+      "s",
+    );
+    expect(result).toEqual({ ok: true, commentId: 200 });
+  });
+
+  it("post_review_verdict: review status を reviewed にし headSha と comment ID を記録する", async () => {
+    const reviewStatus = createReviewStatusStore();
+    vi.mocked(pullRequests.postReviewVerdict).mockResolvedValue(200);
+
+    await postReviewVerdictTool(
+      { ...makeDeps(), reviewStatus },
+      { owner: "o", repo: "r", prNumber: 7, headSha: VERDICT_HEAD_SHA, summary: "s" },
+    );
+
+    expect(reviewStatus.get({ owner: "o", repo: "r", prNumber: 7 })).toMatchObject({
+      status: "reviewed",
+      summaryCommentId: 200,
+      headSha: VERDICT_HEAD_SHA,
+    });
+  });
+
+  it("post_review_verdict: 投稿に失敗したら review status を更新しない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    reviewStatus.markPending({ owner: "o", repo: "r", prNumber: 7 });
+    vi.mocked(pullRequests.postReviewVerdict).mockRejectedValue(new Error("boom"));
+
+    await expect(
+      postReviewVerdictTool(
+        { ...makeDeps(), reviewStatus },
+        { owner: "o", repo: "r", prNumber: 7, headSha: VERDICT_HEAD_SHA, summary: "s" },
+      ),
+    ).rejects.toThrow("boom");
+
+    expect(reviewStatus.get({ owner: "o", repo: "r", prNumber: 7 })?.status).toBe("pending");
+  });
+
+  it("post_review_verdict: 投稿中に次ラウンドが enqueue されたら pending を上書きしない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    const pr = { owner: "o", repo: "r", prNumber: 7 };
+    reviewStatus.markPending(pr);
+    const updated = vi.fn();
+    reviewStatus.onUpdated(updated);
+    vi.mocked(pullRequests.postReviewVerdict).mockImplementation(async () => {
+      reviewStatus.markPending(pr);
+      return 200;
+    });
+
+    await postReviewVerdictTool(
+      { ...makeDeps(), reviewStatus },
+      { ...pr, headSha: VERDICT_HEAD_SHA, summary: "s" },
+    );
+
+    expect(reviewStatus.get(pr)?.status).toBe("pending");
+    expect(updated).not.toHaveBeenCalled();
   });
 
   it("post_inline_comment: commitId/path/line 付きで投稿する", async () => {

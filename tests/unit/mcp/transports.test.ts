@@ -86,6 +86,7 @@ describe("startMcpHttpServer", () => {
       "get_pr",
       "list_review_threads",
       "post_summary_comment",
+      "post_review_verdict",
       "post_inline_comment",
       "reply_review_thread",
       "approve_pull_request",

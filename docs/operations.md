@@ -142,6 +142,7 @@ node dist/index.js --mcp
 | `get_pr` | PR 基本情報と変更ファイル一覧 |
 | `list_review_threads` | レビュースレッド一覧（resolved/outdated・コメント含む） |
 | `post_summary_comment` | PR サマリーコメント投稿 |
+| `post_review_verdict` | APPROVED の Verdict コメントを固定書式で投稿（見出し・Reviewed HEAD SHA 行・Status 行はサーバー側が生成） |
 | `post_inline_comment` | インラインレビューコメント投稿 |
 | `reply_review_thread` | レビュースレッドへ返信 |
 
@@ -499,11 +500,12 @@ bunx mcp-resource-subscriber   --url http://localhost:3000/mcp   --uri review://
 |---|---|---|---|
 | `enqueue_review` | `pending`（`summaryCommentId` も `null` にリセット） | `null` | しない |
 | `post_summary_comment` | `reviewed` | 入力の `headSha`（省略時 `null`） | する |
+| `post_review_verdict` | `reviewed` | 照合済みの `headSha` | する |
 | `approve_pull_request` | `approved`（直前の `summaryCommentId` を引き継ぐ） | 照合済みの `expectedHeadSha` | する |
 
 - **`enqueue_review` の直後に subscriber を起動する**。`resources/list` には状態を保持している PR だけが載るため、
   enqueue 前に起動すると `RESOURCE_NOT_FOUND` になる。`pending` 初期化は過去ラウンドの `reviewed` / `approved` による誤検知を防ぐ
-- `post_summary_comment` / `approve_pull_request` の GitHub への書き込みが終わる前に `enqueue_review` で次ラウンドが始まった場合、その完了は古いラウンドのものとして**記録も通知もしない**（新ラウンドの `pending` を上書きして誤検知させないため）
+- `post_summary_comment` / `post_review_verdict` / `approve_pull_request` の GitHub への書き込みが終わる前に `enqueue_review` で次ラウンドが始まった場合、その完了は古いラウンドのものとして**記録も通知もしない**（新ラウンドの `pending` を上書きして誤検知させないため）
 - 通知・`resources/list` の URI は owner / repo を**小文字に正規化**する。`subscriptions/listen` の URI 照合は完全一致のため、`--uri` も小文字で指定する（`resources/read` は大文字小文字を区別しない）
 - `finalText` の `status` が `reviewed` / `approved` であることを確認してから、review-response 系の対応（修正・返信・再レビュー依頼）へ進む
 - 状態は in-memory で直近 100 PR 分のみ保持する。Thread Owl の再起動や上限超過で失われるため、`RESOURCE_NOT_FOUND` になった場合は `enqueue_review` からやり直す
