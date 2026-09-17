@@ -6,8 +6,10 @@ import {
   getPR,
   getPRFiles,
   postInlineComment,
+  postReviewVerdict,
   postSummaryComment,
 } from "../../../src/github/pull-requests.js";
+import { InvalidVerdictInputError } from "../../../src/github/review-verdict.js";
 import type { WriteContext } from "../../../src/github/write-context.js";
 import { RepositoryNotAllowedError } from "../../../src/policy/allowlist.js";
 
@@ -205,5 +207,104 @@ describe("approvePR", () => {
       RepositoryNotAllowedError,
     );
     expect(createReview).not.toHaveBeenCalled();
+  });
+});
+
+describe("postReviewVerdict", () => {
+  const headSha = "3facb641b17b1f31e9fb1895b558548cd48dcb78";
+
+  function makeCtx(currentHeadSha: string, createComment: ReturnType<typeof vi.fn>): WriteContext {
+    return {
+      client: {
+        rest: {
+          pulls: {
+            get: vi.fn().mockResolvedValue({
+              data: {
+                number: 7,
+                title: "t",
+                body: null,
+                state: "open",
+                draft: false,
+                head: { sha: currentHeadSha, ref: "feat" },
+                base: { sha: "base", ref: "main" },
+                html_url: "u",
+              },
+            }),
+          },
+          issues: { createComment },
+        },
+      } as unknown as GitHubClient,
+      allowedRepos: ["o/r"],
+      logger: makeLogger(),
+    };
+  }
+
+  it("head SHA 一致なら固定書式の本文を投稿し comment ID を返す", async () => {
+    const createComment = vi.fn().mockResolvedValue({ data: { id: 100 } });
+    const ctx = makeCtx(headSha, createComment);
+
+    const commentId = await postReviewVerdict(ctx, "o", "r", 7, headSha, "本文");
+
+    expect(commentId).toBe(100);
+    expect(createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "o",
+        repo: "r",
+        issue_number: 7,
+        body: [
+          "## @thread-owl Review Verdict: APPROVED",
+          "",
+          "本文",
+          "",
+          "---",
+          `- Reviewed HEAD SHA: \`${headSha}\``,
+          "- Status: `READY_TO_MERGE`",
+        ].join("\n"),
+      }),
+    );
+    expect(ctx.logger.info).toHaveBeenCalledWith(
+      "review.review_verdict",
+      expect.objectContaining({ prNumber: 7, commentId: 100, headSha }),
+    );
+  });
+
+  it("head SHA 不一致なら throw し投稿しない", async () => {
+    const createComment = vi.fn();
+    const ctx = makeCtx("0000000000000000000000000000000000000000", createComment);
+
+    await expect(postReviewVerdict(ctx, "o", "r", 7, headSha, "本文")).rejects.toThrow(
+      "Head SHA mismatch",
+    );
+    expect(createComment).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "branch 名", headShaInput: "main", summary: "本文" },
+    { name: "短縮 SHA", headShaInput: "3facb64", summary: "本文" },
+    {
+      name: "summary に固定の Status 行",
+      headShaInput: headSha,
+      summary: "- Status: `READY_TO_MERGE`",
+    },
+    { name: "summary に Review Verdict", headShaInput: headSha, summary: "前回の Review Verdict" },
+  ])("$name は投稿前に拒否する（PR read もしない）", async ({ headShaInput, summary }) => {
+    const createComment = vi.fn();
+    const ctx = makeCtx(headSha, createComment);
+
+    await expect(postReviewVerdict(ctx, "o", "r", 7, headShaInput, summary)).rejects.toThrow(
+      InvalidVerdictInputError,
+    );
+    expect(ctx.client.rest.pulls.get).not.toHaveBeenCalled();
+    expect(createComment).not.toHaveBeenCalled();
+  });
+
+  it("allowlist 外なら RepositoryNotAllowedError を throw し投稿しない", async () => {
+    const createComment = vi.fn();
+    const ctx = makeCtx(headSha, createComment);
+
+    await expect(postReviewVerdict(ctx, "evil", "repo", 7, headSha, "本文")).rejects.toThrow(
+      RepositoryNotAllowedError,
+    );
+    expect(createComment).not.toHaveBeenCalled();
   });
 });

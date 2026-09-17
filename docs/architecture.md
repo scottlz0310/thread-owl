@@ -123,8 +123,9 @@ Claude Code / agent workflow
   │
   ├─ Thread Owl MCP tools（review する側）
   │    get_pr / list_review_threads
-  │    post_summary_comment / post_inline_comment
-  │    reply_review_thread / approve_pull_request
+  │    post_summary_comment / post_review_verdict
+  │    post_inline_comment / reply_review_thread
+  │    approve_pull_request
   │
   └─ review-response 系 MCP（review を受けて直す側）
        reply_review_thread / resolve_review_thread
@@ -137,7 +138,7 @@ Claude Code / agent workflow
 |-----|-------------|------|
 | `queue://review/queue` | `opened` / `synchronized` / `re-review-requested` | 通常レビューの subscriber 起動 |
 | `queue://review/re-review-requests` | `re-review-requested` のみ | re-review handoff subscriber 起動（push-first 経路での early termination を防ぐ） |
-| `review://status/{owner}/{repo}/{prNumber}` | `post_summary_comment`（`reviewed`）/ `approve_pull_request`（`approved`）。`enqueue_review` では `pending` に初期化するが通知しない | 実装側エージェントが対象 PR のレビュー完了を待機（[#214](https://github.com/scottlz0310/thread-owl/issues/214)） |
+| `review://status/{owner}/{repo}/{prNumber}` | `post_summary_comment` / `post_review_verdict`（`reviewed`）/ `approve_pull_request`（`approved`）。`enqueue_review` では `pending` に初期化するが通知しない | 実装側エージェントが対象 PR のレビュー完了を待機（[#214](https://github.com/scottlz0310/thread-owl/issues/214)） |
 
 `--mcp-http`（webhook 受信なし）も同じ resources を expose するが、GitHub イベントからの自動 enqueue は行わない。enqueue は `enqueue_review` tool 呼び出し経由に限られる（[#122](https://github.com/scottlz0310/thread-owl/issues/122)）。
 

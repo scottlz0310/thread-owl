@@ -26,6 +26,11 @@ import {
   postInlineCommentTool,
 } from "./tools/post-inline-comment.js";
 import {
+  POST_REVIEW_VERDICT_TOOL_NAME,
+  postReviewVerdictInputSchema,
+  postReviewVerdictTool,
+} from "./tools/post-review-verdict.js";
+import {
   POST_SUMMARY_TOOL_NAME,
   postSummaryInputSchema,
   postSummaryTool,
@@ -114,6 +119,16 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       inputSchema: postSummaryInputSchema,
     },
     (args) => runTool(() => postSummaryTool(deps, args)),
+  );
+
+  server.registerTool(
+    POST_REVIEW_VERDICT_TOOL_NAME,
+    {
+      description:
+        "APPROVED の Verdict コメントを固定書式で投稿する（allowlist 内のみ）。見出し・Reviewed HEAD SHA 行・Status 行はサーバー側で生成し、summary には自由記述部分だけを渡す",
+      inputSchema: postReviewVerdictInputSchema,
+    },
+    (args) => runTool(() => postReviewVerdictTool(deps, args)),
   );
 
   server.registerTool(

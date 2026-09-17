@@ -10,6 +10,11 @@ import {
   getPullRequest,
   listPullRequestFiles,
 } from "./rest.js";
+import {
+  assertFullCommitSha,
+  buildVerdictBody,
+  normalizeVerdictSummary,
+} from "./review-verdict.js";
 import { auditWrite, type WriteContext } from "./write-context.js";
 
 export type { PullRequest, PullRequestFile };
@@ -47,6 +52,39 @@ export async function postSummaryComment(
     repo,
     prNumber,
     commentId,
+    bodyLength: body.length,
+  });
+  return commentId;
+}
+
+// Verdict コメントを固定書式で投稿する（allowlist ガード + head SHA 照合 + 監査ログ付き）。
+// 本文はサーバー側で組み立て、headSha が現在の PR head と一致しない場合はエラーを throw する。
+// 古い head に対する Verdict は reviewed 側のマージゲートを誤って通しかねないため。
+export async function postReviewVerdict(
+  ctx: WriteContext,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  headSha: string,
+  summary: string,
+): Promise<number> {
+  assertFullCommitSha(headSha);
+  normalizeVerdictSummary(summary);
+  assertRepoWritable(ctx.allowedRepos, owner, repo);
+  const pr = await getPullRequest(ctx.client, owner, repo, prNumber);
+  if (pr.head.sha !== headSha) {
+    throw new Error(
+      `Head SHA mismatch: expected ${headSha} but PR #${prNumber} head is ${pr.head.sha}`,
+    );
+  }
+  const body = buildVerdictBody(summary, headSha);
+  const commentId = await createIssueComment(ctx.client, owner, repo, prNumber, body);
+  auditWrite(ctx.logger, "review_verdict", {
+    owner,
+    repo,
+    prNumber,
+    commentId,
+    headSha,
     bodyLength: body.length,
   });
   return commentId;
