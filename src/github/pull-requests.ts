@@ -10,7 +10,11 @@ import {
   getPullRequest,
   listPullRequestFiles,
 } from "./rest.js";
-import { assertFullCommitSha, assertVerdictSummary, buildVerdictBody } from "./review-verdict.js";
+import {
+  assertFullCommitSha,
+  buildVerdictBody,
+  normalizeVerdictSummary,
+} from "./review-verdict.js";
 import { auditWrite, type WriteContext } from "./write-context.js";
 
 export type { PullRequest, PullRequestFile };
@@ -65,7 +69,7 @@ export async function postReviewVerdict(
   summary: string,
 ): Promise<number> {
   assertFullCommitSha(headSha);
-  assertVerdictSummary(summary);
+  normalizeVerdictSummary(summary);
   assertRepoWritable(ctx.allowedRepos, owner, repo);
   const pr = await getPullRequest(ctx.client, owner, repo, prNumber);
   if (pr.head.sha !== headSha) {

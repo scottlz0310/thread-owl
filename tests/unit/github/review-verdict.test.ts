@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   assertFullCommitSha,
-  assertVerdictSummary,
   buildVerdictBody,
   InvalidVerdictInputError,
+  normalizeVerdictSummary,
 } from "../../../src/github/review-verdict.js";
 
 const HEAD_SHA = "3facb641b17b1f31e9fb1895b558548cd48dcb78";
@@ -90,14 +90,14 @@ describe("assertFullCommitSha", () => {
   });
 });
 
-describe("assertVerdictSummary", () => {
+describe("normalizeVerdictSummary", () => {
   it.each([
     { name: "通常の本文", summary: "CI は 13 件すべて success でした。" },
     { name: "Verdict の語だけを含む", summary: "Verdict の根拠を示します" },
     { name: "Status の語だけを含む", summary: "Status は問題ありません" },
     { name: "行頭が異なる HEAD SHA 行", summary: `Reviewed HEAD SHA: \`${HEAD_SHA}\`` },
   ])("$name を受け付ける", ({ summary }) => {
-    expect(() => assertVerdictSummary(summary)).not.toThrow();
+    expect(() => normalizeVerdictSummary(summary)).not.toThrow();
   });
 
   it.each([
@@ -109,6 +109,27 @@ describe("assertVerdictSummary", () => {
     { name: "複数行のうち 1 行が固定行", summary: `前段\n- Status: \`READY_TO_MERGE\`\n後段` },
     { name: "CRLF 改行の固定行", summary: "前段\r\n- Status: `READY_TO_MERGE`\r\n後段" },
   ])("$name を拒否する", ({ summary }) => {
-    expect(() => assertVerdictSummary(summary)).toThrow(InvalidVerdictInputError);
+    expect(() => normalizeVerdictSummary(summary)).toThrow(InvalidVerdictInputError);
+  });
+  // trim は先頭行と末尾行にだけ効く。検証を trim 前の値に対して行うと、これらが
+  // 検証をすり抜けてから固定行に変化し、生成本文に同じ行が 2 行入る。
+  it.each([
+    { name: "前後に空白を付けた Status 行", summary: "  - Status: `READY_TO_MERGE`  " },
+    { name: "先頭が空白付きの HEAD SHA 行", summary: `  - Reviewed HEAD SHA: \`${HEAD_SHA}\`` },
+    { name: "先頭行が空白付きの固定行（複数行）", summary: "  - Status: `READY_TO_MERGE`\n後続" },
+    { name: "末尾行が空白付きの固定行（複数行）", summary: "前段\n- Status: `READY_TO_MERGE`  " },
+    { name: "改行だけで囲まれた固定行", summary: "\n- Status: `READY_TO_MERGE`\n" },
+  ])("trim 後に固定行になる $name を拒否する", ({ summary }) => {
+    expect(() => normalizeVerdictSummary(summary)).toThrow(InvalidVerdictInputError);
+  });
+
+  it("trim 後に固定行になる summary で本文を組み立てようとしても拒否する", () => {
+    expect(() => buildVerdictBody("  - Status: `READY_TO_MERGE`  ", HEAD_SHA)).toThrow(
+      InvalidVerdictInputError,
+    );
+  });
+
+  it("前後の空白を除去した値を返す", () => {
+    expect(normalizeVerdictSummary("  本文  ")).toBe("本文");
   });
 });

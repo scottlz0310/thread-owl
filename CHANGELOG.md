@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- Verdict コメントを固定書式でサーバー側から投稿する MCP tool `post_review_verdict` を追加（#218）: 入力は `owner` / `repo` / `prNumber` / `headSha` / `summary` で、見出し `## @thread-owl Review Verdict: APPROVED`・`- Reviewed HEAD SHA: ` + backtick 付き SHA・`- Status: ` + backtick 付き `READY_TO_MERGE` の固定 3 行はサーバー側が組み立てる。reviewed 側（`review-raven-thread-owl-cycle`）は照合規則の正規表現でこの 3 行を判定するため、プロンプト指示だけでは防げなかった書式の揺れ（`VERDICT_FORMAT_MISMATCH` によるサイクル停止）を tool 側で構造的に排除する。`headSha` は 40 桁の小文字 hex を要求し、現在の PR head と一致しない場合は投稿しない。`summary` に固定 3 行のいずれかに一致する行や `Review Verdict` が含まれる場合は、照合規則の「各行ちょうど 1 行」を壊すため拒否する。投稿後は `review://status` を `reviewed` にし、`summaryCommentId` と `headSha` を記録して通知する。戻り値に作成したコメントの ID を含める
+- Verdict コメントを固定書式でサーバー側から投稿する MCP tool `post_review_verdict` を追加（#218）: 入力は `owner` / `repo` / `prNumber` / `headSha` / `summary` で、見出し `## @thread-owl Review Verdict: APPROVED`・`- Reviewed HEAD SHA: ` + backtick 付き SHA・`- Status: ` + backtick 付き `READY_TO_MERGE` の固定 3 行はサーバー側が組み立てる。reviewed 側（`review-raven-thread-owl-cycle`）は照合規則の正規表現でこの 3 行を判定するため、プロンプト指示だけでは防げなかった書式の揺れ（`VERDICT_FORMAT_MISMATCH` によるサイクル停止）を tool 側で構造的に排除する。`headSha` は 40 桁の小文字 hex を要求し、現在の PR head と一致しない場合は投稿しない。`summary` に固定 3 行のいずれかに一致する行や `Review Verdict` が含まれる場合は、照合規則の「各行ちょうど 1 行」を壊すため拒否する。投稿後は `review://status` を `reviewed` にし、`summaryCommentId` と `headSha` を記録して通知する。戻り値に作成したコメントの ID を含める。検証と正規化は 1 つの関数にまとめ、`summary` を trim した値そのものを検証する（検証対象と本文へ埋め込む値がずれると、前後に空白を付けた予約行が検証を通ってから固定行に変化し、同じ行が 2 行入る）。MCP handler では installation token を発行する write context の取得より前に検証するため、不正入力では GitHub の認証系 API も叩かない
 
 ## [0.4.3] - 2026-09-16
 
