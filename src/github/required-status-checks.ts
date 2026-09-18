@@ -90,7 +90,6 @@ function getGitHubApiErrorDetails(error: unknown): GitHubApiErrorDetails {
     httpStatus ??= readHttpStatus(responseData?.status);
     apiErrorCode ??= readOptionalString(current.code);
     apiErrorCode ??= readOptionalString(responseData?.code);
-    apiErrorCode ??= readOptionalString(responseData?.status);
 
     current = current.cause;
   }

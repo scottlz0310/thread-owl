@@ -315,6 +315,33 @@ describe("verifyRequiredStatusChecks", () => {
     });
   });
 
+  it("error code のない branch protection 403 は HTTP status だけを診断する", async () => {
+    const { client } = makeClient({ protection: null });
+    vi.mocked(client.rest.repos.getBranchProtection).mockRejectedValue(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        status: 403,
+        response: {
+          status: 403,
+          data: { message: "Resource not accessible by integration", status: "403" },
+        },
+      }),
+    );
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      diagnostics: {
+        operation: "repos.getBranchProtection",
+        httpStatus: 403,
+        requiredPermission: "Administration: read",
+      },
+    });
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.not.toMatchObject({ diagnostics: { apiErrorCode: expect.anything() } });
+  });
+
   it("ruleset の required workflow は未対応として fail-closed にする", async () => {
     const { client } = makeClient({
       protection: { required_status_checks: null },
