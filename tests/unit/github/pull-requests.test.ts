@@ -357,6 +357,29 @@ describe("postReviewVerdict", () => {
     );
   });
 
+  it("error code のない 403 では HTTP status だけをログに記録する", async () => {
+    const createComment = vi.fn();
+    const getBranchProtection = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        response: { status: 403, data: { status: "403" } },
+      }),
+    );
+    const ctx = makeCtx(headSha, createComment, getBranchProtection);
+
+    await expect(postReviewVerdict(ctx, "o", "r", 7, headSha, "本文")).rejects.toThrow(
+      "Administration: read",
+    );
+
+    const logMeta = (ctx.logger.error as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(logMeta).toMatchObject({
+      apiOperation: "repos.getBranchProtection",
+      apiStatus: 403,
+      requiredPermission: "Administration: read",
+    });
+    expect(logMeta).not.toHaveProperty("apiErrorCode");
+    expect(createComment).not.toHaveBeenCalled();
+  });
+
   it("required check の検証後に HEAD が変わったら投稿しない", async () => {
     const createComment = vi.fn();
     const get = vi
