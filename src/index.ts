@@ -31,7 +31,7 @@ import { createSharedRuntime } from "./runtime/shared.js";
 import { resolveAppMode } from "./startup/mode.js";
 import { createWebhookReceiver } from "./webhook/receiver.js";
 
-const VERSION = "0.5.1";
+const VERSION = "0.5.2";
 
 const mode = resolveAppMode(process.argv.slice(2));
 const config = loadEnv();
