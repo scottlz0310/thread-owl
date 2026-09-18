@@ -17,9 +17,14 @@
 |------|--------|
 | Metadata | 読み取りのみ |
 | Contents | 読み取りのみ |
+| Administration | 読み取りのみ |
 | Pull requests | 読み取り・書き込み |
 | Issues | 読み取り・書き込み |
+| Checks | 読み取りのみ |
+| Commit statuses | 読み取りのみ |
 
+`Administration` は classic branch protection の required status checks を参照するために必要です。
+`Checks` と `Commit statuses` は `post_review_verdict` が対象 SHA の required CI を検証するために必要です。
 この段階ではこれ以上の権限を付与しない。
 
 ## 3. Webhook イベントを購読する

@@ -246,24 +246,32 @@ describe("postReviewVerdict", () => {
   const headSha = "3facb641b17b1f31e9fb1895b558548cd48dcb78";
 
   function makeCtx(currentHeadSha: string, createComment: ReturnType<typeof vi.fn>): WriteContext {
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        number: 7,
+        title: "t",
+        body: null,
+        state: "open",
+        draft: false,
+        head: { sha: currentHeadSha, ref: "feat" },
+        base: { sha: "base", ref: "main" },
+        html_url: "u",
+      },
+    });
     return {
       client: {
         rest: {
-          pulls: {
-            get: vi.fn().mockResolvedValue({
-              data: {
-                number: 7,
-                title: "t",
-                body: null,
-                state: "open",
-                draft: false,
-                head: { sha: currentHeadSha, ref: "feat" },
-                base: { sha: "base", ref: "main" },
-                html_url: "u",
-              },
-            }),
-          },
+          pulls: { get },
           issues: { createComment },
+          repos: {
+            getBranchProtection: vi.fn().mockResolvedValue({
+              data: { required_status_checks: null },
+            }),
+            getBranchRules: vi.fn(),
+            listCommitStatusesForRef: vi.fn(),
+          },
+          checks: { listForRef: vi.fn() },
+          paginate: vi.fn().mockResolvedValue([]),
         },
       } as unknown as GitHubClient,
       allowedRepos: ["o/r"],
@@ -306,6 +314,60 @@ describe("postReviewVerdict", () => {
 
     await expect(postReviewVerdict(ctx, "o", "r", 7, headSha, "本文")).rejects.toThrow(
       "Head SHA mismatch",
+    );
+    expect(createComment).not.toHaveBeenCalled();
+  });
+
+  it("required check の検証後に HEAD が変わったら投稿しない", async () => {
+    const createComment = vi.fn();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          number: 7,
+          title: "t",
+          body: null,
+          state: "open",
+          draft: false,
+          head: { sha: headSha, ref: "feat" },
+          base: { sha: "base", ref: "main" },
+          html_url: "u",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          number: 7,
+          title: "t",
+          body: null,
+          state: "open",
+          draft: false,
+          head: { sha: "0000000000000000000000000000000000000000", ref: "feat" },
+          base: { sha: "base", ref: "main" },
+          html_url: "u",
+        },
+      });
+    const ctx: WriteContext = {
+      client: {
+        rest: {
+          pulls: { get },
+          issues: { createComment },
+          repos: {
+            getBranchProtection: vi.fn().mockResolvedValue({
+              data: { required_status_checks: null },
+            }),
+            getBranchRules: vi.fn(),
+            listCommitStatusesForRef: vi.fn(),
+          },
+          checks: { listForRef: vi.fn() },
+          paginate: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as GitHubClient,
+      allowedRepos: ["o/r"],
+      logger: makeLogger(),
+    };
+
+    await expect(postReviewVerdict(ctx, "o", "r", 7, headSha, "本文")).rejects.toThrow(
+      "Head SHA changed during Verdict verification",
     );
     expect(createComment).not.toHaveBeenCalled();
   });

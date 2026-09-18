@@ -2,6 +2,7 @@
 
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
+import { verifyRequiredStatusChecks } from "./required-status-checks.js";
 import type { PullRequest, PullRequestFile } from "./rest.js";
 import {
   approvePullRequest,
@@ -59,9 +60,8 @@ export async function postSummaryComment(
   return commentId;
 }
 
-// Verdict コメントを固定書式で投稿する（allowlist ガード + head SHA 照合 + 監査ログ付き）。
-// 本文はサーバー側で組み立て、headSha が現在の PR head と一致しない場合はエラーを throw する。
-// 古い head に対する Verdict は reviewed 側のマージゲートを誤って通しかねないため。
+// Verdict コメントを固定書式で投稿する（allowlist ガード + required CI + head SHA 照合 + 監査ログ付き）。
+// 本文はサーバー側で組み立て、current head と同一 SHA の required check 成功を確認してから投稿する。
 export async function postReviewVerdict(
   ctx: WriteContext,
   owner: string,
@@ -79,6 +79,24 @@ export async function postReviewVerdict(
       `Head SHA mismatch: expected ${headSha} but PR #${prNumber} head is ${pr.head.sha}`,
     );
   }
+  const verification = await verifyRequiredStatusChecks(
+    ctx.client,
+    owner,
+    repo,
+    pr.base.ref,
+    headSha,
+  );
+  const latestPr = await getPullRequest(ctx.client, owner, repo, prNumber);
+  if (latestPr.head.sha !== headSha) {
+    throw new Error(
+      `Head SHA changed during Verdict verification: expected ${headSha} but PR #${prNumber} head is ${latestPr.head.sha}`,
+    );
+  }
+  if (latestPr.base.ref !== pr.base.ref) {
+    throw new Error(
+      `Base branch changed during Verdict verification: expected ${pr.base.ref} but PR #${prNumber} base is ${latestPr.base.ref}`,
+    );
+  }
   const body = buildVerdictBody(summary, headSha);
   const commentId = await createIssueComment(ctx.client, owner, repo, prNumber, body);
   auditWrite(ctx.logger, "review_verdict", {
@@ -87,6 +105,7 @@ export async function postReviewVerdict(
     prNumber,
     commentId,
     headSha,
+    requiredCheckCount: verification.requiredCheckCount,
     bodyLength: body.length,
   });
   return commentId;
