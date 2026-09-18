@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-19
+
 ### Added
 - `post_review_verdict` が投稿前に対象 PR の current HEAD と一致する required status checks を検証するようにした（#224）。classic branch protection と有効 ruleset の設定を取得し、同一 SHA の check-runs / commit statuses を全ページ確認する。pending・failure・cancelled・missing・SHA 不一致・設定取得不能・HEAD race は fail-closed で拒否し、required ではない check の失敗は投稿を妨げない。
 
