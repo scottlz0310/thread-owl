@@ -20,6 +20,13 @@ export interface RequiredStatusCheckVerification {
   requiredCheckCount: number;
 }
 
+export interface RequiredStatusCheckDiagnostics {
+  operation?: string;
+  httpStatus?: number;
+  apiErrorCode?: string;
+  requiredPermission?: string;
+}
+
 export type RequiredStatusCheckErrorReason =
   | "configuration"
   | "sha_mismatch"
@@ -29,17 +36,20 @@ export type RequiredStatusCheckErrorReason =
 export class RequiredStatusCheckError extends Error {
   readonly reason: RequiredStatusCheckErrorReason;
   readonly context?: string;
+  readonly diagnostics?: RequiredStatusCheckDiagnostics;
 
   constructor(
     reason: RequiredStatusCheckErrorReason,
     message: string,
     options: ErrorOptions = {},
     context?: string,
+    diagnostics?: RequiredStatusCheckDiagnostics,
   ) {
     super(message, options);
     this.name = "RequiredStatusCheckError";
     this.reason = reason;
     this.context = context;
+    this.diagnostics = diagnostics;
   }
 }
 
@@ -51,35 +61,87 @@ async function request<T>(operation: string, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (cause) {
-    const status = getHttpStatus(cause);
+    const { httpStatus } = getGitHubApiErrorDetails(cause);
     throw new Error(
-      `GitHub API ${operation} failed${status !== undefined ? ` (status ${status})` : ""}`,
+      `GitHub API ${operation} failed${httpStatus !== undefined ? ` (status ${httpStatus})` : ""}`,
       { cause },
     );
   }
 }
 
-function getHttpStatus(error: unknown): number | undefined {
-  if (!isRecord(error)) {
-    return undefined;
+interface GitHubApiErrorDetails {
+  httpStatus?: number;
+  apiErrorCode?: string;
+}
+
+function getGitHubApiErrorDetails(error: unknown): GitHubApiErrorDetails {
+  const seen = new Set<RecordValue>();
+  let current: unknown = error;
+  let httpStatus: number | undefined;
+  let apiErrorCode: string | undefined;
+
+  while (isRecord(current) && !seen.has(current)) {
+    seen.add(current);
+    const response = isRecord(current.response) ? current.response : undefined;
+    const responseData = response && isRecord(response.data) ? response.data : undefined;
+
+    httpStatus ??= readHttpStatus(current.status);
+    httpStatus ??= readHttpStatus(response?.status);
+    httpStatus ??= readHttpStatus(responseData?.status);
+    apiErrorCode ??= readOptionalString(current.code);
+    apiErrorCode ??= readOptionalString(responseData?.code);
+
+    current = current.cause;
   }
-  if (typeof error.status === "number") {
-    return error.status;
+
+  return { httpStatus, apiErrorCode };
+}
+
+function readHttpStatus(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return value;
   }
-  return getHttpStatus(error.cause);
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    return Number(value);
+  }
+  return undefined;
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function isRecord(value: unknown): value is RecordValue {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function configurationError(message: string, cause?: unknown): RequiredStatusCheckError {
+function configurationError(
+  message: string,
+  cause?: unknown,
+  diagnostics?: RequiredStatusCheckDiagnostics,
+): RequiredStatusCheckError {
   const causeMessage = cause instanceof Error ? `: ${cause.message}` : "";
   return new RequiredStatusCheckError(
     "configuration",
     `Required status-check configuration is unavailable: ${message}${causeMessage}`,
     cause === undefined ? {} : { cause },
+    undefined,
+    diagnostics,
   );
+}
+
+function apiDiagnostics(
+  operation: string,
+  requiredPermission: string,
+  error: unknown,
+): RequiredStatusCheckDiagnostics {
+  const { httpStatus, apiErrorCode } = getGitHubApiErrorDetails(error);
+  return {
+    operation,
+    requiredPermission,
+    ...(httpStatus === undefined ? {} : { httpStatus }),
+    ...(apiErrorCode === undefined ? {} : { apiErrorCode }),
+  };
 }
 
 function readRecord(value: unknown, label: string): RecordValue {
@@ -233,10 +295,15 @@ async function getBranchProtection(
     );
     return response.data;
   } catch (error) {
-    if (getHttpStatus(error) === 404) {
+    const diagnostics = apiDiagnostics("repos.getBranchProtection", "Administration: read", error);
+    if (diagnostics.httpStatus === 404) {
       return null;
     }
-    throw configurationError("failed to read branch protection", error);
+    const message =
+      diagnostics.httpStatus === 403
+        ? "failed to read branch protection; GitHub App installation token requires Administration: read permission"
+        : "failed to read branch protection";
+    throw configurationError(message, error, diagnostics);
   }
 }
 
@@ -257,7 +324,11 @@ async function getBranchRules(
     );
     return rules as unknown[];
   } catch (error) {
-    throw configurationError("failed to read active branch rules", error);
+    throw configurationError(
+      "failed to read active branch rules",
+      error,
+      apiDiagnostics("repos.getBranchRules", "Administration: read", error),
+    );
   }
 }
 
@@ -278,7 +349,11 @@ async function listCheckRuns(
       }),
     )) as unknown[];
   } catch (error) {
-    throw configurationError("failed to read check-runs", error);
+    throw configurationError(
+      "failed to read check-runs",
+      error,
+      apiDiagnostics("checks.listForRef", "Checks: read", error),
+    );
   }
 
   return runs.map((rawRun, index) => {
@@ -322,7 +397,11 @@ async function listCommitStatuses(
       }),
     )) as unknown[];
   } catch (error) {
-    throw configurationError("failed to read commit statuses", error);
+    throw configurationError(
+      "failed to read commit statuses",
+      error,
+      apiDiagnostics("repos.listCommitStatusesForRef", "Commit statuses: read", error),
+    );
   }
 
   return statuses.map((rawStatus, index) => {

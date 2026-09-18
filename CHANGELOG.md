@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- `post_review_verdict` が branch protection 取得時の 403 を必要権限不足として明示し、Verdict を投稿せず fail-closed にするようにした（#227）。404（branch protection 未設定）は従来どおり required check なしとして扱い、API operation・status・error code・必要権限を診断ログへ記録する。
+
 ## [0.5.2] - 2026-09-19
 
 ### Added

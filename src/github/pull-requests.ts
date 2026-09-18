@@ -2,7 +2,11 @@
 
 import { assertRepoWritable } from "../policy/allowlist.js";
 import type { GitHubClient } from "./client.js";
-import { verifyRequiredStatusChecks } from "./required-status-checks.js";
+import {
+  RequiredStatusCheckError,
+  type RequiredStatusCheckVerification,
+  verifyRequiredStatusChecks,
+} from "./required-status-checks.js";
 import type { PullRequest, PullRequestFile } from "./rest.js";
 import {
   approvePullRequest,
@@ -79,13 +83,33 @@ export async function postReviewVerdict(
       `Head SHA mismatch: expected ${headSha} but PR #${prNumber} head is ${pr.head.sha}`,
     );
   }
-  const verification = await verifyRequiredStatusChecks(
-    ctx.client,
-    owner,
-    repo,
-    pr.base.ref,
-    headSha,
-  );
+  let verification: RequiredStatusCheckVerification;
+  try {
+    verification = await verifyRequiredStatusChecks(ctx.client, owner, repo, pr.base.ref, headSha);
+  } catch (error) {
+    if (error instanceof RequiredStatusCheckError) {
+      const diagnostics = error.diagnostics;
+      ctx.logger.error("review.review_verdict.required_checks_failed", {
+        event: "review.review_verdict.required_checks_failed",
+        owner,
+        repo,
+        prNumber,
+        headSha,
+        reason: error.reason,
+        authPrincipal: "GitHub App installation token",
+        ...(error.context === undefined ? {} : { context: error.context }),
+        ...(diagnostics?.operation === undefined ? {} : { apiOperation: diagnostics.operation }),
+        ...(diagnostics?.httpStatus === undefined ? {} : { apiStatus: diagnostics.httpStatus }),
+        ...(diagnostics?.apiErrorCode === undefined
+          ? {}
+          : { apiErrorCode: diagnostics.apiErrorCode }),
+        ...(diagnostics?.requiredPermission === undefined
+          ? {}
+          : { requiredPermission: diagnostics.requiredPermission }),
+      });
+    }
+    throw error;
+  }
   const latestPr = await getPullRequest(ctx.client, owner, repo, prNumber);
   if (latestPr.head.sha !== headSha) {
     throw new Error(

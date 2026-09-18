@@ -13,6 +13,8 @@ interface ClientOptions {
   rules?: unknown[];
   checkRuns?: unknown[];
   statuses?: unknown[];
+  checkRunsError?: unknown;
+  statusesError?: unknown;
 }
 
 function checkRun(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -43,9 +45,15 @@ function makeClient(options: ClientOptions): {
       return Promise.resolve(options.rules ?? []);
     }
     if (endpoint === listForRef) {
+      if (options.checkRunsError !== undefined) {
+        return Promise.reject(options.checkRunsError);
+      }
       return Promise.resolve(options.checkRuns ?? []);
     }
     if (endpoint === listCommitStatusesForRef) {
+      if (options.statusesError !== undefined) {
+        return Promise.reject(options.statusesError);
+      }
       return Promise.resolve(options.statuses ?? []);
     }
     throw new Error("unexpected pagination endpoint");
@@ -279,12 +287,88 @@ describe("verifyRequiredStatusChecks", () => {
   it("branch protection の 404 は required check なしとして扱う", async () => {
     const { client } = makeClient({ protection: null });
     vi.mocked(client.rest.repos.getBranchProtection).mockRejectedValue(
-      Object.assign(new Error("not found"), { status: 404 }),
+      Object.assign(new Error("Branch not protected"), {
+        response: { data: { status: "404" } },
+      }),
     );
 
     await expect(verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA)).resolves.toEqual({
       requiredCheckCount: 0,
     });
+  });
+
+  it("branch protection の 403 は必要権限を明示して fail-closed にする", async () => {
+    const { client } = makeClient({ protection: null });
+    vi.mocked(client.rest.repos.getBranchProtection).mockRejectedValue(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        status: 403,
+        response: {
+          status: 403,
+          data: { code: "integration_forbidden", status: "403" },
+        },
+      }),
+    );
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      message: expect.stringContaining("Administration: read"),
+      diagnostics: {
+        operation: "repos.getBranchProtection",
+        httpStatus: 403,
+        apiErrorCode: "integration_forbidden",
+        requiredPermission: "Administration: read",
+      },
+    });
+  });
+
+  it("branch protection の 403 以外の読み取り失敗も診断して fail-closed にする", async () => {
+    const { client } = makeClient({ protection: null });
+    vi.mocked(client.rest.repos.getBranchProtection).mockRejectedValue(
+      Object.assign(new Error("GitHub unavailable"), {
+        response: { status: 500, data: { message: "GitHub unavailable" } },
+      }),
+    );
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      message: expect.stringContaining("failed to read branch protection"),
+      diagnostics: {
+        operation: "repos.getBranchProtection",
+        httpStatus: 500,
+        requiredPermission: "Administration: read",
+      },
+    });
+  });
+
+  it("error code のない branch protection 403 は HTTP status だけを診断する", async () => {
+    const { client } = makeClient({ protection: null });
+    vi.mocked(client.rest.repos.getBranchProtection).mockRejectedValue(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        status: 403,
+        response: {
+          status: 403,
+          data: { message: "Resource not accessible by integration", status: "403" },
+        },
+      }),
+    );
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      diagnostics: {
+        operation: "repos.getBranchProtection",
+        httpStatus: 403,
+        requiredPermission: "Administration: read",
+      },
+    });
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.not.toMatchObject({ diagnostics: { apiErrorCode: expect.anything() } });
   });
 
   it("ruleset の required workflow は未対応として fail-closed にする", async () => {
@@ -305,5 +389,48 @@ describe("verifyRequiredStatusChecks", () => {
     await expect(
       verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
     ).rejects.toMatchObject({ reason: "configuration" });
+  });
+
+  it("check-run の取得失敗には Checks 権限と API 診断を含める", async () => {
+    const { client } = makeClient({
+      protection: { required_status_checks: { contexts: ["build"] } },
+      checkRunsError: Object.assign(new Error("check-runs forbidden"), {
+        status: 403,
+        code: "forbidden",
+      }),
+    });
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      diagnostics: {
+        operation: "checks.listForRef",
+        httpStatus: 403,
+        apiErrorCode: "forbidden",
+        requiredPermission: "Checks: read",
+      },
+    });
+  });
+
+  it("commit status の取得失敗には Commit statuses 権限と API 診断を含める", async () => {
+    const { client } = makeClient({
+      protection: { required_status_checks: { contexts: ["build"] } },
+      statusesError: Object.assign(new Error("statuses forbidden"), {
+        response: { status: 403, data: { code: "forbidden" } },
+      }),
+    });
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      diagnostics: {
+        operation: "repos.listCommitStatusesForRef",
+        httpStatus: 403,
+        apiErrorCode: "forbidden",
+        requiredPermission: "Commit statuses: read",
+      },
+    });
   });
 });
