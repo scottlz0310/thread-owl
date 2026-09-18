@@ -245,7 +245,13 @@ describe("approvePR", () => {
 describe("postReviewVerdict", () => {
   const headSha = "3facb641b17b1f31e9fb1895b558548cd48dcb78";
 
-  function makeCtx(currentHeadSha: string, createComment: ReturnType<typeof vi.fn>): WriteContext {
+  function makeCtx(
+    currentHeadSha: string,
+    createComment: ReturnType<typeof vi.fn>,
+    getBranchProtection = vi.fn().mockResolvedValue({
+      data: { required_status_checks: null },
+    }),
+  ): WriteContext {
     const get = vi.fn().mockResolvedValue({
       data: {
         number: 7,
@@ -264,9 +270,7 @@ describe("postReviewVerdict", () => {
           pulls: { get },
           issues: { createComment },
           repos: {
-            getBranchProtection: vi.fn().mockResolvedValue({
-              data: { required_status_checks: null },
-            }),
+            getBranchProtection,
             getBranchRules: vi.fn(),
             listCommitStatusesForRef: vi.fn(),
           },
@@ -316,6 +320,41 @@ describe("postReviewVerdict", () => {
       "Head SHA mismatch",
     );
     expect(createComment).not.toHaveBeenCalled();
+  });
+
+  it("branch protection の 403 では権限不足を記録し、Verdict を投稿しない", async () => {
+    const createComment = vi.fn();
+    const getBranchProtection = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        status: 403,
+        response: {
+          status: 403,
+          data: { code: "integration_forbidden", status: "403" },
+        },
+      }),
+    );
+    const ctx = makeCtx(headSha, createComment, getBranchProtection);
+
+    await expect(postReviewVerdict(ctx, "o", "r", 7, headSha, "本文")).rejects.toThrow(
+      "Administration: read",
+    );
+
+    expect(createComment).not.toHaveBeenCalled();
+    expect(ctx.logger.error).toHaveBeenCalledWith(
+      "review.review_verdict.required_checks_failed",
+      expect.objectContaining({
+        owner: "o",
+        repo: "r",
+        prNumber: 7,
+        headSha,
+        reason: "configuration",
+        authPrincipal: "GitHub App installation token",
+        requiredPermission: "Administration: read",
+        apiOperation: "repos.getBranchProtection",
+        apiStatus: 403,
+        apiErrorCode: "integration_forbidden",
+      }),
+    );
   });
 
   it("required check の検証後に HEAD が変わったら投稿しない", async () => {

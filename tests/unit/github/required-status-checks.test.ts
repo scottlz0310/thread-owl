@@ -279,11 +279,39 @@ describe("verifyRequiredStatusChecks", () => {
   it("branch protection の 404 は required check なしとして扱う", async () => {
     const { client } = makeClient({ protection: null });
     vi.mocked(client.rest.repos.getBranchProtection).mockRejectedValue(
-      Object.assign(new Error("not found"), { status: 404 }),
+      Object.assign(new Error("Branch not protected"), {
+        response: { status: 404, data: { status: "404" } },
+      }),
     );
 
     await expect(verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA)).resolves.toEqual({
       requiredCheckCount: 0,
+    });
+  });
+
+  it("branch protection の 403 は必要権限を明示して fail-closed にする", async () => {
+    const { client } = makeClient({ protection: null });
+    vi.mocked(client.rest.repos.getBranchProtection).mockRejectedValue(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        status: 403,
+        response: {
+          status: 403,
+          data: { code: "integration_forbidden", status: "403" },
+        },
+      }),
+    );
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      message: expect.stringContaining("Administration: read"),
+      diagnostics: {
+        operation: "repos.getBranchProtection",
+        httpStatus: 403,
+        apiErrorCode: "integration_forbidden",
+        requiredPermission: "Administration: read",
+      },
     });
   });
 
