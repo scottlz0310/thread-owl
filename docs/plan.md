@@ -307,22 +307,23 @@ GitHub App 認証・Webhook・MCP 周辺の実装は TypeScript との相性が�
 
 GitHub App の初期権限は最小権限から始める。
 
-推奨初期権限:
+現在の実装に必要な権限:
 
 ```text
 Repository permissions:
 - Metadata: read
 - Contents: read
+- Administration: read
 - Pull requests: read & write
 - Issues: read & write
+- Checks: read
+- Commit statuses: read
 ```
 
-必要になった場合に追加検討する権限:
+将来機能で追加を検討する権限:
 
 ```text
-- Checks: read
 - Actions: read
-- Commit statuses: read
 ```
 
 最初から不要な write 権限は付与しない。

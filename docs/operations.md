@@ -142,7 +142,7 @@ node dist/index.js --mcp
 | `get_pr` | PR 基本情報と変更ファイル一覧 |
 | `list_review_threads` | レビュースレッド一覧（resolved/outdated・コメント含む） |
 | `post_summary_comment` | PR サマリーコメント投稿（Verdict らしい本文は拒否。Verdict には `post_review_verdict` を使用） |
-| `post_review_verdict` | APPROVED の Verdict コメントを固定書式で投稿（見出し・Reviewed HEAD SHA 行・Status 行はサーバー側が生成） |
+| `post_review_verdict` | current HEAD と同一 SHA の required status checks 成功を確認してから、APPROVED の Verdict コメントを固定書式で投稿（見出し・Reviewed HEAD SHA 行・Status 行はサーバー側が生成） |
 | `post_inline_comment` | インラインレビューコメント投稿 |
 | `reply_review_thread` | レビュースレッドへ返信 |
 
