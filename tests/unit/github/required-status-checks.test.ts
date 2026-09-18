@@ -153,6 +153,30 @@ describe("assertRequiredStatusChecksSuccessful", () => {
     ).toThrow(/is missing/);
   });
 
+  it("同一 context の check-run と commit status は両方の成功を要求する", () => {
+    expect(() =>
+      assertRequiredStatusChecksSuccessful(
+        [{ context: "build" }],
+        [
+          {
+            source: "check-run",
+            context: "build",
+            id: 1,
+            state: "completed",
+            conclusion: "success",
+          },
+          {
+            source: "commit-status",
+            context: "build",
+            id: 2,
+            state: "failure",
+          },
+        ],
+        HEAD_SHA,
+      ),
+    ).toThrow(/is not successful/);
+  });
+
   it("required ではない check の失敗は妨げない", () => {
     expect(() =>
       assertRequiredStatusChecksSuccessful(
@@ -235,6 +259,21 @@ describe("verifyRequiredStatusChecks", () => {
     await expect(
       verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
     ).rejects.toMatchObject({ reason: "sha_mismatch" });
+  });
+
+  it("classic branch protection の app_id -1 は任意の App として扱う", async () => {
+    const { client } = makeClient({
+      protection: {
+        required_status_checks: {
+          checks: [{ context: "build", app_id: -1 }],
+        },
+      },
+      checkRuns: [checkRun({ app: { id: 999 } })],
+    });
+
+    await expect(verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA)).resolves.toEqual({
+      requiredCheckCount: 1,
+    });
   });
 
   it("branch protection の 404 は required check なしとして扱う", async () => {

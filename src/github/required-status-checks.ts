@@ -108,6 +108,18 @@ function readOptionalInteger(record: RecordValue, key: string, label: string): n
   return value;
 }
 
+function readOptionalIntegrationId(
+  record: RecordValue,
+  key: string,
+  label: string,
+): number | undefined {
+  const value = record[key];
+  if (value === -1) {
+    return undefined;
+  }
+  return readOptionalInteger(record, key, label);
+}
+
 function requiredStatusCheckKey(check: RequiredStatusCheck): string {
   return `${check.context}\u0000${check.integrationId ?? ""}`;
 }
@@ -154,7 +166,11 @@ function parseBranchProtectionChecks(data: unknown): RequiredStatusCheck[] {
     const check = readRecord(rawCheck, `branch protection checks[${index}]`);
     checks.push({
       context: readString(check, "context", `branch protection checks[${index}]`),
-      integrationId: readOptionalInteger(check, "app_id", `branch protection checks[${index}]`),
+      integrationId: readOptionalIntegrationId(
+        check,
+        "app_id",
+        `branch protection checks[${index}]`,
+      ),
     });
   }
 
@@ -194,7 +210,7 @@ function parseRulesetChecks(rules: readonly unknown[]): RequiredStatusCheck[] {
           "context",
           `branch rules[${index}].parameters.required_status_checks[${checkIndex}]`,
         ),
-        integrationId: readOptionalInteger(
+        integrationId: readOptionalIntegrationId(
           check,
           "integration_id",
           `branch rules[${index}].parameters.required_status_checks[${checkIndex}]`,
@@ -401,7 +417,7 @@ export function assertRequiredStatusChecksSuccessful(
         requiredCheck.context,
       );
     }
-    if (!candidates.some(isSuccessful)) {
+    if (!candidates.every(isSuccessful)) {
       throw new RequiredStatusCheckError(
         "not_successful",
         `Required status check ${formatRequiredCheck(requiredCheck)} is not successful on ${headSha}: ${candidates.map(describeResult).join(", ")}`,
