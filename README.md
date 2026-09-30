@@ -121,7 +121,6 @@ RC 等のプレリリース版（タグに `-` を含む場合、例: `vX.Y.Z-rc
 |------|--------|
 | Metadata | 読み取り |
 | Contents | 読み取り |
-| Administration | 読み取り |
 | Pull requests | 読み取り・書き込み |
 | Issues | 読み取り・書き込み |
 | Checks | 読み取り |

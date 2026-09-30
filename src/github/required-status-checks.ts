@@ -283,28 +283,36 @@ function parseRulesetChecks(rules: readonly unknown[]): RequiredStatusCheck[] {
   return checks;
 }
 
+// classic branch protection は、admin 権限が要る branches/{branch}/protection ではなく、
+// read 権限で読める branches/{branch} の protection（要約）から読む。
+// 保護が無効なら null を返す。branch が無い場合（404）も含め、読めなければ fail-closed にする。
 async function getBranchProtection(
   client: GitHubClient,
   owner: string,
   repo: string,
   branch: string,
-): Promise<unknown | null> {
+): Promise<RecordValue | null> {
+  let data: unknown;
   try {
-    const response = await request("repos.getBranchProtection", () =>
-      client.rest.repos.getBranchProtection({ owner, repo, branch }),
+    const response = await request("repos.getBranch", () =>
+      client.rest.repos.getBranch({ owner, repo, branch }),
     );
-    return response.data;
+    data = response.data;
   } catch (error) {
-    const diagnostics = apiDiagnostics("repos.getBranchProtection", "Administration: read", error);
-    if (diagnostics.httpStatus === 404) {
-      return null;
-    }
-    const message =
-      diagnostics.httpStatus === 403
-        ? "failed to read branch protection; GitHub App installation token requires Administration: read permission"
-        : "failed to read branch protection";
-    throw configurationError(message, error, diagnostics);
+    throw configurationError(
+      "failed to read branch protection summary",
+      error,
+      apiDiagnostics("repos.getBranch", "Contents: read", error),
+    );
   }
+
+  const summary = readRecord(data, "branch response");
+  const protection = readRecord(summary.protection, "branch response protection");
+  // enabled が欠落・null・boolean 以外の応答を「保護なし」とみなすと、required checks を読み飛ばすため fail-closed にする
+  if (typeof protection.enabled !== "boolean") {
+    throw configurationError("branch response protection.enabled must be a boolean");
+  }
+  return protection.enabled ? protection : null;
 }
 
 async function getBranchRules(
@@ -327,7 +335,7 @@ async function getBranchRules(
     throw configurationError(
       "failed to read active branch rules",
       error,
-      apiDiagnostics("repos.getBranchRules", "Administration: read", error),
+      apiDiagnostics("repos.getBranchRules", "Metadata: read", error),
     );
   }
 }
