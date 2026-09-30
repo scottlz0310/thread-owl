@@ -313,7 +313,6 @@ GitHub App の初期権限は最小権限から始める。
 Repository permissions:
 - Metadata: read
 - Contents: read
-- Administration: read
 - Pull requests: read & write
 - Issues: read & write
 - Checks: read

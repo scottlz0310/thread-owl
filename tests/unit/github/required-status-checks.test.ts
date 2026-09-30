@@ -342,6 +342,31 @@ describe("verifyRequiredStatusChecks", () => {
     ).rejects.toMatchObject({ reason: "configuration" });
   });
 
+  // enabled を読めない応答を「保護なし」とみなすと、classic の required checks を読み飛ばして投稿に進んでしまう
+  it.each([
+    { name: "欠落している", enabled: undefined },
+    { name: "null", enabled: null },
+    { name: "文字列", enabled: "true" },
+    { name: "数値", enabled: 1 },
+  ])("protection.enabled が $name 場合は fail-closed にする", async ({ enabled }) => {
+    const { client } = makeClient({ protection: null });
+    vi.mocked(client.rest.repos.getBranch).mockResolvedValue({
+      data: {
+        protection: {
+          ...(enabled === undefined ? {} : { enabled }),
+          required_status_checks: { contexts: ["build"], checks: [] },
+        },
+      },
+    } as never);
+
+    await expect(
+      verifyRequiredStatusChecks(client, "o", "r", "main", HEAD_SHA),
+    ).rejects.toMatchObject({
+      reason: "configuration",
+      message: expect.stringContaining("protection.enabled must be a boolean"),
+    });
+  });
+
   it.each([
     {
       name: "404（branch が無い）",

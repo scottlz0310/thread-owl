@@ -308,7 +308,11 @@ async function getBranchProtection(
 
   const summary = readRecord(data, "branch response");
   const protection = readRecord(summary.protection, "branch response protection");
-  return protection.enabled === true ? protection : null;
+  // enabled が欠落・null・boolean 以外の応答を「保護なし」とみなすと、required checks を読み飛ばすため fail-closed にする
+  if (typeof protection.enabled !== "boolean") {
+    throw configurationError("branch response protection.enabled must be a boolean");
+  }
+  return protection.enabled ? protection : null;
 }
 
 async function getBranchRules(
