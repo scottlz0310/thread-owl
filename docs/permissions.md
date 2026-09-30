@@ -6,9 +6,8 @@
 
 | スコープ | レベル | 理由 |
 |---------|--------|------|
-| Metadata | 読み取り | すべての API アクセスに必要 |
-| Contents | 読み取り | PR diff とファイル内容の参照 |
-| Administration | 読み取り | classic branch protection の required status checks 参照 |
+| Metadata | 読み取り | すべての API アクセスに必要。有効 ruleset（`rules/branches/{branch}`）の required status checks 参照 |
+| Contents | 読み取り | PR diff とファイル内容の参照。classic branch protection の required status checks 参照（`branches/{branch}` の `protection` の要約） |
 | Pull requests | 読み取り・書き込み | レビューコメント投稿・スレッド返信 |
 | Issues | 読み取り・書き込み | summary コメント投稿（issue comment エンドポイント使用） |
 | Checks | 読み取り | 同一 SHA の check-runs 検証 |
@@ -22,7 +21,7 @@
 
 ### 付与しない権限
 
-- `Administration` の書き込み権限
+- `Administration`（書き込みはもちろん、読み取りも不要）。classic branch protection の required status checks は、admin 専用の `branches/{branch}/protection` ではなく、`branches/{branch}` の `protection`（要約）から読む（#237）。`Administration: read` を付与済みの installation は、外してよい
 - `Members`
 - `Organization administration`
 - レビューワークフローのスコープ外のもの

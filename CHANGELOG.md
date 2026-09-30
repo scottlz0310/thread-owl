@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- `post_review_verdict` の required status checks の解決で、classic branch protection を、admin 専用の `branches/{branch}/protection`（`Administration: read` が必要）ではなく、read 権限で読める `branches/{branch}` の `protection`（要約。`enabled` が true のときの `required_status_checks`）から読むようにした（#237）。GitHub App の `Administration: read` は不要になる。`protection` が無効（`enabled: false`）なら classic の required check なしとして扱う。`branches/{branch}` の読み取りは、404（branch が無い）を含め、失敗したら fail-closed にし、診断の operation は `repos.getBranch`、必要権限は `Contents: read` になる。ruleset（`rules/branches/{branch}`）の必要権限の診断は `Metadata: read` に改めた。同じ Unreleased の #227 の項にある 403・404 の扱いは、この変更で置き換わる（admin 専用の endpoint を呼ばなくなるため）。
+
 ### Fixed
 - `post_review_verdict` が branch protection 取得時の 403 を必要権限不足として明示し、Verdict を投稿せず fail-closed にするようにした（#227）。404（branch protection 未設定）は従来どおり required check なしとして扱い、API operation・status・error code・必要権限を診断ログへ記録する。
 

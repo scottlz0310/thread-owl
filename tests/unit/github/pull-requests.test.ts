@@ -248,8 +248,8 @@ describe("postReviewVerdict", () => {
   function makeCtx(
     currentHeadSha: string,
     createComment: ReturnType<typeof vi.fn>,
-    getBranchProtection = vi.fn().mockResolvedValue({
-      data: { required_status_checks: null },
+    getBranch = vi.fn().mockResolvedValue({
+      data: { protection: { enabled: false, required_status_checks: null } },
     }),
   ): WriteContext {
     const get = vi.fn().mockResolvedValue({
@@ -270,7 +270,7 @@ describe("postReviewVerdict", () => {
           pulls: { get },
           issues: { createComment },
           repos: {
-            getBranchProtection,
+            getBranch,
             getBranchRules: vi.fn(),
             listCommitStatusesForRef: vi.fn(),
           },
@@ -322,9 +322,9 @@ describe("postReviewVerdict", () => {
     expect(createComment).not.toHaveBeenCalled();
   });
 
-  it("branch protection の 403 では権限不足を記録し、Verdict を投稿しない", async () => {
+  it("branches/{branch} の 403 では権限不足を記録し、Verdict を投稿しない", async () => {
     const createComment = vi.fn();
-    const getBranchProtection = vi.fn().mockRejectedValue(
+    const getBranch = vi.fn().mockRejectedValue(
       Object.assign(new Error("Resource not accessible by integration"), {
         status: 403,
         response: {
@@ -333,10 +333,10 @@ describe("postReviewVerdict", () => {
         },
       }),
     );
-    const ctx = makeCtx(headSha, createComment, getBranchProtection);
+    const ctx = makeCtx(headSha, createComment, getBranch);
 
     await expect(postReviewVerdict(ctx, "o", "r", 7, headSha, "本文")).rejects.toThrow(
-      "Administration: read",
+      "failed to read branch protection summary",
     );
 
     expect(createComment).not.toHaveBeenCalled();
@@ -349,8 +349,8 @@ describe("postReviewVerdict", () => {
         headSha,
         reason: "configuration",
         authPrincipal: "GitHub App installation token",
-        requiredPermission: "Administration: read",
-        apiOperation: "repos.getBranchProtection",
+        requiredPermission: "Contents: read",
+        apiOperation: "repos.getBranch",
         apiStatus: 403,
         apiErrorCode: "integration_forbidden",
       }),
@@ -359,22 +359,22 @@ describe("postReviewVerdict", () => {
 
   it("error code のない 403 では HTTP status だけをログに記録する", async () => {
     const createComment = vi.fn();
-    const getBranchProtection = vi.fn().mockRejectedValue(
+    const getBranch = vi.fn().mockRejectedValue(
       Object.assign(new Error("Resource not accessible by integration"), {
         response: { status: 403, data: { status: "403" } },
       }),
     );
-    const ctx = makeCtx(headSha, createComment, getBranchProtection);
+    const ctx = makeCtx(headSha, createComment, getBranch);
 
     await expect(postReviewVerdict(ctx, "o", "r", 7, headSha, "本文")).rejects.toThrow(
-      "Administration: read",
+      "failed to read branch protection summary",
     );
 
     const logMeta = (ctx.logger.error as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(logMeta).toMatchObject({
-      apiOperation: "repos.getBranchProtection",
+      apiOperation: "repos.getBranch",
       apiStatus: 403,
-      requiredPermission: "Administration: read",
+      requiredPermission: "Contents: read",
     });
     expect(logMeta).not.toHaveProperty("apiErrorCode");
     expect(createComment).not.toHaveBeenCalled();
@@ -414,8 +414,8 @@ describe("postReviewVerdict", () => {
           pulls: { get },
           issues: { createComment },
           repos: {
-            getBranchProtection: vi.fn().mockResolvedValue({
-              data: { required_status_checks: null },
+            getBranch: vi.fn().mockResolvedValue({
+              data: { protection: { enabled: false, required_status_checks: null } },
             }),
             getBranchRules: vi.fn(),
             listCommitStatusesForRef: vi.fn(),
