@@ -10,6 +10,7 @@
 | `GITHUB_APP_PRIVATE_KEY` | 秘密鍵のいずれか1つ | PEM の改行を `\n` でエスケープした1行（後方互換・脆弱） |
 | `GITHUB_WEBHOOK_SECRET` | `--webhook` モードで必須 | Webhook 署名検証用 HMAC シークレット |
 | `ALLOWED_REPOS` | 必須 | `owner/repo` 形式をカンマ区切りで列挙（空なら全 write 拒否） |
+| `ALLOWED_AUTHORS` | 推奨（次のリリースで必須にする予定） | PR の作成者として信頼する GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せ、fork は常に拒否する。**未設定の間は作成者・fork を検証しない**（暫定。起動時に警告する） |
 | `APP_SLUG` | 任意（デフォルト: `thread-owl`） | GitHub App の slug。自 App bot イベントのループ防止に使用。App 名を変えた場合は必ず設定する |
 | `PORT` | 任意（デフォルト: 3000） | HTTP サーバーポート |
 | `HOST` | 任意（デフォルト: 127.0.0.1） | HTTP サーバー bind アドレス |

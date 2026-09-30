@@ -81,6 +81,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(makePrBody(), "pull_request", "d-1", "sha256=bad"));
     expect(res.status).toBe(401);
@@ -95,6 +96,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const body = makePrBody();
     const res = await app.request(makeRequest(body, "pull_request"));
@@ -111,6 +113,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(body, "push"));
     expect(res.status).toBe(200);
@@ -126,6 +129,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(400);
@@ -146,6 +150,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(200);
@@ -166,6 +171,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(200);
@@ -181,6 +187,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(400);
@@ -228,6 +235,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(b, eventType));
     expect(res.status).toBe(200);
@@ -242,6 +250,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     // ヘッダーを一切付けないリクエスト → signature="" で検証失敗
     const res = await app.request(
@@ -270,6 +279,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger,
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(body, "pull_request_review_comment"));
     expect(res.status).toBe(500);
@@ -304,6 +314,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       queue: makeQueue(),
       logger,
       allowedRepos: ["org/repo"],
+      allowedAuthors: [],
     });
     const res = await app.request(makeRequest(body, "pull_request_review_comment"));
     expect(res.status).toBe(500);

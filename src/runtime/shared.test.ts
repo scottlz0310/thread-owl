@@ -6,7 +6,7 @@ import { createSharedRuntime } from "./shared.js";
 const mockConfig: AppConfig = {
   appSlug: "test",
   github: { appId: "123", privateKey: "test-key" },
-  policy: { allowedRepos: [] },
+  policy: { allowedRepos: [], allowedAuthors: [] },
   server: { port: 3000, host: "127.0.0.1", mcpHttpPath: "/mcp" },
   logging: { level: "info" },
 };

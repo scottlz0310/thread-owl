@@ -18,6 +18,8 @@ function makeDeps(): ToolDeps {
     getClient: vi.fn(),
     getWriteContext: vi.fn(),
     allowedRepos: ["org/repo"],
+    allowedAuthors: [],
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     resolveInstallationId: vi.fn(async () => 1),
   };
 }

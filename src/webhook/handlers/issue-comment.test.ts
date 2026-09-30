@@ -25,6 +25,7 @@ function makeDeps(overrides: Partial<IssueCommentHandlerDeps> = {}): IssueCommen
     queue: makeQueue(),
     logger: makeLogger(),
     allowedRepos: ["org/repo"],
+    allowedAuthors: [],
     appSlug: "thread-owl",
     ...overrides,
   };

@@ -18,6 +18,8 @@ export interface WebhookReceiverDeps {
   queue: ReviewQueue;
   logger: Logger;
   allowedRepos: readonly string[];
+  // PR の作成者 allowlist（正規化済みの login）。空の間は作成者・fork を検証しない。
+  allowedAuthors: readonly string[];
 }
 
 const SUPPORTED_EVENTS = new Set([
@@ -92,12 +94,14 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
           queue: deps.queue,
           logger: deps.logger,
           allowedRepos: deps.allowedRepos,
+          allowedAuthors: deps.allowedAuthors,
         });
       } else if (normalized.type === "issue_comment") {
         await handleIssueCommentEvent(normalized, {
           queue: deps.queue,
           logger: deps.logger,
           allowedRepos: deps.allowedRepos,
+          allowedAuthors: deps.allowedAuthors,
           appSlug: deps.appSlug,
         });
       } else if (normalized.type === "pull_request_review") {

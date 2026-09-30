@@ -21,6 +21,7 @@ GITHUB_APP_ID=<App の数値 ID>
 GITHUB_APP_PRIVATE_KEY_B64=<.pem を base64 化した値>  # Docker では B64 を推奨
 GITHUB_WEBHOOK_SECRET=<Webhook secret>
 ALLOWED_REPOS=owner/repo
+ALLOWED_AUTHORS=<PR の作成者として信頼する login。再レビューを依頼する bot 名義も含める>
 APP_SLUG=<GitHub App の slug>  # デフォルト thread-owl 以外の場合
 ```
 

@@ -85,6 +85,7 @@ function makeDeps(overrides: Partial<IssueCommentHandlerDeps> = {}): IssueCommen
     queue: makeQueue(),
     logger: makeLogger(),
     allowedRepos: ["org/my-repo"],
+    allowedAuthors: [],
     appSlug: APP_SLUG,
     ...overrides,
   };

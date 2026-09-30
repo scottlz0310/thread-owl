@@ -31,6 +31,20 @@ Thread Owl は GitHub App の private key と installation token を扱う。
 - allowlist チェックは write の GitHub API 呼び出し前に実行し、read は GitHub App installation の repo scope に委ねる
 - allowlist はサービス起動時にバリデーションする
 
+### PR の作成者・fork の検証
+
+リポジトリ単位の allowlist（`ALLOWED_REPOS`）は write の封じ込めであり、PR の作成者の信頼とは別の軸である。他者の PR が queue に載ると、reviewer がそのコードをビルド・テストとして実行し得るため、作成者と fork を検証する（#236）。基本はソロ開発で、他者の PR は既定で不信とし、受け入れる相手を `ALLOWED_AUTHORS` に明示的に追加する。
+
+- `ALLOWED_AUTHORS`（GitHub の login のカンマ区切り）に含まれる作成者の、**同一リポジトリの PR だけ**を受け付ける。**fork からの PR は、作成者が許可されていても常に拒否する**（head の repository が削除されている場合を含む）
+- login は、ASCII の大文字を小文字にし、末尾の `[bot]` を 1 回だけ取り除いて比較する（Mcp-Docker の skill の `normalize_login` と同じ規則。GraphQL と REST で App の login の表記が変わるため）。wildcard は不可で、形式不正は起動時に fail-fast で拒否する
+- 検証する入口:
+  - `enqueue_review`: GitHub API で PR を取得して照合する。`requestedBy` は自己申告で信頼しない。取得に失敗したら fail-closed で、queue にも `review://status` にも載せない
+  - webhook `pull_request`: `pr.user.login` と `pr.head.repo.full_name` を照合する。読めない項目は拒否する
+  - webhook `issue_comment`（再レビュー依頼）: コメントの投稿者と PR の作成者の**両方**が許可されている場合だけ受け付ける。payload に head の repository が無いため、fork は検証しない（fork は PR の webhook、`enqueue_review`、`get_pr` の `head.repo` で検出する）
+- 拒否は監査ログに残す。作成者・投稿者の login は記録するが、本文は記録しない
+- `get_pr` は、reviewer が実行前に検証できるよう、作成者（`author`）と head の repository（`head.repo.fork`）を返す
+- **暫定**: `ALLOWED_AUTHORS` が未設定の間は検証しない（互換のため）。起動のたびに警告し、次のリリースで、未設定を fail-closed（拒否）に変更する。移行のため、先に `ALLOWED_AUTHORS`（例: 自分の login と、再レビューを依頼する bot 名義）を設定すること。bot の PR（Renovate など）をレビューしたい場合は、その login も追加する
+
 ### Streamable HTTP の公開境界
 
 - `--mcp-http` は mcp-gateway 背後の internal endpoint としてのみ運用する
