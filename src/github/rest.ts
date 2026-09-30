@@ -2,13 +2,30 @@
 
 import type { GitHubClient } from "./client.js";
 
+// PR の作成者。type は GitHub の user.type（"User" / "Bot" / "Organization" など）。
+export interface PullRequestAuthor {
+  login: string;
+  type: string;
+}
+
+// PR の head の repository。fork は「base と別の repository」を表す。
+// GitHub の repo.fork は「その repository が fork か」であり、base 自体が fork の場合に
+// 同一 repository の PR でも true になるため、base との比較で判定する。
+export interface PullRequestHeadRepo {
+  fullName: string;
+  fork: boolean;
+}
+
 export interface PullRequest {
   number: number;
   title: string;
   body: string | null;
   state: string;
   draft: boolean;
-  head: { sha: string; ref: string };
+  // 作成者。アカウントが削除されていて取得できない場合は null。
+  author: PullRequestAuthor | null;
+  // repo は head の repository が削除されている場合（削除された fork など）は null。
+  head: { sha: string; ref: string; repo: PullRequestHeadRepo | null };
   base: { sha: string; ref: string };
   htmlUrl: string;
 }
@@ -49,13 +66,24 @@ export async function getPullRequest(
   const { data } = await request("pulls.get", () =>
     client.rest.pulls.get({ owner, repo, pull_number: prNumber }),
   );
+  const headRepo = data.head.repo;
   return {
     number: data.number,
     title: data.title,
     body: data.body,
     state: data.state,
     draft: data.draft ?? false,
-    head: { sha: data.head.sha, ref: data.head.ref },
+    author: data.user ? { login: data.user.login, type: data.user.type } : null,
+    head: {
+      sha: data.head.sha,
+      ref: data.head.ref,
+      repo: headRepo
+        ? {
+            fullName: headRepo.full_name,
+            fork: headRepo.full_name.toLowerCase() !== data.base.repo.full_name.toLowerCase(),
+          }
+        : null,
+    },
     base: { sha: data.base.sha, ref: data.base.ref },
     htmlUrl: data.html_url,
   };

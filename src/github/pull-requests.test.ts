@@ -31,7 +31,8 @@ function makePR(headSha: string) {
     body: null as string | null,
     state: "open",
     draft: false,
-    head: { sha: headSha, ref: "feat/test" },
+    author: { login: "author", type: "User" },
+    head: { sha: headSha, ref: "feat/test", repo: { fullName: "org/repo", fork: false } },
     base: { sha: "base-sha", ref: "main" },
     htmlUrl: "https://github.com/org/repo/pull/1",
   };
