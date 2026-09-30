@@ -20,8 +20,9 @@ describe("getPullRequest", () => {
         body: "desc",
         state: "open",
         draft: false,
-        head: { sha: "headsha", ref: "feature" },
-        base: { sha: "basesha", ref: "main" },
+        user: { login: "author", type: "User" },
+        head: { sha: "headsha", ref: "feature", repo: { full_name: "o/r", fork: false } },
+        base: { sha: "basesha", ref: "main", repo: { full_name: "o/r" } },
         html_url: "https://github.com/o/r/pull/7",
       },
     });
@@ -36,10 +37,96 @@ describe("getPullRequest", () => {
       body: "desc",
       state: "open",
       draft: false,
-      head: { sha: "headsha", ref: "feature" },
+      author: { login: "author", type: "User" },
+      head: { sha: "headsha", ref: "feature", repo: { fullName: "o/r", fork: false } },
       base: { sha: "basesha", ref: "main" },
       htmlUrl: "https://github.com/o/r/pull/7",
     });
+  });
+
+  // head の repository が base と別なら fork。比較は full_name の大文字小文字を区別しない。
+  // repo.fork（その repository が fork か）は使わない。base 自体が fork の場合、同一 repository の PR でも true になる。
+  it.each([
+    {
+      name: "同一 repository の PR は fork ではない",
+      headRepo: { full_name: "o/r", fork: false },
+      baseRepo: { full_name: "o/r" },
+      expected: { fullName: "o/r", fork: false },
+    },
+    {
+      name: "別の repository からの PR は fork",
+      headRepo: { full_name: "someone/r", fork: true },
+      baseRepo: { full_name: "o/r" },
+      expected: { fullName: "someone/r", fork: true },
+    },
+    {
+      name: "full_name の大文字小文字が違うだけなら fork ではない",
+      headRepo: { full_name: "O/R", fork: false },
+      baseRepo: { full_name: "o/r" },
+      expected: { fullName: "O/R", fork: false },
+    },
+    {
+      name: "base 自体が fork でも、同一 repository の PR は fork ではない",
+      headRepo: { full_name: "o/r", fork: true },
+      baseRepo: { full_name: "o/r" },
+      expected: { fullName: "o/r", fork: false },
+    },
+    {
+      name: "head の repository が削除されている場合は null",
+      headRepo: null,
+      baseRepo: { full_name: "o/r" },
+      expected: null,
+    },
+  ])("head の repository: $name", async ({ headRepo, baseRepo, expected }) => {
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        number: 7,
+        title: "t",
+        body: null,
+        state: "open",
+        draft: false,
+        user: { login: "author", type: "User" },
+        head: { sha: "headsha", ref: "feature", repo: headRepo },
+        base: { sha: "basesha", ref: "main", repo: baseRepo },
+        html_url: "https://github.com/o/r/pull/7",
+      },
+    });
+
+    const pr = await getPullRequest(makeClient({ pulls: { get } }), "o", "r", 7);
+
+    expect(pr.head.repo).toEqual(expected);
+  });
+
+  it.each([
+    {
+      name: "User",
+      user: { login: "author", type: "User" },
+      expected: { login: "author", type: "User" },
+    },
+    {
+      name: "Bot",
+      user: { login: "renovate[bot]", type: "Bot" },
+      expected: { login: "renovate[bot]", type: "Bot" },
+    },
+    { name: "取得できない（削除されたアカウント）", user: null, expected: null },
+  ])("作成者: $name", async ({ user, expected }) => {
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        number: 7,
+        title: "t",
+        body: null,
+        state: "open",
+        draft: false,
+        user,
+        head: { sha: "headsha", ref: "feature", repo: { full_name: "o/r", fork: false } },
+        base: { sha: "basesha", ref: "main", repo: { full_name: "o/r" } },
+        html_url: "https://github.com/o/r/pull/7",
+      },
+    });
+
+    const pr = await getPullRequest(makeClient({ pulls: { get } }), "o", "r", 7);
+
+    expect(pr.author).toEqual(expected);
   });
 
   it("API エラー時は操作名と status を付与して throw する", async () => {

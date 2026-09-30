@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- `get_pr` の返却に、PR の作成者（`pr.author`: `login` と `type`。アカウントが削除されていて取得できない場合は null）と、head の repository（`pr.head.repo`: `fullName` と `fork`。head の repository が削除されている場合は null）を加えた（#236）。reviewer が、ローカル検証の前に、他者の PR や fork からの PR を識別するための前提で、既存の項目は変わらない（後方互換な追加）。`fork` は「head の repository が base と別」（`full_name` を大文字小文字を区別せずに比較）を表す。GitHub の `repo.fork`（その repository が fork か）は、base 自体が fork の場合に同一 repository の PR でも true になるため使わない。作成者・fork の検証そのもの（webhook と `enqueue_review`）は、続く変更で行う。
+
 ### Changed
 - `post_review_verdict` の required status checks の解決で、classic branch protection を、admin 専用の `branches/{branch}/protection`（`Administration: read` が必要）ではなく、read 権限で読める `branches/{branch}` の `protection`（要約。`enabled` が true のときの `required_status_checks`）から読むようにした（#237）。GitHub App の `Administration: read` は不要になる。`protection` が無効（`enabled: false`）なら classic の required check なしとして扱う。`enabled` が欠落・null・boolean 以外の応答は、保護なしとみなさず（required checks の読み飛ばしを防ぐため）設定エラーとして fail-closed にする。`branches/{branch}` の読み取りは、404（branch が無い）を含め、失敗したら fail-closed にし、診断の operation は `repos.getBranch`、必要権限は `Contents: read` になる。ruleset（`rules/branches/{branch}`）の必要権限の診断は `Metadata: read` に改めた。同じ Unreleased の #227 の項にある 403・404 の扱いは、この変更で置き換わる（admin 専用の endpoint を呼ばなくなるため）。`README.md` と `docs/plan.md` の権限表からも `Administration` を外した。
 
