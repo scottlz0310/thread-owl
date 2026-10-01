@@ -1,5 +1,6 @@
 // Shared dependencies for MCP tools
 
+import type { Logger } from "../config/logging.js";
 import type { GitHubClient } from "../github/client.js";
 import { createClient } from "../github/client.js";
 import type { WriteContext } from "../github/write-context.js";
@@ -9,6 +10,9 @@ export interface ToolDeps {
   getClient: (owner: string, repo: string) => Promise<GitHubClient>;
   getWriteContext: (owner: string, repo: string) => Promise<WriteContext>;
   allowedRepos: readonly string[];
+  // PR の作成者 allowlist（正規化済みの login）。空の間は作成者・fork を検証しない。
+  allowedAuthors: readonly string[];
+  logger: Logger;
   resolveInstallationId: (owner: string, repo: string) => Promise<number>;
 }
 
@@ -33,6 +37,8 @@ export function buildToolDeps(deps: IssueTokenDeps): ToolDeps {
       logger: deps.logger,
     }),
     allowedRepos: deps.config.policy.allowedRepos,
+    allowedAuthors: deps.config.policy.allowedAuthors,
+    logger: deps.logger,
     resolveInstallationId: async (owner: string, repo: string): Promise<number> => {
       const jwt = await deps.generateAppJwt({
         appId: deps.config.github.appId,

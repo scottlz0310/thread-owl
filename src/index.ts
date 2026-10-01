@@ -12,6 +12,7 @@ import { getInstallationToken } from "./app-auth/installation-token.js";
 import { createTokenCache } from "./app-auth/token-cache.js";
 import { loadEnv } from "./config/env.js";
 import { createLogger } from "./config/logging.js";
+import { createPullRequestFetcher } from "./github/pull-requests.js";
 import { getHealth } from "./internal-api/health.js";
 import { getStatus } from "./internal-api/status.js";
 import { type IssueTokenDeps, issueToken } from "./internal-api/token-source.js";
@@ -24,6 +25,7 @@ import {
 import { buildToolDeps } from "./mcp/tool-deps.js";
 import { startMcpHttpServer, startMcpStdioServer } from "./mcp/transports.js";
 import { RepositoryNotAllowedError } from "./policy/allowlist.js";
+import { isAuthorCheckEnabled } from "./policy/author-policy.js";
 import { createDeliveryDedup } from "./queue/delivery-dedup.js";
 import { createReviewQueue } from "./queue/review-queue.js";
 import { createReviewStatusStore } from "./queue/review-status.js";
@@ -40,6 +42,15 @@ const logger = createLogger(
   config.logging.level,
   mode === "mcp-stdio" ? (line) => console.error(line) : undefined,
 );
+// 暫定: 作成者 allowlist が未設定の間は、PR の作成者・fork を検証しない（互換のため）。
+// 次のリリースで未設定を fail-closed にする予定のため、起動のたびに警告して設定を促す。
+if (!isAuthorCheckEnabled(config.policy.allowedAuthors)) {
+  logger.warn("config.allowed_authors.unset", {
+    event: "config.allowed_authors.unset",
+    message:
+      "ALLOWED_AUTHORS is not set: pull request authors and forks are NOT verified. Set ALLOWED_AUTHORS to the GitHub logins you trust. An unset value will be rejected in a future release.",
+  });
+}
 const tokenCache = createTokenCache();
 
 const issueTokenDeps: IssueTokenDeps = {
@@ -193,6 +204,8 @@ if (mode === "mcp-stdio") {
       queue: createReviewQueue(),
       logger,
       allowedRepos: config.policy.allowedRepos,
+      allowedAuthors: config.policy.allowedAuthors,
+      getPullRequest: createPullRequestFetcher(buildToolDeps(issueTokenDeps).getClient),
     }),
   );
 
@@ -226,6 +239,8 @@ if (mode === "mcp-stdio") {
       queue: runtime.reviewQueue,
       logger,
       allowedRepos: config.policy.allowedRepos,
+      allowedAuthors: config.policy.allowedAuthors,
+      getPullRequest: createPullRequestFetcher(buildToolDeps(runtime.issueTokenDeps).getClient),
     }),
   );
 

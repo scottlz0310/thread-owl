@@ -1,6 +1,8 @@
 export interface DeliveryDedup {
   isSeen(deliveryId: string): boolean;
   markSeen(deliveryId: string): void;
+  // 処理に失敗した delivery を、同じ delivery ID の再配信で再処理できるようにする。
+  forget(deliveryId: string): void;
   dispose(): void;
 }
 
@@ -31,6 +33,9 @@ export function createDeliveryDedup(
     },
     markSeen(deliveryId: string): void {
       seen.set(deliveryId, Date.now() + ttlMs);
+    },
+    forget(deliveryId: string): void {
+      seen.delete(deliveryId);
     },
     dispose(): void {
       clearInterval(timer);

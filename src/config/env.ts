@@ -1,4 +1,5 @@
 import { parseAllowlist } from "../policy/allowlist.js";
+import { parseAuthorAllowlist } from "../policy/author-policy.js";
 import { loadGitHubAppPrivateKey } from "./private-key.js";
 import type { AppConfig } from "./schema.js";
 import { appConfigSchema } from "./schema.js";
@@ -17,6 +18,8 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
     policy: {
       // ALLOWED_REPOS の正規化・形式検証は parseAllowlist に集約する（policy/allowlist.ts 参照）
       allowedRepos: parseAllowlist(env.ALLOWED_REPOS ?? "").repos,
+      // ALLOWED_AUTHORS の正規化・形式検証は parseAuthorAllowlist に集約する（policy/author-policy.ts 参照）
+      allowedAuthors: parseAuthorAllowlist(env.ALLOWED_AUTHORS ?? ""),
     },
     server: {
       port: env.PORT !== undefined ? Number(env.PORT) : 3000,

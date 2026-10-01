@@ -13,6 +13,8 @@ function makeDeps(overrides: Partial<EnqueueReviewToolDeps> = {}): EnqueueReview
       throw new Error("not used");
     },
     allowedRepos: ["org/repo"],
+    allowedAuthors: [],
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     resolveInstallationId: async (): Promise<number> => 123,
     queue: createReviewQueue(),
     ...overrides,

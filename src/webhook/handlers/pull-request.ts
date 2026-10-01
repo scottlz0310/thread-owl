@@ -1,5 +1,10 @@
 import type { Logger } from "../../config/logging.js";
 import { isAllowed } from "../../policy/allowlist.js";
+import {
+  evaluatePullRequestOrigin,
+  isAuthorCheckEnabled,
+  type PullRequestOrigin,
+} from "../../policy/author-policy.js";
 import type { ReviewCandidate, ReviewQueue } from "../../queue/review-queue.js";
 import type { NormalizedEvent } from "../normalize-event.js";
 import { isRecord } from "../utils.js";
@@ -8,6 +13,23 @@ export interface PullRequestHandlerDeps {
   queue: ReviewQueue;
   logger: Logger;
   allowedRepos: readonly string[];
+  // PR の作成者 allowlist（正規化済みの login）。空の間は作成者・fork を検証しない。
+  allowedAuthors: readonly string[];
+}
+
+// payload から作成者と head の repository を取り出す。読めないものは null（検証が有効なら拒否される）。
+function readOrigin(pr: Record<string, unknown>, owner: string, repo: string): PullRequestOrigin {
+  const authorLogin = isRecord(pr.user) && typeof pr.user.login === "string" ? pr.user.login : null;
+  const headRepo = isRecord(pr.head) && isRecord(pr.head.repo) ? pr.head.repo : null;
+  const headFullName =
+    headRepo !== null && typeof headRepo.full_name === "string" ? headRepo.full_name : null;
+  return {
+    authorLogin,
+    fork:
+      headFullName === null
+        ? null
+        : headFullName.toLowerCase() !== `${owner}/${repo}`.toLowerCase(),
+  };
 }
 
 const HANDLED_ACTIONS = new Set(["opened", "synchronize", "ready_for_review"]);
@@ -50,6 +72,24 @@ export async function handlePullRequestEvent(
   }
 
   if (prNumber === undefined) return;
+
+  // 作成者・fork の検証が有効なときは、許可されない PR を queue に載せない。
+  if (isAuthorCheckEnabled(deps.allowedAuthors)) {
+    const origin = readOrigin(pr, owner, repo);
+    const decision = evaluatePullRequestOrigin(deps.allowedAuthors, origin);
+    if (!decision.allowed) {
+      // 拒否は監査ログに残す。作成者の login は記録するが、本文は記録しない。
+      deps.logger.info("webhook.pull_request.origin.rejected", {
+        event: "webhook.pull_request.origin.rejected",
+        owner,
+        repo,
+        prNumber,
+        reason: decision.reason,
+        authorLogin: origin.authorLogin,
+      });
+      return;
+    }
+  }
 
   deps.queue.enqueue({
     owner,

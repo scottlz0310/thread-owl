@@ -25,6 +25,8 @@ function makeDeps(overrides: Partial<IssueCommentHandlerDeps> = {}): IssueCommen
     queue: makeQueue(),
     logger: makeLogger(),
     allowedRepos: ["org/repo"],
+    allowedAuthors: [],
+    getPullRequest: vi.fn().mockRejectedValue(new Error("getPullRequest must not be called")),
     appSlug: "thread-owl",
     ...overrides,
   };
