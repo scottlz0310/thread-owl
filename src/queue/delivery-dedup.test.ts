@@ -15,6 +15,24 @@ describe("createDeliveryDedup", () => {
     dedup.dispose();
   });
 
+  test("forgotten delivery is treated as unseen, and other deliveries stay seen", () => {
+    const dedup = createDeliveryDedup();
+    dedup.markSeen("a");
+    dedup.markSeen("b");
+
+    dedup.forget("a");
+
+    expect(dedup.isSeen("a")).toBe(false);
+    expect(dedup.isSeen("b")).toBe(true);
+    dedup.dispose();
+  });
+
+  test("forgetting an unknown delivery is a no-op", () => {
+    const dedup = createDeliveryDedup();
+    expect(() => dedup.forget("unknown")).not.toThrow();
+    dedup.dispose();
+  });
+
   test("different delivery IDs are independent", () => {
     const dedup = createDeliveryDedup();
     dedup.markSeen("a");

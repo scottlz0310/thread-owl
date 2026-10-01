@@ -120,6 +120,9 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
         });
       }
     } catch (err) {
+      // GitHub の再配信は同じ X-GitHub-Delivery で届くため、失敗した delivery を既読のままにすると、
+      // 再配信が `duplicate` で弾かれて復旧できない。500 を返す前に、再処理できる状態へ戻す。
+      deps.dedup.forget(deliveryId);
       deps.logger.error("webhook.handler.error", {
         event: "webhook.handler.error",
         eventType,

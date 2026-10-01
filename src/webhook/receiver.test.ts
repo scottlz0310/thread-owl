@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, test, vi } from "vitest";
 import type { Logger } from "../config/logging.js";
 import type { DeliveryDedup } from "../queue/delivery-dedup.js";
+import { createDeliveryDedup } from "../queue/delivery-dedup.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
 import { createWebhookReceiver } from "./receiver.js";
 
@@ -20,6 +21,7 @@ function makeDedup(seen = false): DeliveryDedup {
   return {
     isSeen: vi.fn().mockReturnValue(seen),
     markSeen: vi.fn(),
+    forget: vi.fn(),
     dispose: vi.fn(),
   };
 }
@@ -322,10 +324,11 @@ describe("createWebhookReceiver POST /webhook", () => {
       pull_request: { number: 1 },
     });
     const logger = makeLogger();
+    const dedup = makeDedup();
     const app = createWebhookReceiver({
       secret: SECRET,
       appSlug: "test-app",
-      dedup: makeDedup(),
+      dedup,
       queue: makeQueue(),
       logger,
       allowedRepos: ["org/repo"],
@@ -335,6 +338,8 @@ describe("createWebhookReceiver POST /webhook", () => {
     const res = await app.request(makeRequest(body, "pull_request_review_comment"));
     expect(res.status).toBe(500);
     expect(await res.json()).toMatchObject({ error: "handler failed" });
+    // 再配信（同じ delivery ID）を再処理できるように、既読を取り消す
+    expect(dedup.forget).toHaveBeenCalledWith("d-1");
     expect(logger.error).toHaveBeenCalledWith(
       "webhook.handler.error",
       expect.objectContaining({ errorMessage: "handler boom" }),
@@ -342,5 +347,57 @@ describe("createWebhookReceiver POST /webhook", () => {
 
     vi.restoreAllMocks();
     void handlePullRequestReviewCommentEvent; // suppress unused warning
+  });
+
+  // issue_comment の再レビュー依頼は、検証のために PR を取得する。取得の失敗は一時的なので、
+  // GitHub の再配信（同じ delivery ID）が重複扱いにならず、再処理されて復旧できること。
+  test("PR の取得に失敗した delivery は、同じ delivery ID の再配信で再処理される", async () => {
+    const body = JSON.stringify({
+      ...BASE_REPO,
+      action: "created",
+      sender: { type: "User", login: "alice" },
+      issue: { number: 7, pull_request: { url: "https://api.github.com/repos/org/repo/pulls/7" } },
+      comment: { id: 1, body: "@thread-owl re-review requested", user: { login: "alice" } },
+    });
+    const dedup = createDeliveryDedup();
+    const queue = makeQueue();
+    const getPullRequest = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("GitHub API pulls.get failed (status 502)"))
+      .mockResolvedValueOnce({
+        number: 7,
+        title: "t",
+        body: null,
+        state: "open",
+        draft: false,
+        author: { login: "alice", type: "User" },
+        head: { sha: "h", ref: "f", repo: { fullName: "org/repo", fork: false } },
+        base: { sha: "b", ref: "main" },
+        htmlUrl: "https://github.com/org/repo/pull/7",
+      });
+    const app = createWebhookReceiver({
+      secret: SECRET,
+      appSlug: "thread-owl",
+      dedup,
+      queue,
+      logger: makeLogger(),
+      allowedRepos: ["org/repo"],
+      allowedAuthors: ["alice"],
+      getPullRequest,
+    });
+
+    const first = await app.request(makeRequest(body, "issue_comment", "d-redeliver"));
+    expect(first.status).toBe(500);
+    expect(queue.enqueue).not.toHaveBeenCalled();
+
+    const redelivered = await app.request(makeRequest(body, "issue_comment", "d-redeliver"));
+    expect(redelivered.status).toBe(200);
+    expect(await redelivered.json()).toMatchObject({ status: "ok" });
+    expect(queue.enqueue).toHaveBeenCalledOnce();
+
+    // 処理に成功した delivery は、以後は重複として扱う
+    const again = await app.request(makeRequest(body, "issue_comment", "d-redeliver"));
+    expect(await again.json()).toMatchObject({ status: "duplicate" });
+    dedup.dispose();
   });
 });
