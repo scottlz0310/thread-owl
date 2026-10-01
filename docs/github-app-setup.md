@@ -84,6 +84,8 @@ GitHub App の **Webhook** セクションで以下を設定する:
 GITHUB_APP_ID=<App の数値 ID>
 GITHUB_WEBHOOK_SECRET=<Webhook secret>
 ALLOWED_REPOS=owner/repo1,owner/repo2
+# PR の作成者として信頼する login（自分の login と、再レビューを依頼する bot 名義）。必須。未設定だと、すべて拒否する
+ALLOWED_AUTHORS=your-login,your-bot-app
 
 # App 名を Thread Owl 以外にした場合は slug を変更する（デフォルト: thread-owl）
 APP_SLUG=<GitHub App URL の slug>

@@ -10,7 +10,7 @@
 | `GITHUB_APP_PRIVATE_KEY` | 秘密鍵のいずれか1つ | PEM の改行を `\n` でエスケープした1行（後方互換・脆弱） |
 | `GITHUB_WEBHOOK_SECRET` | `--webhook` モードで必須 | Webhook 署名検証用 HMAC シークレット |
 | `ALLOWED_REPOS` | 必須 | `owner/repo` 形式をカンマ区切りで列挙（空なら全 write 拒否） |
-| `ALLOWED_AUTHORS` | 推奨（次のリリースで必須にする予定） | PR の作成者として信頼する GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せ、fork は常に拒否する。**未設定の間は作成者・fork を検証しない**（暫定。起動時に警告する） |
+| `ALLOWED_AUTHORS` | **必須**（未設定だと、すべて拒否する） | PR の作成者として信頼する GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せ、fork は常に拒否する。**未設定（空）の間は、すべての PR・再レビュー依頼を拒否する**（fail-closed。`ALLOWED_REPOS` が空のときと同じ流儀で、起動は止めず、実行時に拒否する。起動のたびにエラーを記録する） |
 | `APP_SLUG` | 任意（デフォルト: `thread-owl`） | GitHub App の slug。自 App bot イベントのループ防止に使用。App 名を変えた場合は必ず設定する |
 | `PORT` | 任意（デフォルト: 3000） | HTTP サーバーポート |
 | `HOST` | 任意（デフォルト: 127.0.0.1） | HTTP サーバー bind アドレス |
@@ -196,7 +196,8 @@ Claude Desktop の設定例（`claude_desktop_config.json`）:
         "GITHUB_APP_ID": "...",
         "GITHUB_APP_PRIVATE_KEY_FILE": "/path/to/github-app.pem",
         "GITHUB_WEBHOOK_SECRET": "...",
-        "ALLOWED_REPOS": "owner/repo"
+        "ALLOWED_REPOS": "owner/repo",
+        "ALLOWED_AUTHORS": "your-login"
       }
     }
   }
@@ -221,7 +222,7 @@ Claude Desktop の設定例（`claude_desktop_config.json`）:
 ### 移行チェックリスト
 
 1. **GitHub App セットアップ**: [github-app-setup.md](./github-app-setup.md) に従い App を作成・権限設定・秘密鍵取得し、対象リポジトリを所有する organization にインストールする。
-2. **`.env` 設定**: `GITHUB_APP_ID` / 秘密鍵（`*_FILE` 推奨）/ `GITHUB_WEBHOOK_SECRET` / `ALLOWED_REPOS` を設定する。
+2. **`.env` 設定**: `GITHUB_APP_ID` / 秘密鍵（`*_FILE` 推奨）/ `GITHUB_WEBHOOK_SECRET` / `ALLOWED_REPOS` / `ALLOWED_AUTHORS`（必須。未設定だと、すべての PR と再レビュー依頼を拒否する）を設定する。
 3. **Thread Owl 動作確認**:
    - `GET /token?owner=...&repo=...` が allowlist 内リポジトリで `200` + installation token を返す。
    - `node dist/index.js --mcp` が起動し、MCP クライアントから tools が見える。

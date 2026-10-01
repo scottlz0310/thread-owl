@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import type { Logger } from "../../config/logging.js";
+import type { PullRequest } from "../../github/pull-requests.js";
 import type { ReviewQueue } from "../../queue/review-queue.js";
 import type { NormalizedEvent } from "../normalize-event.js";
 import { handleIssueCommentEvent, type IssueCommentHandlerDeps } from "./issue-comment.js";
@@ -20,13 +21,26 @@ function makeLogger(): Logger {
   return { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
 }
 
+// 許可された作成者（human-user）の、同一 repository の PR。投稿者・作成者・fork の検証を通る。
+const TRUSTED_PR: PullRequest = {
+  number: 7,
+  title: "t",
+  body: null,
+  state: "open",
+  draft: false,
+  author: { login: "human-user", type: "User" },
+  head: { sha: "headsha", ref: "feature", repo: { fullName: "org/repo", fork: false } },
+  base: { sha: "basesha", ref: "main" },
+  htmlUrl: "https://github.com/org/repo/pull/7",
+};
+
 function makeDeps(overrides: Partial<IssueCommentHandlerDeps> = {}): IssueCommentHandlerDeps {
   return {
     queue: makeQueue(),
     logger: makeLogger(),
     allowedRepos: ["org/repo"],
-    allowedAuthors: [],
-    getPullRequest: vi.fn().mockRejectedValue(new Error("getPullRequest must not be called")),
+    allowedAuthors: ["human-user"],
+    getPullRequest: vi.fn().mockResolvedValue(TRUSTED_PR),
     appSlug: "thread-owl",
     ...overrides,
   };

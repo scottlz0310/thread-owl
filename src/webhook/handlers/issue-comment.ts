@@ -4,7 +4,6 @@ import { isAllowed } from "../../policy/allowlist.js";
 import {
   evaluatePullRequestOrigin,
   isAuthorAllowed,
-  isAuthorCheckEnabled,
   type OriginRejectionReason,
 } from "../../policy/author-policy.js";
 import type { ReviewQueue } from "../../queue/review-queue.js";
@@ -15,23 +14,26 @@ export interface IssueCommentHandlerDeps {
   queue: ReviewQueue;
   logger: Logger;
   allowedRepos: readonly string[];
-  // PR の作成者 allowlist（正規化済みの login）。空の間は投稿者・作成者・fork を検証しない。
+  // PR の作成者 allowlist（正規化済みの login）。空の間は、すべて拒否する（fail-closed）。
   allowedAuthors: readonly string[];
-  // 検証が有効なときだけ呼ぶ。取得に失敗したら例外のまま伝播し、enqueue しない（fail-closed）。
+  // 投稿者が許可されたときだけ呼ぶ。取得に失敗したら例外のまま伝播し、enqueue しない（fail-closed）。
   getPullRequest: (owner: string, repo: string, prNumber: number) => Promise<PullRequest>;
   appSlug: string;
 }
 
-export type CommenterRejection = "commenter_unknown" | "commenter_not_allowed";
+export type CommenterRejection =
+  | "author_allowlist_empty"
+  | "commenter_unknown"
+  | "commenter_not_allowed";
 
 export type CommentOriginRejection = CommenterRejection | OriginRejectionReason;
 
-// 再レビュー依頼のコメントの投稿者を検証する。検証が無効（allowlist が空）なら許可する。
+// 再レビュー依頼のコメントの投稿者を検証する。allowlist が空（未設定）なら、すべて拒否する（fail-closed）。
 export function evaluateCommenter(
   allowedAuthors: readonly string[],
   commenterLogin: string | null,
 ): CommenterRejection | null {
-  if (!isAuthorCheckEnabled(allowedAuthors)) return null;
+  if (allowedAuthors.length === 0) return "author_allowlist_empty";
   if (commenterLogin === null) return "commenter_unknown";
   if (!isAuthorAllowed(allowedAuthors, commenterLogin)) return "commenter_not_allowed";
   return null;
@@ -95,34 +97,32 @@ export async function handleIssueCommentEvent(
 
   // 許可された投稿者が、他者の PR や fork の PR への再レビューを依頼して queue に載せることを防ぐ。
   // payload に head の repository が無いため、PR を取得して作成者と fork を照合する。
-  if (isAuthorCheckEnabled(deps.allowedAuthors)) {
-    const commenterLogin = requestedBy ?? null;
-    const commenterRejection = evaluateCommenter(deps.allowedAuthors, commenterLogin);
-    let rejection: CommentOriginRejection | null = commenterRejection;
-    let prAuthorLogin: string | null | undefined;
-    if (commenterRejection === null) {
-      const pr = await deps.getPullRequest(owner, repo, prNumber);
-      prAuthorLogin = pr.author?.login ?? null;
-      const decision = evaluatePullRequestOrigin(deps.allowedAuthors, {
-        authorLogin: prAuthorLogin,
-        fork: pr.head.repo === null ? null : pr.head.repo.fork,
-      });
-      rejection = decision.allowed ? null : decision.reason;
-    }
-    if (rejection !== null) {
-      // 拒否は監査ログに残す。login は記録するが、コメント本文は記録しない。
-      // prAuthorLogin は、PR を取得した場合だけ記録する。
-      deps.logger.info("webhook.issue_comment.origin.rejected", {
-        event: "webhook.issue_comment.origin.rejected",
-        owner,
-        repo,
-        prNumber,
-        reason: rejection,
-        commenterLogin,
-        ...(prAuthorLogin === undefined ? {} : { prAuthorLogin }),
-      });
-      return;
-    }
+  const commenterLogin = requestedBy ?? null;
+  const commenterRejection = evaluateCommenter(deps.allowedAuthors, commenterLogin);
+  let rejection: CommentOriginRejection | null = commenterRejection;
+  let prAuthorLogin: string | null | undefined;
+  if (commenterRejection === null) {
+    const pr = await deps.getPullRequest(owner, repo, prNumber);
+    prAuthorLogin = pr.author?.login ?? null;
+    const decision = evaluatePullRequestOrigin(deps.allowedAuthors, {
+      authorLogin: prAuthorLogin,
+      fork: pr.head.repo === null ? null : pr.head.repo.fork,
+    });
+    rejection = decision.allowed ? null : decision.reason;
+  }
+  if (rejection !== null) {
+    // 拒否は監査ログに残す。login は記録するが、コメント本文は記録しない。
+    // prAuthorLogin は、PR を取得した場合だけ記録する。
+    deps.logger.info("webhook.issue_comment.origin.rejected", {
+      event: "webhook.issue_comment.origin.rejected",
+      owner,
+      repo,
+      prNumber,
+      reason: rejection,
+      commenterLogin,
+      ...(prAuthorLogin === undefined ? {} : { prAuthorLogin }),
+    });
+    return;
   }
 
   deps.queue.enqueue({

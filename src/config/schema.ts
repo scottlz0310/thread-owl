@@ -16,7 +16,7 @@ export const appConfigSchema = z.object({
     // 形式検証・正規化は parseAllowlist（policy/allowlist.ts）に一元化している
     allowedRepos: z.array(z.string()),
     // 形式検証・正規化は parseAuthorAllowlist（policy/author-policy.ts）に一元化している。
-    // 空は「未設定」で、その間は PR の作成者・fork を検証しない（互換のための暫定）。
+    // 空は「未設定」で、その間は PR の作成者・fork を検証できないため、すべて拒否する（fail-closed）。
     allowedAuthors: z.array(z.string()).default([]),
   }),
   server: z.object({

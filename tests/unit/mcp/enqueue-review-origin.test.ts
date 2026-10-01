@@ -152,15 +152,22 @@ describe("enqueue_review の作成者・fork の検証", () => {
     expect(deps.queue.list()).toHaveLength(0);
   });
 
-  test("検証が無効（allowlist が空）なら、PR を取得せずに enqueue する（暫定の互換動作）", async () => {
+  test("allowlist が空（未設定）なら、PR を取得せずに拒否する（fail-closed）", async () => {
     const get = vi.fn();
-    const { deps, getClient } = makeDeps({ get }, { allowedAuthors: [] });
+    const { deps, logger, getClient } = makeDeps({ get }, { allowedAuthors: [] });
 
-    await expect(enqueueReviewTool(deps, INPUT)).resolves.toEqual({ ok: true });
+    await expect(enqueueReviewTool(deps, INPUT)).rejects.toMatchObject({
+      name: "PullRequestOriginNotAllowedError",
+      reason: "author_allowlist_empty",
+    });
 
     expect(getClient).not.toHaveBeenCalled();
     expect(get).not.toHaveBeenCalled();
-    expect(deps.queue.list()).toHaveLength(1);
+    expect(deps.queue.list()).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "enqueue_review.origin.rejected",
+      expect.objectContaining({ reason: "author_allowlist_empty", authorLogin: null }),
+    );
   });
 
   test("リポジトリ allowlist 外は、PR を取得する前に拒否する", async () => {

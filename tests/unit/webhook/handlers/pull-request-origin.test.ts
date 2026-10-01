@@ -143,19 +143,24 @@ describe("pull_request webhook の作成者・fork の検証", () => {
     expect(queue.enqueue).toHaveBeenCalled();
   });
 
-  test("検証が無効（allowlist が空）なら、作成者・fork を見ずに enqueue する（暫定の互換動作）", async () => {
+  test("allowlist が空（未設定）なら、すべて拒否して監査ログに残す（fail-closed）", async () => {
     const queue = makeQueue();
+    const logger = makeLogger();
 
     await handlePullRequestEvent(
-      makeEvent({ user: { login: "mallory" }, head: { repo: { full_name: "mallory/repo" } } }),
+      makeEvent({ user: { login: "alice" }, head: { repo: { full_name: "org/repo" } } }),
       {
         queue,
-        logger: makeLogger(),
+        logger,
         allowedRepos: ALLOWED_REPOS,
         allowedAuthors: [],
       },
     );
 
-    expect(queue.enqueue).toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      "webhook.pull_request.origin.rejected",
+      expect.objectContaining({ reason: "author_allowlist_empty", authorLogin: "alice" }),
+    );
   });
 });
