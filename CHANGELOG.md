@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-01
+
 ### Changed
 - **破壊的変更**: `ALLOWED_AUTHORS` が未設定（空）のときは、作成者・投稿者・fork を検証せずに許可するのをやめ、**すべての PR と再レビュー依頼を拒否する**（fail-closed）ようにした（#244。#236 の段階導入の第 2 段）。`ALLOWED_REPOS` が空のときと同じ流儀で、起動は止めず、実行時に拒否する。webhook の `pull_request`・`issue_comment` と `enqueue_review` のすべてが対象で、拒否の理由は `author_allowlist_empty`（`enqueue_review` は PR を取得せずに拒否し、`PullRequestOriginNotAllowedError` を返す）。起動時の警告（`config.allowed_authors.unset`）は、拒否を示すエラーのログに置き換えた。**運用者は、更新の前に `ALLOWED_AUTHORS`（自分の login と、再レビューを依頼する bot 名義。必要なら renovate など）を設定すること**。設定しないまま更新すると、すべてのレビューが止まる。内部の `isAuthorCheckEnabled` は廃止した（検証は常に行う）。
 
