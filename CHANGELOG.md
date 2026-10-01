@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-01
+
 ### Added
 - `get_pr` の返却に、PR の作成者（`pr.author`: `login` と `type`。アカウントが削除されていて取得できない場合は null）と、head の repository（`pr.head.repo`: `fullName` と `fork`。head の repository が削除されている場合は null）を加えた（#236）。reviewer が、ローカル検証の前に、他者の PR や fork からの PR を識別するための前提で、既存の項目は変わらない（後方互換な追加）。`fork` は「head の repository が base と別」（`full_name` を大文字小文字を区別せずに比較）を表す。GitHub の `repo.fork`（その repository が fork か）は、base 自体が fork の場合に同一 repository の PR でも true になるため使わない。作成者・fork の検証そのもの（webhook と `enqueue_review`）は、続く変更で行う。
 - 環境変数 `ALLOWED_AUTHORS`（PR の作成者として信頼する GitHub の login のカンマ区切り）を追加し、他者の PR・fork からの PR を既定で queue に載せないようにした（#236）。設定すると、許可された作成者の**同一リポジトリの PR だけ**を受け付け、**fork からの PR は作成者が許可されていても常に拒否**する（head の repository が削除されている場合を含む）。`enqueue_review` は、GitHub API で PR を取得して照合する（`requestedBy` は自己申告のため使わない。取得に失敗したら fail-closed で、queue にも `review://status` にも載せない）。webhook の `pull_request` は `pr.user.login` と `pr.head.repo.full_name` を、`issue_comment`（再レビュー依頼）は、投稿者が許可されている場合に、GitHub API で PR を取得して作成者と fork を照合する（payload に head の repository が無いため。投稿者が許可されていなければ、PR は取得しない。取得に失敗したら fail-closed）。login は、小文字にして末尾の `[bot]` を 1 回だけ取り除いて比較し（Mcp-Docker の skill の `normalize_login` と同じ規則）、形式不正（wildcard を含む）は起動時に拒否する。拒否は監査ログに残す（作成者・投稿者の login は記録し、本文は記録しない）。**暫定（段階導入）**: `ALLOWED_AUTHORS` が未設定の間は検証しない（互換のため）。起動のたびに警告し、次のリリースで未設定を fail-closed に変更する予定なので、先に設定すること（自分の login と、再レビューを依頼する bot 名義など）。`docs/security.md`・`docs/operations.md`・`.env.example` に追記。`ToolDeps` に `allowedAuthors` と `logger` を、`createWebhookReceiver` の deps に `allowedAuthors` と `getPullRequest` を加えた（内部 API の変更）。
