@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   evaluatePullRequestOrigin,
   isAuthorAllowed,
-  isAuthorCheckEnabled,
   normalizeLogin,
   PullRequestOriginNotAllowedError,
   parseAuthorAllowlist,
@@ -53,10 +52,9 @@ describe("parseAuthorAllowlist", () => {
   });
 });
 
-describe("isAuthorCheckEnabled / isAuthorAllowed", () => {
-  it("allowlist が空の間は検証が無効", () => {
-    expect(isAuthorCheckEnabled([])).toBe(false);
-    expect(isAuthorCheckEnabled(["alice"])).toBe(true);
+describe("isAuthorAllowed", () => {
+  it("allowlist が空なら、誰も許可されない", () => {
+    expect(isAuthorAllowed([], "alice")).toBe(false);
   });
 
   it.each([
@@ -75,12 +73,20 @@ describe("evaluatePullRequestOrigin", () => {
   const ALLOWED = ["alice"];
 
   it.each([
+    // allowlist が空（未設定）なら、作成者や fork の状態にかかわらず拒否する（fail-closed）。
     {
-      name: "検証が無効なら、何であっても許可（暫定）",
+      name: "allowlist が空なら、許可されそうな PR でも拒否",
+      allowed: [],
+      authorLogin: "alice",
+      fork: false,
+      expected: { allowed: false, reason: "author_allowlist_empty" },
+    },
+    {
+      name: "allowlist が空なら、作成者も head も取得できない場合も、空を理由に拒否",
       allowed: [],
       authorLogin: null,
       fork: null,
-      expected: { allowed: true },
+      expected: { allowed: false, reason: "author_allowlist_empty" },
     },
     {
       name: "許可された作成者の同一 repository の PR",

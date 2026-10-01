@@ -31,11 +31,6 @@ export function parseAuthorAllowlist(raw: string): string[] {
   return [...logins];
 }
 
-// 作成者 allowlist が空（未設定）の間は、検証を行わない（互換のための暫定。起動時に警告する）。
-export function isAuthorCheckEnabled(allowedAuthors: readonly string[]): boolean {
-  return allowedAuthors.length > 0;
-}
-
 export function isAuthorAllowed(allowedAuthors: readonly string[], login: string): boolean {
   return allowedAuthors.includes(normalizeLogin(login));
 }
@@ -48,6 +43,7 @@ export interface PullRequestOrigin {
 }
 
 export type OriginRejectionReason =
+  | "author_allowlist_empty"
   | "author_unknown"
   | "author_not_allowed"
   | "head_repo_unknown"
@@ -55,13 +51,14 @@ export type OriginRejectionReason =
 
 export type OriginDecision = { allowed: true } | { allowed: false; reason: OriginRejectionReason };
 
-// PR の作成者と head の repository を検証する。検証が有効なときは、判定できないものを拒否する（fail-closed）。
+// PR の作成者と head の repository を検証する。判定できないものは拒否する（fail-closed）。
+// allowlist が空（未設定）のときは、信頼する作成者がいないため、すべて拒否する（ALLOWED_REPOS が空のときと同じ流儀）。
 // fork は、作成者が許可されていても拒否する。
 export function evaluatePullRequestOrigin(
   allowedAuthors: readonly string[],
   origin: PullRequestOrigin,
 ): OriginDecision {
-  if (!isAuthorCheckEnabled(allowedAuthors)) return { allowed: true };
+  if (allowedAuthors.length === 0) return { allowed: false, reason: "author_allowlist_empty" };
   if (origin.authorLogin === null) return { allowed: false, reason: "author_unknown" };
   if (!isAuthorAllowed(allowedAuthors, origin.authorLogin)) {
     return { allowed: false, reason: "author_not_allowed" };

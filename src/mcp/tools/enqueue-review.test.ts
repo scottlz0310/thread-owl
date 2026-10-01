@@ -1,19 +1,35 @@
 import { describe, expect, test, vi } from "vitest";
+import type { GitHubClient } from "../../github/client.js";
 import { RepositoryNotAllowedError } from "../../policy/allowlist.js";
 import { createReviewQueue } from "../../queue/review-queue.js";
 import { createReviewStatusStore } from "../../queue/review-status.js";
 import { type EnqueueReviewToolDeps, enqueueReviewTool } from "./enqueue-review.js";
 
+// 許可された作成者（alice）の、同一 repository の PR を返す。作成者・fork の検証を通る。
+const pulls = {
+  get: vi.fn(async () => ({
+    data: {
+      number: 1,
+      title: "t",
+      body: null,
+      state: "open",
+      draft: false,
+      user: { login: "alice", type: "User" },
+      head: { sha: "headsha", ref: "feature", repo: { full_name: "org/repo" } },
+      base: { sha: "basesha", ref: "main", repo: { full_name: "org/repo" } },
+      html_url: "https://github.com/org/repo/pull/1",
+    },
+  })),
+};
+
 function makeDeps(overrides: Partial<EnqueueReviewToolDeps> = {}): EnqueueReviewToolDeps {
   return {
-    getClient: async (): Promise<never> => {
-      throw new Error("not used");
-    },
+    getClient: async () => ({ rest: { pulls } }) as unknown as GitHubClient,
     getWriteContext: async (): Promise<never> => {
       throw new Error("not used");
     },
     allowedRepos: ["org/repo"],
-    allowedAuthors: [],
+    allowedAuthors: ["alice"],
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     resolveInstallationId: async (): Promise<number> => 123,
     queue: createReviewQueue(),

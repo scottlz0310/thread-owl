@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Logger } from "../../../../src/config/logging.js";
+import type { PullRequest } from "../../../../src/github/pull-requests.js";
 import type { ReviewQueue } from "../../../../src/queue/review-queue.js";
 import {
   detectReReviewMention,
@@ -80,13 +81,26 @@ function makeEvent(payloadOverrides: Record<string, unknown> = {}): NormalizedEv
   };
 }
 
+// 許可された作成者（human-user）の、同一 repository の PR。投稿者・作成者・fork の検証を通る。
+const TRUSTED_PR: PullRequest = {
+  number: 7,
+  title: "t",
+  body: null,
+  state: "open",
+  draft: false,
+  author: { login: "human-user", type: "User" },
+  head: { sha: "headsha", ref: "feature", repo: { fullName: "org/repo", fork: false } },
+  base: { sha: "basesha", ref: "main" },
+  htmlUrl: "https://github.com/org/repo/pull/7",
+};
+
 function makeDeps(overrides: Partial<IssueCommentHandlerDeps> = {}): IssueCommentHandlerDeps {
   return {
     queue: makeQueue(),
     logger: makeLogger(),
     allowedRepos: ["org/my-repo"],
-    allowedAuthors: [],
-    getPullRequest: vi.fn().mockRejectedValue(new Error("getPullRequest must not be called")),
+    allowedAuthors: ["human-user"],
+    getPullRequest: vi.fn().mockResolvedValue(TRUSTED_PR),
     appSlug: APP_SLUG,
     ...overrides,
   };
@@ -164,7 +178,7 @@ describe("handleIssueCommentEvent", () => {
         comment: {
           id: 1,
           body: `@thread-owl ${keyword}`,
-          user: { login: "someone" },
+          user: { login: "human-user" },
         },
       });
       await handleIssueCommentEvent(event, deps);
@@ -176,22 +190,14 @@ describe("handleIssueCommentEvent", () => {
     },
   );
 
-  it("comment.user が欠落しても requestedBy を undefined で enqueue する", async () => {
-    const deps = makeDeps();
-    const event = makeEvent({
-      comment: { id: 5, body: "@thread-owl re-review" },
-    });
-    await handleIssueCommentEvent(event, deps);
-
-    expect(deps.queue.enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ requestedBy: undefined }),
-    );
-  });
-
   it("comment.id が数値でない場合 sourceCommentId を undefined で enqueue する", async () => {
     const deps = makeDeps();
     const event = makeEvent({
-      comment: { id: "not-a-number", body: "@thread-owl re-review", user: { login: "human" } },
+      comment: {
+        id: "not-a-number",
+        body: "@thread-owl re-review",
+        user: { login: "human-user" },
+      },
     });
     await handleIssueCommentEvent(event, deps);
 

@@ -86,7 +86,12 @@ describe("evaluateCommenter", () => {
   const ALLOWED = ["alice", "bot-app"];
 
   it.each([
-    { name: "検証が無効なら許可（暫定）", allowed: [], commenter: null, expected: null },
+    {
+      name: "allowlist が空（未設定）なら、すべて拒否（fail-closed）",
+      allowed: [],
+      commenter: "alice",
+      expected: "author_allowlist_empty",
+    },
     { name: "許可された投稿者", allowed: ALLOWED, commenter: "alice", expected: null },
     {
       name: "bot 名義の投稿者（[bot] の有無を問わない）",
@@ -228,15 +233,16 @@ describe("issue_comment webhook の投稿者・PR の作成者・fork の検証"
     );
   });
 
-  test("検証が無効（allowlist が空）なら、PR を取得せず enqueue する（暫定の互換動作）", async () => {
-    const deps = makeDeps(
-      { author: "mallory", headRepo: { fullName: "mallory/repo", fork: true } },
-      { allowedAuthors: [] },
-    );
+  test("allowlist が空（未設定）なら、PR を取得せず、拒否して監査ログに残す（fail-closed）", async () => {
+    const deps = makeDeps({ author: "alice", headRepo: SAME_REPO }, { allowedAuthors: [] });
 
-    await handleIssueCommentEvent(makeEvent({ login: "mallory" }), deps);
+    await handleIssueCommentEvent(makeEvent({ login: "alice" }), deps);
 
     expect(deps.getPullRequest).not.toHaveBeenCalled();
-    expect(deps.queue.enqueue).toHaveBeenCalled();
+    expect(deps.queue.enqueue).not.toHaveBeenCalled();
+    expect(deps.logger.info).toHaveBeenCalledWith(
+      "webhook.issue_comment.origin.rejected",
+      expect.objectContaining({ reason: "author_allowlist_empty", commenterLogin: "alice" }),
+    );
   });
 });

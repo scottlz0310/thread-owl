@@ -19,9 +19,9 @@ export interface WebhookReceiverDeps {
   queue: ReviewQueue;
   logger: Logger;
   allowedRepos: readonly string[];
-  // PR の作成者 allowlist（正規化済みの login）。空の間は作成者・fork を検証しない。
+  // PR の作成者 allowlist（正規化済みの login）。空の間は、すべて拒否する（fail-closed）。
   allowedAuthors: readonly string[];
-  // issue_comment の再レビュー依頼で、作成者と fork の検証に使う（検証が有効なときだけ呼ぶ）。
+  // issue_comment の再レビュー依頼で、作成者と fork の検証に使う（投稿者が許可されたときだけ呼ぶ）。
   getPullRequest: (owner: string, repo: string, prNumber: number) => Promise<PullRequest>;
 }
 

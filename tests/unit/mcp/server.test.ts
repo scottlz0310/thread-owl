@@ -5,6 +5,7 @@ import {
   type ReadResourceResult,
 } from "@modelcontextprotocol/server";
 import { describe, expect, it, test, vi } from "vitest";
+import type { GitHubClient } from "../../../src/github/client.js";
 import {
   createMcpServer,
   QUEUE_RESOURCE_URI,
@@ -31,6 +32,24 @@ function makeDeps(): ToolDeps {
   };
 }
 
+// 許可された作成者（alice）の、同一 repository の PR を返す。enqueue_review の作成者・fork の検証を通る。
+function makeTrustedPullRequestClient(): GitHubClient {
+  const get = vi.fn(async () => ({
+    data: {
+      number: 1,
+      title: "t",
+      body: null,
+      state: "open",
+      draft: false,
+      user: { login: "alice", type: "User" },
+      head: { sha: "headsha", ref: "feature", repo: { full_name: "org/repo" } },
+      base: { sha: "basesha", ref: "main", repo: { full_name: "org/repo" } },
+      html_url: "https://github.com/org/repo/pull/1",
+    },
+  }));
+  return { rest: { pulls: { get } } } as unknown as GitHubClient;
+}
+
 function makeCandidate(prNumber = 1): ReviewCandidate {
   return {
     owner: "org",
@@ -50,6 +69,8 @@ async function setupServerAndClient(
     {
       ...makeDeps(),
       allowedRepos: ["org/repo"],
+      allowedAuthors: ["alice"],
+      getClient: async () => makeTrustedPullRequestClient(),
       resolveInstallationId: async () => 1,
       queue,
       reviewStatus,

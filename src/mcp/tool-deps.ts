@@ -10,7 +10,7 @@ export interface ToolDeps {
   getClient: (owner: string, repo: string) => Promise<GitHubClient>;
   getWriteContext: (owner: string, repo: string) => Promise<WriteContext>;
   allowedRepos: readonly string[];
-  // PR の作成者 allowlist（正規化済みの login）。空の間は作成者・fork を検証しない。
+  // PR の作成者 allowlist（正規化済みの login）。空の間は、すべて拒否する（fail-closed）。
   allowedAuthors: readonly string[];
   logger: Logger;
   resolveInstallationId: (owner: string, repo: string) => Promise<number>;

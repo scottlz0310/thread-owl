@@ -8,7 +8,7 @@ import { createWebhookReceiver } from "./receiver.js";
 
 const SECRET = "test-secret";
 
-// 検証が無効（allowedAuthors が空）なら呼ばれない。呼ばれたらテストを失敗させる。
+// allowedAuthors が空なら、投稿者の検証で拒否され、呼ばれない。呼ばれたらテストを失敗させる。
 const unexpectedGetPullRequest = vi
   .fn()
   .mockRejectedValue(new Error("getPullRequest must not be called"));

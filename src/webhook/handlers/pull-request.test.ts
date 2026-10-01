@@ -35,13 +35,20 @@ function makeEvent(
       action,
       installation: { id: 1 },
       repository: { name: "repo", owner: { login: "org" } },
-      pull_request: { number: 7, draft },
+      // 検証が読む項目（作成者、head の repository）。許可された作成者の、同一 repository の PR。
+      pull_request: {
+        number: 7,
+        draft,
+        user: { login: "alice" },
+        head: { repo: { full_name: "org/repo" } },
+      },
     },
     ...rest,
   };
 }
 
 const ALLOWED = ["org/repo"];
+const AUTHORS = ["alice"];
 
 describe.each([
   { action: "opened", reason: "opened" },
@@ -55,7 +62,7 @@ describe.each([
       queue,
       logger,
       allowedRepos: ALLOWED,
-      allowedAuthors: [],
+      allowedAuthors: AUTHORS,
     });
 
     expect(queue.enqueue).toHaveBeenCalledWith(
@@ -80,7 +87,7 @@ test("無関係な action は無視する", async () => {
     queue,
     logger: makeLogger(),
     allowedRepos: ALLOWED,
-    allowedAuthors: [],
+    allowedAuthors: AUTHORS,
   });
   expect(queue.enqueue).not.toHaveBeenCalled();
 });
@@ -92,7 +99,7 @@ test("draft PR (opened) はスキップする", async () => {
     queue,
     logger,
     allowedRepos: ALLOWED,
-    allowedAuthors: [],
+    allowedAuthors: AUTHORS,
   });
   expect(queue.enqueue).not.toHaveBeenCalled();
   expect(logger.debug).toHaveBeenCalledWith(
@@ -107,7 +114,7 @@ test("draft PR でも ready_for_review は enqueue する", async () => {
     queue,
     logger: makeLogger(),
     allowedRepos: ALLOWED,
-    allowedAuthors: [],
+    allowedAuthors: AUTHORS,
   });
   expect(queue.enqueue).toHaveBeenCalled();
 });
@@ -119,7 +126,7 @@ test("allowlist 外のリポジトリは無視する", async () => {
     queue,
     logger,
     allowedRepos: ALLOWED,
-    allowedAuthors: [],
+    allowedAuthors: AUTHORS,
   });
   expect(queue.enqueue).not.toHaveBeenCalled();
   expect(logger.debug).toHaveBeenCalledWith(
@@ -143,7 +150,7 @@ test("payload が record でない場合は何もしない", async () => {
     queue,
     logger: makeLogger(),
     allowedRepos: ALLOWED,
-    allowedAuthors: [],
+    allowedAuthors: AUTHORS,
   });
   expect(queue.enqueue).not.toHaveBeenCalled();
 });
@@ -163,7 +170,7 @@ test("pull_request フィールドが record でない場合は何もしない",
     queue,
     logger: makeLogger(),
     allowedRepos: ALLOWED,
-    allowedAuthors: [],
+    allowedAuthors: AUTHORS,
   });
   expect(queue.enqueue).not.toHaveBeenCalled();
 });
@@ -183,7 +190,7 @@ test("prNumber が undefined の場合は何もしない", async () => {
     queue,
     logger: makeLogger(),
     allowedRepos: ALLOWED,
-    allowedAuthors: [],
+    allowedAuthors: AUTHORS,
   });
   expect(queue.enqueue).not.toHaveBeenCalled();
 });
@@ -191,7 +198,7 @@ test("prNumber が undefined の場合は何もしない", async () => {
 test("同一 PR を再 enqueue しても重複エントリを作らない", async () => {
   const { createReviewQueue } = await import("../../queue/review-queue.js");
   const queue = createReviewQueue();
-  const deps = { queue, logger: makeLogger(), allowedRepos: ALLOWED, allowedAuthors: [] };
+  const deps = { queue, logger: makeLogger(), allowedRepos: ALLOWED, allowedAuthors: AUTHORS };
 
   await handlePullRequestEvent(makeEvent({ action: "opened" }), deps);
   await handlePullRequestEvent(makeEvent({ action: "synchronize" }), deps);

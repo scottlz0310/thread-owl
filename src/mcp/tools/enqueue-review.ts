@@ -7,7 +7,7 @@ import { getPR } from "../../github/pull-requests.js";
 import { isAllowed, RepositoryNotAllowedError } from "../../policy/allowlist.js";
 import {
   evaluatePullRequestOrigin,
-  isAuthorCheckEnabled,
+  type PullRequestOrigin,
   PullRequestOriginNotAllowedError,
 } from "../../policy/author-policy.js";
 import type { ReviewQueue } from "../../queue/review-queue.js";
@@ -31,6 +31,22 @@ export interface EnqueueReviewToolDeps extends ToolDeps {
   reviewStatus?: ReviewStatusStore;
 }
 
+// 作成者・fork の照合に使う項目を、PR から読む。allowlist が空なら、どの作成者も許可されないため、PR を取得しない。
+async function readOrigin(
+  deps: EnqueueReviewToolDeps,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<PullRequestOrigin> {
+  if (deps.allowedAuthors.length === 0) return { authorLogin: null, fork: null };
+  const client = await deps.getClient(owner, repo);
+  const pr = await getPR(client, owner, repo, prNumber);
+  return {
+    authorLogin: pr.author?.login ?? null,
+    fork: pr.head.repo === null ? null : pr.head.repo.fork,
+  };
+}
+
 export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: EnqueueReviewInput) {
   const { owner, repo, prNumber, reason, requestedBy } = input;
 
@@ -38,28 +54,22 @@ export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: Enqu
     throw new RepositoryNotAllowedError(owner, repo);
   }
 
-  // 作成者・fork の検証が有効なときは、queue に載せる前に PR を取得して照合する。
+  // queue に載せる前に、PR を取得して作成者・fork を照合する。allowlist が空（未設定）なら、PR を取得せずに拒否する。
   // 取得に失敗したら例外のまま伝播し、enqueue しない（fail-closed）。
-  if (isAuthorCheckEnabled(deps.allowedAuthors)) {
-    const client = await deps.getClient(owner, repo);
-    const pr = await getPR(client, owner, repo, prNumber);
-    const authorLogin = pr.author?.login ?? null;
-    const decision = evaluatePullRequestOrigin(deps.allowedAuthors, {
+  const origin = await readOrigin(deps, owner, repo, prNumber);
+  const { authorLogin } = origin;
+  const decision = evaluatePullRequestOrigin(deps.allowedAuthors, origin);
+  if (!decision.allowed) {
+    // 拒否は監査ログに残す。作成者の login は記録するが、本文は記録しない。
+    deps.logger.warn("enqueue_review.origin.rejected", {
+      event: "enqueue_review.origin.rejected",
+      owner,
+      repo,
+      prNumber,
+      reason: decision.reason,
       authorLogin,
-      fork: pr.head.repo === null ? null : pr.head.repo.fork,
     });
-    if (!decision.allowed) {
-      // 拒否は監査ログに残す。作成者の login は記録するが、本文は記録しない。
-      deps.logger.warn("enqueue_review.origin.rejected", {
-        event: "enqueue_review.origin.rejected",
-        owner,
-        repo,
-        prNumber,
-        reason: decision.reason,
-        authorLogin,
-      });
-      throw new PullRequestOriginNotAllowedError(owner, repo, prNumber, decision.reason);
-    }
+    throw new PullRequestOriginNotAllowedError(owner, repo, prNumber, decision.reason);
   }
 
   const installationId = await deps.resolveInstallationId(owner, repo);
