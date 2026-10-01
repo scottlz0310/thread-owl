@@ -266,7 +266,7 @@ POST /webhook
 - 署名検証: `GITHUB_WEBHOOK_SECRET` を使用した HMAC-SHA256 検証。署名不一致は `401` を返す
 - 自己ループ防止: `APP_SLUG` に一致する bot sender からのイベントはスキップする
 - allowlist: `ALLOWED_REPOS` 外のリポジトリからのイベントはハンドラ内で無視する
-- 重複配信: delivery ID ベースの dedup（TTL 24h）で同一 delivery ID を無視する
+- 重複配信: delivery ID ベースの dedup（TTL 24h）で同一 delivery ID を無視する。ただし、handler が失敗して `500` を返した delivery は既読を取り消すため、同じ delivery ID の再配信は再処理される
 
 Webhook の設定手順・疎通確認は [webhook-operations.md](./webhook-operations.md) を参照。
 
