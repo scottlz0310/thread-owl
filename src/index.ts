@@ -12,6 +12,7 @@ import { getInstallationToken } from "./app-auth/installation-token.js";
 import { createTokenCache } from "./app-auth/token-cache.js";
 import { loadEnv } from "./config/env.js";
 import { createLogger } from "./config/logging.js";
+import { createPullRequestFetcher } from "./github/pull-requests.js";
 import { getHealth } from "./internal-api/health.js";
 import { getStatus } from "./internal-api/status.js";
 import { type IssueTokenDeps, issueToken } from "./internal-api/token-source.js";
@@ -204,6 +205,7 @@ if (mode === "mcp-stdio") {
       logger,
       allowedRepos: config.policy.allowedRepos,
       allowedAuthors: config.policy.allowedAuthors,
+      getPullRequest: createPullRequestFetcher(buildToolDeps(issueTokenDeps).getClient),
     }),
   );
 
@@ -238,6 +240,7 @@ if (mode === "mcp-stdio") {
       logger,
       allowedRepos: config.policy.allowedRepos,
       allowedAuthors: config.policy.allowedAuthors,
+      getPullRequest: createPullRequestFetcher(buildToolDeps(runtime.issueTokenDeps).getClient),
     }),
   );
 

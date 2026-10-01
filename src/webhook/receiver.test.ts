@@ -7,6 +7,11 @@ import { createWebhookReceiver } from "./receiver.js";
 
 const SECRET = "test-secret";
 
+// 検証が無効（allowedAuthors が空）なら呼ばれない。呼ばれたらテストを失敗させる。
+const unexpectedGetPullRequest = vi
+  .fn()
+  .mockRejectedValue(new Error("getPullRequest must not be called"));
+
 function sign(body: string): string {
   return `sha256=${createHmac("sha256", SECRET).update(body).digest("hex")}`;
 }
@@ -82,6 +87,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(makePrBody(), "pull_request", "d-1", "sha256=bad"));
     expect(res.status).toBe(401);
@@ -97,6 +103,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const body = makePrBody();
     const res = await app.request(makeRequest(body, "pull_request"));
@@ -114,6 +121,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(body, "push"));
     expect(res.status).toBe(200);
@@ -130,6 +138,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(400);
@@ -151,6 +160,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(200);
@@ -172,6 +182,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(200);
@@ -188,6 +199,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(body, "pull_request"));
     expect(res.status).toBe(400);
@@ -236,6 +248,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(b, eventType));
     expect(res.status).toBe(200);
@@ -251,6 +264,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger: makeLogger(),
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     // ヘッダーを一切付けないリクエスト → signature="" で検証失敗
     const res = await app.request(
@@ -280,6 +294,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger,
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(body, "pull_request_review_comment"));
     expect(res.status).toBe(500);
@@ -315,6 +330,7 @@ describe("createWebhookReceiver POST /webhook", () => {
       logger,
       allowedRepos: ["org/repo"],
       allowedAuthors: [],
+      getPullRequest: unexpectedGetPullRequest,
     });
     const res = await app.request(makeRequest(body, "pull_request_review_comment"));
     expect(res.status).toBe(500);

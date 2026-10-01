@@ -34,6 +34,14 @@ export function getPR(
   return getPullRequest(client, owner, repo, prNumber);
 }
 
+// owner/repo ごとに read 用の client を得て PR を取得する関数を作る。webhook の検証で使う。
+export function createPullRequestFetcher(
+  getClient: (owner: string, repo: string) => Promise<GitHubClient>,
+): (owner: string, repo: string, prNumber: number) => Promise<PullRequest> {
+  return async (owner, repo, prNumber) =>
+    getPR(await getClient(owner, repo), owner, repo, prNumber);
+}
+
 export function getPRFiles(
   client: GitHubClient,
   owner: string,

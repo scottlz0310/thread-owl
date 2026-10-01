@@ -40,10 +40,10 @@ Thread Owl は GitHub App の private key と installation token を扱う。
 - 検証する入口:
   - `enqueue_review`: GitHub API で PR を取得して照合する。`requestedBy` は自己申告で信頼しない。取得に失敗したら fail-closed で、queue にも `review://status` にも載せない
   - webhook `pull_request`: `pr.user.login` と `pr.head.repo.full_name` を照合する。読めない項目は拒否する
-  - webhook `issue_comment`（再レビュー依頼）: コメントの投稿者と PR の作成者の**両方**が許可されている場合だけ受け付ける。payload に head の repository が無いため、fork は検証しない（fork は PR の webhook、`enqueue_review`、`get_pr` の `head.repo` で検出する）
+  - webhook `issue_comment`（再レビュー依頼）: コメントの投稿者が許可されている場合だけ、GitHub API で PR を取得して、PR の作成者と fork を照合する（payload に head の repository が無いため）。投稿者が許可されていなければ、PR を取得せずに拒否する。PR の取得に失敗したら例外のまま伝播し、queue に載せない（fail-closed）。許可された投稿者でも、他者の PR や fork の PR への再レビューは queue に載せない
 - 拒否は監査ログに残す。作成者・投稿者の login は記録するが、本文は記録しない
 - `get_pr` は、reviewer が実行前に検証できるよう、作成者（`author`）と head の repository（`head.repo.fork`）を返す
-- **暫定**: `ALLOWED_AUTHORS` が未設定の間は検証しない（互換のため）。起動のたびに警告し、次のリリースで、未設定を fail-closed（拒否）に変更する。移行のため、先に `ALLOWED_AUTHORS`（例: 自分の login と、再レビューを依頼する bot 名義）を設定すること。bot の PR（Renovate など）をレビューしたい場合は、その login も追加する
+- **暫定**: `ALLOWED_AUTHORS` が未設定の間は、作成者・投稿者・fork のいずれも検証しない（互換のため。fork の拒否も、検証の一部として無効になる）。起動のたびに警告し、次のリリースで、未設定を fail-closed（拒否）に変更する。移行のため、先に `ALLOWED_AUTHORS`（例: 自分の login と、再レビューを依頼する bot 名義）を設定すること。bot の PR（Renovate など）をレビューしたい場合は、その login も追加する
 
 ### Streamable HTTP の公開境界
 

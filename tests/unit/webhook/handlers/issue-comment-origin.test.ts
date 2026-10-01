@@ -1,8 +1,9 @@
 import { describe, expect, it, test, vi } from "vitest";
 import type { Logger } from "../../../../src/config/logging.js";
+import type { PullRequest } from "../../../../src/github/pull-requests.js";
 import type { ReviewQueue } from "../../../../src/queue/review-queue.js";
 import {
-  evaluateCommentOrigin,
+  evaluateCommenter,
   handleIssueCommentEvent,
   type IssueCommentHandlerDeps,
 } from "../../../../src/webhook/handlers/issue-comment.js";
@@ -24,18 +25,48 @@ function makeLogger(): Logger {
   return { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
 }
 
-function makeDeps(overrides: Partial<IssueCommentHandlerDeps> = {}): IssueCommentHandlerDeps {
+interface PrData {
+  author: string | null;
+  // head の repository。null は削除された fork など、取得できない場合。
+  headRepo: { fullName: string; fork: boolean } | null;
+}
+
+const SAME_REPO = { fullName: "org/repo", fork: false };
+
+function makePr({ author, headRepo }: PrData): PullRequest {
+  return {
+    number: 7,
+    title: "t",
+    body: null,
+    state: "open",
+    draft: false,
+    author: author === null ? null : { login: author, type: "User" },
+    head: { sha: "headsha", ref: "feature", repo: headRepo },
+    base: { sha: "basesha", ref: "main" },
+    htmlUrl: "https://github.com/org/repo/pull/7",
+  };
+}
+
+function makeDeps(
+  pr: PrData | Error,
+  overrides: Partial<IssueCommentHandlerDeps> = {},
+): IssueCommentHandlerDeps & { getPullRequest: ReturnType<typeof vi.fn> } {
+  const getPullRequest = vi.fn(async () => {
+    if (pr instanceof Error) throw pr;
+    return makePr(pr);
+  });
   return {
     queue: makeQueue(),
     logger: makeLogger(),
     allowedRepos: ["org/repo"],
     allowedAuthors: ["alice", "mcp-gateway-authentication-app"],
+    getPullRequest,
     appSlug: "thread-owl",
     ...overrides,
   };
 }
 
-function makeEvent(issueUser: unknown, commentUser: unknown): NormalizedEvent {
+function makeEvent(commentUser: unknown): NormalizedEvent {
   return {
     type: "issue_comment",
     deliveryId: "d-1",
@@ -45,84 +76,51 @@ function makeEvent(issueUser: unknown, commentUser: unknown): NormalizedEvent {
     prNumber: 7,
     payload: {
       action: "created",
-      issue: {
-        number: 7,
-        pull_request: { url: "https://github.com/org/repo/pull/7" },
-        user: issueUser,
-      },
+      issue: { number: 7, pull_request: { url: "https://github.com/org/repo/pull/7" } },
       comment: { id: 999, body: "@thread-owl re-review requested", user: commentUser },
     },
   };
 }
 
-describe("evaluateCommentOrigin", () => {
+describe("evaluateCommenter", () => {
   const ALLOWED = ["alice", "bot-app"];
 
   it.each([
-    {
-      name: "検証が無効なら許可（暫定）",
-      allowed: [],
-      commenter: null,
-      author: null,
-      expected: null,
-    },
-    {
-      name: "投稿者も PR の作成者も許可",
-      allowed: ALLOWED,
-      commenter: "alice",
-      author: "alice",
-      expected: null,
-    },
+    { name: "検証が無効なら許可（暫定）", allowed: [], commenter: null, expected: null },
+    { name: "許可された投稿者", allowed: ALLOWED, commenter: "alice", expected: null },
     {
       name: "bot 名義の投稿者（[bot] の有無を問わない）",
       allowed: ALLOWED,
       commenter: "bot-app[bot]",
-      author: "alice",
       expected: null,
     },
     {
       name: "投稿者を取得できない",
       allowed: ALLOWED,
       commenter: null,
-      author: "alice",
       expected: "commenter_unknown",
     },
     {
       name: "許可されていない投稿者",
       allowed: ALLOWED,
       commenter: "mallory",
-      author: "alice",
       expected: "commenter_not_allowed",
     },
-    {
-      name: "PR の作成者を取得できない",
-      allowed: ALLOWED,
-      commenter: "alice",
-      author: null,
-      expected: "pr_author_unknown",
-    },
-    // 許可された投稿者が、他者の PR への再レビューを依頼して queue に載せることを防ぐ
-    {
-      name: "投稿者は許可されているが、PR の作成者が許可されていない",
-      allowed: ALLOWED,
-      commenter: "alice",
-      author: "mallory",
-      expected: "pr_author_not_allowed",
-    },
-  ])("$name", ({ allowed, commenter, author, expected }) => {
-    expect(evaluateCommentOrigin(allowed, commenter, author)).toBe(expected);
+  ])("$name", ({ allowed, commenter, expected }) => {
+    expect(evaluateCommenter(allowed, commenter)).toBe(expected);
   });
 });
 
-describe("issue_comment webhook の投稿者・PR の作成者の検証", () => {
-  test("投稿者も PR の作成者も許可されていれば enqueue する", async () => {
-    const deps = makeDeps();
+describe("issue_comment webhook の投稿者・PR の作成者・fork の検証", () => {
+  test("投稿者・PR の作成者が許可され、同一リポジトリの PR なら enqueue する", async () => {
+    const deps = makeDeps({ author: "alice", headRepo: SAME_REPO });
 
     await handleIssueCommentEvent(
-      makeEvent({ login: "alice" }, { login: "mcp-gateway-authentication-app[bot]" }),
+      makeEvent({ login: "mcp-gateway-authentication-app[bot]" }),
       deps,
     );
 
+    expect(deps.getPullRequest).toHaveBeenCalledWith("org", "repo", 7);
     expect(deps.queue.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         reason: "re-review-requested",
@@ -131,66 +129,98 @@ describe("issue_comment webhook の投稿者・PR の作成者の検証", () => 
     );
   });
 
+  // 許可された投稿者が、他者の PR や fork の PR への再レビューを依頼して queue に載せることを防ぐ。
   test.each([
     {
-      name: "許可されていない投稿者",
-      issueUser: { login: "alice" },
-      commentUser: { login: "mallory" },
-      reason: "commenter_not_allowed",
-      commenterLogin: "mallory",
-      prAuthorLogin: "alice",
-    },
-    {
       name: "許可されていない PR の作成者",
-      issueUser: { login: "mallory" },
-      commentUser: { login: "alice" },
-      reason: "pr_author_not_allowed",
-      commenterLogin: "alice",
+      pr: { author: "mallory", headRepo: SAME_REPO },
+      reason: "author_not_allowed",
       prAuthorLogin: "mallory",
     },
     {
-      name: "投稿者が payload に無い",
-      issueUser: { login: "alice" },
-      commentUser: undefined,
-      reason: "commenter_unknown",
-      commenterLogin: null,
+      name: "PR の作成者を取得できない",
+      pr: { author: null, headRepo: SAME_REPO },
+      reason: "author_unknown",
+      prAuthorLogin: null,
+    },
+    {
+      name: "作成者が許可されていても、fork の PR",
+      pr: { author: "alice", headRepo: { fullName: "alice/repo", fork: true } },
+      reason: "fork",
       prAuthorLogin: "alice",
     },
     {
-      name: "PR の作成者が payload に無い",
-      issueUser: undefined,
-      commentUser: { login: "alice" },
-      reason: "pr_author_unknown",
+      name: "head の repository が削除されている（取得できない）",
+      pr: { author: "alice", headRepo: null },
+      reason: "head_repo_unknown",
+      prAuthorLogin: "alice",
+    },
+  ])("$name は enqueue せず、監査ログに残す", async ({ pr, reason, prAuthorLogin }) => {
+    const deps = makeDeps(pr);
+
+    await handleIssueCommentEvent(makeEvent({ login: "alice" }), deps);
+
+    expect(deps.queue.enqueue).not.toHaveBeenCalled();
+    expect(deps.logger.info).toHaveBeenCalledWith("webhook.issue_comment.origin.rejected", {
+      event: "webhook.issue_comment.origin.rejected",
+      owner: "org",
+      repo: "repo",
+      prNumber: 7,
+      reason,
       commenterLogin: "alice",
-      prAuthorLogin: null,
+      prAuthorLogin,
+    });
+  });
+
+  // 投稿者で拒否できるなら、PR を取得しない（GitHub API を呼ばない）。
+  test.each([
+    {
+      name: "許可されていない投稿者",
+      commentUser: { login: "mallory" },
+      reason: "commenter_not_allowed",
+      commenterLogin: "mallory",
     },
-  ])(
-    "$name は enqueue せず、監査ログに残す",
-    async ({ issueUser, commentUser, reason, commenterLogin, prAuthorLogin }) => {
-      const deps = makeDeps();
-
-      await handleIssueCommentEvent(makeEvent(issueUser, commentUser), deps);
-
-      expect(deps.queue.enqueue).not.toHaveBeenCalled();
-      expect(deps.logger.info).toHaveBeenCalledWith("webhook.issue_comment.origin.rejected", {
-        event: "webhook.issue_comment.origin.rejected",
-        owner: "org",
-        repo: "repo",
-        prNumber: 7,
-        reason,
-        commenterLogin,
-        prAuthorLogin,
-      });
+    {
+      name: "投稿者が payload に無い",
+      commentUser: undefined,
+      reason: "commenter_unknown",
+      commenterLogin: null,
     },
-  );
+  ])("$name は PR を取得せず、enqueue せず、監査ログに残す", async (c) => {
+    const deps = makeDeps({ author: "alice", headRepo: SAME_REPO });
 
-  test("再レビューを示さないコメントは、検証の対象にせずログも出さない", async () => {
-    const deps = makeDeps();
-    const event = makeEvent({ login: "mallory" }, { login: "mallory" });
+    await handleIssueCommentEvent(makeEvent(c.commentUser), deps);
+
+    expect(deps.getPullRequest).not.toHaveBeenCalled();
+    expect(deps.queue.enqueue).not.toHaveBeenCalled();
+    expect(deps.logger.info).toHaveBeenCalledWith("webhook.issue_comment.origin.rejected", {
+      event: "webhook.issue_comment.origin.rejected",
+      owner: "org",
+      repo: "repo",
+      prNumber: 7,
+      reason: c.reason,
+      commenterLogin: c.commenterLogin,
+    });
+  });
+
+  test("PR の取得に失敗したら、enqueue せず例外のまま伝播する（fail-closed）", async () => {
+    const deps = makeDeps(new Error("GitHub API pulls.get failed (status 502)"));
+
+    await expect(handleIssueCommentEvent(makeEvent({ login: "alice" }), deps)).rejects.toThrow(
+      "pulls.get failed",
+    );
+
+    expect(deps.queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  test("再レビューを示さないコメントは、検証の対象にせず PR も取得しない", async () => {
+    const deps = makeDeps({ author: "mallory", headRepo: SAME_REPO });
+    const event = makeEvent({ login: "mallory" });
     (event.payload as { comment: { body: string } }).comment.body = "ordinary comment";
 
     await handleIssueCommentEvent(event, deps);
 
+    expect(deps.getPullRequest).not.toHaveBeenCalled();
     expect(deps.queue.enqueue).not.toHaveBeenCalled();
     expect(deps.logger.info).not.toHaveBeenCalledWith(
       "webhook.issue_comment.origin.rejected",
@@ -198,11 +228,15 @@ describe("issue_comment webhook の投稿者・PR の作成者の検証", () => 
     );
   });
 
-  test("検証が無効（allowlist が空）なら enqueue する（暫定の互換動作）", async () => {
-    const deps = makeDeps({ allowedAuthors: [] });
+  test("検証が無効（allowlist が空）なら、PR を取得せず enqueue する（暫定の互換動作）", async () => {
+    const deps = makeDeps(
+      { author: "mallory", headRepo: { fullName: "mallory/repo", fork: true } },
+      { allowedAuthors: [] },
+    );
 
-    await handleIssueCommentEvent(makeEvent({ login: "mallory" }, { login: "mallory" }), deps);
+    await handleIssueCommentEvent(makeEvent({ login: "mallory" }), deps);
 
+    expect(deps.getPullRequest).not.toHaveBeenCalled();
     expect(deps.queue.enqueue).toHaveBeenCalled();
   });
 });

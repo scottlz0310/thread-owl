@@ -3,6 +3,7 @@ import type { Logger } from "../../../src/config/logging.js";
 import type { GitHubClient } from "../../../src/github/client.js";
 import {
   approvePR,
+  createPullRequestFetcher,
   getPR,
   getPRFiles,
   postInlineComment,
@@ -37,6 +38,30 @@ describe("getPR / getPRFiles (high-level)", () => {
 
     expect(pr.number).toBe(1);
     expect(pr.head.sha).toBe("h");
+  });
+
+  it("createPullRequestFetcher は owner/repo の client で PR を取得する", async () => {
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        number: 7,
+        title: "t",
+        body: null,
+        state: "open",
+        draft: false,
+        head: { sha: "h", ref: "f" },
+        base: { sha: "b", ref: "main" },
+        html_url: "u",
+      },
+    });
+    const getClient = vi.fn(async () => ({ rest: { pulls: { get } } }) as unknown as GitHubClient);
+
+    const pr = await createPullRequestFetcher(getClient)("o", "r", 7);
+
+    expect(getClient).toHaveBeenCalledWith("o", "r");
+    expect(get).toHaveBeenCalledWith(
+      expect.objectContaining({ owner: "o", repo: "r", pull_number: 7 }),
+    );
+    expect(pr.number).toBe(7);
   });
 
   it("getPRFiles は変更ファイル一覧を返す", async () => {

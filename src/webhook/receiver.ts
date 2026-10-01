@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Logger } from "../config/logging.js";
+import type { PullRequest } from "../github/pull-requests.js";
 import { shouldIgnoreEvent } from "../policy/actor-policy.js";
 import type { DeliveryDedup } from "../queue/delivery-dedup.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
@@ -20,6 +21,8 @@ export interface WebhookReceiverDeps {
   allowedRepos: readonly string[];
   // PR の作成者 allowlist（正規化済みの login）。空の間は作成者・fork を検証しない。
   allowedAuthors: readonly string[];
+  // issue_comment の再レビュー依頼で、作成者と fork の検証に使う（検証が有効なときだけ呼ぶ）。
+  getPullRequest: (owner: string, repo: string, prNumber: number) => Promise<PullRequest>;
 }
 
 const SUPPORTED_EVENTS = new Set([
@@ -102,6 +105,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
           logger: deps.logger,
           allowedRepos: deps.allowedRepos,
           allowedAuthors: deps.allowedAuthors,
+          getPullRequest: deps.getPullRequest,
           appSlug: deps.appSlug,
         });
       } else if (normalized.type === "pull_request_review") {
