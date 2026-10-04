@@ -5,6 +5,7 @@ import {
   evaluatePullRequestOrigin,
   isAuthorAllowed,
   type OriginRejectionReason,
+  pullRequestOrigin,
 } from "../../policy/author-policy.js";
 import type { ReviewQueue } from "../../queue/review-queue.js";
 import type { NormalizedEvent } from "../normalize-event.js";
@@ -103,11 +104,9 @@ export async function handleIssueCommentEvent(
   let prAuthorLogin: string | null | undefined;
   if (commenterRejection === null) {
     const pr = await deps.getPullRequest(owner, repo, prNumber);
-    prAuthorLogin = pr.author?.login ?? null;
-    const decision = evaluatePullRequestOrigin(deps.allowedAuthors, {
-      authorLogin: prAuthorLogin,
-      fork: pr.head.repo === null ? null : pr.head.repo.fork,
-    });
+    const origin = pullRequestOrigin(pr);
+    prAuthorLogin = origin.authorLogin;
+    const decision = evaluatePullRequestOrigin(deps.allowedAuthors, origin);
     rejection = decision.allowed ? null : decision.reason;
   }
   if (rejection !== null) {

@@ -140,7 +140,7 @@ node dist/index.js --mcp
 
 | tool | 説明 |
 |------|------|
-| `get_pr` | PR 基本情報と変更ファイル一覧。作成者（`author`: `login` と `type`。取得できなければ null）と、head の repository（`head.repo`: `fullName` と、base と別の repository からの PR かを示す `fork`。削除された fork は null）を含む |
+| `get_pr` | PR 基本情報と変更ファイル一覧。作成者（`author`: `login` と `type`。取得できなければ null）と、head の repository（`head.repo`: `fullName` と、base と別の repository からの PR かを示す `fork`。削除された fork は null）を含む。作成元の判定（`origin`: `allowed` と、拒否のときの `reason`）も返す。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗しない（拒否するかどうかは呼び出し側が決める） |
 | `list_review_threads` | レビュースレッド一覧（resolved/outdated・コメント含む） |
 | `post_summary_comment` | PR サマリーコメント投稿（Verdict らしい本文は拒否。Verdict には `post_review_verdict` を使用） |
 | `post_review_verdict` | current HEAD と同一 SHA の required status checks 成功を確認してから、APPROVED の Verdict コメントを固定書式で投稿（見出し・Reviewed HEAD SHA 行・Status 行はサーバー側が生成） |

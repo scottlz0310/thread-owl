@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { getPR, getPRFiles } from "../../github/pull-requests.js";
+import { evaluatePullRequestOrigin, pullRequestOrigin } from "../../policy/author-policy.js";
 import type { ToolDeps } from "../tool-deps.js";
 
 export const GET_PR_TOOL_NAME = "get_pr";
@@ -20,5 +21,8 @@ export async function getPrTool(deps: ToolDeps, input: GetPrInput) {
     getPR(client, input.owner, input.repo, input.prNumber),
     getPRFiles(client, input.owner, input.repo, input.prNumber),
   ]);
-  return { pr, files };
+  // enqueue_review と同じ判定の結果を返す。reviewer が、ローカル検証の前に、許可外の作成者・fork の PR を止められるようにする。
+  // 許可リストの内容は返さない。get_pr 自体は拒否しない（拒否するかどうかは、呼び出し側が決める）。
+  const origin = evaluatePullRequestOrigin(deps.allowedAuthors, pullRequestOrigin(pr));
+  return { pr, files, origin };
 }
