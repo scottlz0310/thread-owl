@@ -28,20 +28,95 @@ function makeDeps(): ToolDeps {
   return {
     getClient: vi.fn().mockResolvedValue(client),
     getWriteContext: vi.fn().mockResolvedValue(ctx),
+    allowedAuthors: [],
   };
 }
 
 describe("MCP tools", () => {
-  it("get_pr: client を取得し PR とファイルを返す", async () => {
+  it("get_pr: client を取得し PR・ファイル・作成元の判定を返す", async () => {
     const deps = makeDeps();
-    vi.mocked(pullRequests.getPR).mockResolvedValue({ number: 7 } as never);
+    const pr = {
+      number: 7,
+      author: { login: "alice", type: "User" },
+      head: { sha: "s", ref: "r", repo: { fullName: "o/r", fork: false } },
+    };
+    vi.mocked(pullRequests.getPR).mockResolvedValue(pr as never);
     vi.mocked(pullRequests.getPRFiles).mockResolvedValue([]);
 
     const result = await getPrTool(deps, { owner: "o", repo: "r", prNumber: 7 });
 
     expect(deps.getClient).toHaveBeenCalledWith("o", "r");
     expect(pullRequests.getPR).toHaveBeenCalledWith(client, "o", "r", 7);
-    expect(result).toEqual({ pr: { number: 7 }, files: [] });
+    expect(result).toEqual({
+      pr,
+      files: [],
+      origin: { allowed: false, reason: "author_allowlist_empty" },
+    });
+  });
+
+  // origin は enqueue_review と同じ判定（evaluatePullRequestOrigin）の結果。許可リストの内容は返さない。
+  // 拒否の判定でも get_pr 自体は失敗せず、pr と files を返す。
+  it.each([
+    {
+      name: "許可された作成者の非 fork の PR",
+      allowedAuthors: ["alice"],
+      author: { login: "alice", type: "User" },
+      headRepo: { fullName: "o/r", fork: false },
+      expected: { allowed: true },
+    },
+    {
+      name: "bot の login は [bot] を除いて照合する（release-automate の GitHub App）",
+      allowedAuthors: ["scottlz0310-release-bot"],
+      author: { login: "scottlz0310-release-bot[bot]", type: "Bot" },
+      headRepo: { fullName: "o/r", fork: false },
+      expected: { allowed: true },
+    },
+    {
+      name: "許可リストに無い作成者",
+      allowedAuthors: ["alice"],
+      author: { login: "mallory", type: "User" },
+      headRepo: { fullName: "o/r", fork: false },
+      expected: { allowed: false, reason: "author_not_allowed" },
+    },
+    {
+      name: "許可された作成者でも fork",
+      allowedAuthors: ["alice"],
+      author: { login: "alice", type: "User" },
+      headRepo: { fullName: "alice/r", fork: true },
+      expected: { allowed: false, reason: "fork" },
+    },
+    {
+      name: "作成者を取得できない",
+      allowedAuthors: ["alice"],
+      author: null,
+      headRepo: { fullName: "o/r", fork: false },
+      expected: { allowed: false, reason: "author_unknown" },
+    },
+    {
+      name: "head の repository を取得できない",
+      allowedAuthors: ["alice"],
+      author: { login: "alice", type: "User" },
+      headRepo: null,
+      expected: { allowed: false, reason: "head_repo_unknown" },
+    },
+    {
+      name: "許可リストが空（未設定）",
+      allowedAuthors: [],
+      author: { login: "alice", type: "User" },
+      headRepo: { fullName: "o/r", fork: false },
+      expected: { allowed: false, reason: "author_allowlist_empty" },
+    },
+  ])("get_pr: origin は $name", async ({ allowedAuthors, author, headRepo, expected }) => {
+    const deps = { ...makeDeps(), allowedAuthors };
+    const pr = { number: 7, author, head: { sha: "s", ref: "r", repo: headRepo } };
+    vi.mocked(pullRequests.getPR).mockResolvedValue(pr as never);
+    vi.mocked(pullRequests.getPRFiles).mockResolvedValue([]);
+
+    const result = await getPrTool(deps, { owner: "o", repo: "r", prNumber: 7 });
+
+    expect(result.origin).toEqual(expected);
+    expect(result.pr).toBe(pr);
+    expect(result.files).toEqual([]);
   });
 
   it("list_review_threads: スレッド一覧を返す", async () => {

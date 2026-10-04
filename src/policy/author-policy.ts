@@ -1,5 +1,7 @@
 // PR の作成者・fork の検証（他者の PR を既定で queue に載せない）
 
+import type { PullRequest } from "../github/pull-requests.js";
+
 // GitHub の login（ユーザー名）は英数字とハイフンで、先頭・末尾にハイフンを置けない。
 // bot は `<name>[bot]` 形式で、正規化の段階で `[bot]` を取り除く。
 const LOGIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
@@ -40,6 +42,14 @@ export interface PullRequestOrigin {
   authorLogin: string | null;
   // head の repository が base と別（fork）か。head の repository が取得できない場合は null。
   fork: boolean | null;
+}
+
+// REST で取得した PR から、検証に使う項目を取り出す。enqueue_review・issue_comment・get_pr が同じ入力で判定する。
+export function pullRequestOrigin(pr: Pick<PullRequest, "author" | "head">): PullRequestOrigin {
+  return {
+    authorLogin: pr.author?.login ?? null,
+    fork: pr.head.repo === null ? null : pr.head.repo.fork,
+  };
 }
 
 export type OriginRejectionReason =

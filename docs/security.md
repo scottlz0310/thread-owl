@@ -42,7 +42,7 @@ Thread Owl は GitHub App の private key と installation token を扱う。
   - webhook `pull_request`: `pr.user.login` と `pr.head.repo.full_name` を照合する。読めない項目は拒否する
   - webhook `issue_comment`（再レビュー依頼）: コメントの投稿者が許可されている場合だけ、GitHub API で PR を取得して、PR の作成者と fork を照合する（payload に head の repository が無いため）。投稿者が許可されていなければ、PR を取得せずに拒否する。PR の取得に失敗したら例外のまま伝播し、queue に載せない（fail-closed）。許可された投稿者でも、他者の PR や fork の PR への再レビューは queue に載せない
 - 拒否は監査ログに残す。作成者・投稿者の login は記録するが、本文は記録しない
-- `get_pr` は、reviewer が実行前に検証できるよう、作成者（`author`）と head の repository（`head.repo.fork`）を返す
+- `get_pr` は、reviewer が実行前に検証できるよう、作成者（`author`）と head の repository（`head.repo.fork`）を返す。あわせて、`enqueue_review` と同じ判定の結果（`origin`: `allowed` と `reason`）を返す。許可リストの正本は `ALLOWED_AUTHORS` の 1 か所で、reviewer skill はリストを持たず、この結果で、ローカル検証の前に許可外の PR を止める（queue を経由しない CLI からの直接起動でも）
 - **`ALLOWED_AUTHORS` が未設定（空）の間は、すべての PR と再レビュー依頼を拒否する**（fail-closed。`ALLOWED_REPOS` が空のときと同じ流儀で、起動は止めず、実行時に拒否する。拒否の理由は `author_allowlist_empty`で、`enqueue_review` は PR を取得せずに拒否する）。起動のたびに、エラーを記録する（`config.allowed_authors.unset`）。必ず `ALLOWED_AUTHORS`（例: 自分の login と、再レビューを依頼する bot 名義）を設定すること。bot の PR（Renovate など）をレビューしたい場合は、その login も追加する。v0.6.0 までは、未設定の間は検証しなかった（#244 で変更）
 
 ### Streamable HTTP の公開境界

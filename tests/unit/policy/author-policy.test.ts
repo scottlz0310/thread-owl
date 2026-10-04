@@ -5,6 +5,7 @@ import {
   normalizeLogin,
   PullRequestOriginNotAllowedError,
   parseAuthorAllowlist,
+  pullRequestOrigin,
 } from "../../../src/policy/author-policy.js";
 
 describe("normalizeLogin", () => {
@@ -140,6 +141,39 @@ describe("evaluatePullRequestOrigin", () => {
     },
   ])("$name", ({ allowed, authorLogin, fork, expected }) => {
     expect(evaluatePullRequestOrigin(allowed, { authorLogin, fork })).toEqual(expected);
+  });
+});
+
+describe("pullRequestOrigin", () => {
+  it.each([
+    {
+      name: "作成者と非 fork の head",
+      author: { login: "alice", type: "User" },
+      headRepo: { fullName: "o/r", fork: false },
+      expected: { authorLogin: "alice", fork: false },
+    },
+    {
+      name: "fork の head",
+      author: { login: "alice", type: "User" },
+      headRepo: { fullName: "alice/r", fork: true },
+      expected: { authorLogin: "alice", fork: true },
+    },
+    {
+      name: "作成者のアカウントが削除されている",
+      author: null,
+      headRepo: { fullName: "o/r", fork: false },
+      expected: { authorLogin: null, fork: false },
+    },
+    {
+      name: "head の repository が削除されている",
+      author: { login: "alice", type: "User" },
+      headRepo: null,
+      expected: { authorLogin: "alice", fork: null },
+    },
+  ])("$name", ({ author, headRepo, expected }) => {
+    const pr = { author, head: { sha: "s", ref: "r", repo: headRepo } };
+
+    expect(pullRequestOrigin(pr)).toEqual(expected);
   });
 });
 

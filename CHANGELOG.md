@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- `get_pr` の返却に、PR の作成元の判定 `origin`（`allowed`、拒否のときは `reason`）を追加した。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗せず、`pr` と `files` は従来どおり返す。reviewer が、queue を経由しない CLI からの直接起動でも、ローカル検証の前に、許可外の作成者・fork の PR を止められるようにする（#252）。
+
+### Changed
+- `enqueue_review`・webhook の `issue_comment`・`get_pr` が、PR から作成者・fork を取り出す処理を `pullRequestOrigin` に共通化した（挙動は変えない）。
+
 ## [0.7.0] - 2026-10-01
 
 ### Changed

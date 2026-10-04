@@ -9,6 +9,7 @@ import {
   evaluatePullRequestOrigin,
   type PullRequestOrigin,
   PullRequestOriginNotAllowedError,
+  pullRequestOrigin,
 } from "../../policy/author-policy.js";
 import type { ReviewQueue } from "../../queue/review-queue.js";
 import type { ReviewStatusStore } from "../../queue/review-status.js";
@@ -40,11 +41,7 @@ async function readOrigin(
 ): Promise<PullRequestOrigin> {
   if (deps.allowedAuthors.length === 0) return { authorLogin: null, fork: null };
   const client = await deps.getClient(owner, repo);
-  const pr = await getPR(client, owner, repo, prNumber);
-  return {
-    authorLogin: pr.author?.login ?? null,
-    fork: pr.head.repo === null ? null : pr.head.repo.fork,
-  };
+  return pullRequestOrigin(await getPR(client, owner, repo, prNumber));
 }
 
 export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: EnqueueReviewInput) {
