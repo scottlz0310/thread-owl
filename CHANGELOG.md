@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 検証専用PR：公開済みreviewer24のローカル検証を実測する資料を追加。マージ・公開は行わない（Mcp-Docker #365）
+
 ### Added
 - `get_pr` の返却に、PR の作成元の判定 `origin`（`allowed`、拒否のときは `reason`）を追加した。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗せず、`pr` と `files` は従来どおり返す。reviewer が、queue を経由しない CLI からの直接起動でも、ローカル検証の前に、許可外の作成者・fork の PR を止められるようにする（#252）。
 
