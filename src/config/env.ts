@@ -1,5 +1,6 @@
 import { parseAllowlist } from "../policy/allowlist.js";
 import { parseAuthorAllowlist } from "../policy/author-policy.js";
+import { loadInternalSurfaceConfig } from "../review-cycle/config.js";
 import { loadGitHubAppPrivateKey } from "./private-key.js";
 import type { AppConfig } from "./schema.js";
 import { appConfigSchema } from "./schema.js";
@@ -28,6 +29,7 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
       host: env.HOST || undefined,
       mcpHttpPath: env.MCP_HTTP_PATH || undefined,
     },
+    internal: loadInternalSurfaceConfig(env, env.MCP_HTTP_PATH || "/mcp"),
     logging: {
       level: env.LOG_LEVEL,
     },

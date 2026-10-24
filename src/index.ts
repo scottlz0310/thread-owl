@@ -28,6 +28,7 @@ import { RepositoryNotAllowedError } from "./policy/allowlist.js";
 import { createDeliveryDedup } from "./queue/delivery-dedup.js";
 import { createReviewQueue } from "./queue/review-queue.js";
 import { createReviewStatusStore } from "./queue/review-status.js";
+import { startInternalSurface } from "./review-cycle/surface.js";
 import { createSharedRuntime } from "./runtime/shared.js";
 import { resolveAppMode } from "./startup/mode.js";
 import { createWebhookReceiver } from "./webhook/receiver.js";
@@ -91,6 +92,9 @@ if (mode === "mcp-stdio") {
   // enqueue_review tool と subscriptions/listen のみで queue 機能を提供する（#122）。
   const reviewQueue = createReviewQueue();
   const reviewStatus = createReviewStatusStore();
+  const internal = config.internal
+    ? startInternalSurface(config.internal, buildToolDeps(issueTokenDeps), logger, VERSION)
+    : undefined;
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
@@ -107,6 +111,12 @@ if (mode === "mcp-stdio") {
           errorName: error.name,
         });
       },
+      // 内部面は公開の MCP パスとは別のパスで、別の MCP server として提供する。
+      fallbackHandler: async (req, res) => {
+        if (!(await internal?.handle(req, res))) {
+          res.writeHead(404).end();
+        }
+      },
     },
   );
   reviewQueue.onEnqueue(() => httpServer.notify.resourceUpdated(QUEUE_RESOURCE_URI));
@@ -121,7 +131,7 @@ if (mode === "mcp-stdio") {
   });
 
   const shutdown = () => {
-    void httpServer.close().catch((error) => {
+    void Promise.all([httpServer.close(), internal?.close()]).catch((error) => {
       logger.error("mcp.shutdown.error", {
         event: "mcp.shutdown.error",
         errorName: error instanceof Error ? error.name : "UnknownError",
@@ -245,6 +255,9 @@ if (mode === "mcp-stdio") {
 
   const { getRequestListener } = await import("@hono/node-server");
   const honoHandler = getRequestListener(honoApp.fetch);
+  const internal = config.internal
+    ? startInternalSurface(config.internal, buildToolDeps(runtime.issueTokenDeps), logger, VERSION)
+    : undefined;
 
   const httpServer = await startMcpHttpServer(
     () =>
@@ -267,7 +280,9 @@ if (mode === "mcp-stdio") {
         });
       },
       fallbackHandler: async (req, res) => {
-        await honoHandler(req, res);
+        if (!(await internal?.handle(req, res))) {
+          await honoHandler(req, res);
+        }
       },
     },
   );
@@ -287,7 +302,7 @@ if (mode === "mcp-stdio") {
   });
 
   const shutdown = () => {
-    void httpServer.close().catch((error) => {
+    void Promise.all([httpServer.close(), internal?.close()]).catch((error) => {
       logger.error("mcp.shutdown.error", {
         event: "mcp.shutdown.error",
         errorName: error instanceof Error ? error.name : "UnknownError",

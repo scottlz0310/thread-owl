@@ -1,11 +1,13 @@
 /** 契約 v1 のエラー code のうち、thread-owl の内部面（raven → owl）が返しうるもの。 */
 export type ContractErrorCode =
   | "INVALID_ARGUMENT"
+  | "PERMISSION_DENIED"
   | "REQUEST_NOT_FOUND"
   | "HEAD_CONFLICT"
   | "CANCEL_RESULT_POSTED"
   | "CANCEL_UNCONFIRMED"
   | "CANDIDATE_CANCELLED"
+  | "ORIGIN_REJECTED"
   | "RESULT_HEAD_MISMATCH"
   | "UNAVAILABLE";
 

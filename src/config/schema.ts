@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { InternalSurfaceConfig } from "../review-cycle/config.js";
 
 export const appConfigSchema = z.object({
   appSlug: z.string().min(1).default("thread-owl"),
@@ -28,6 +29,8 @@ export const appConfigSchema = z.object({
       .startsWith("/", "MCP_HTTP_PATH must start with '/'")
       .default("/mcp"),
   }),
+  // review-raven との内部面（--mcp-http / --webhook-mcp-http のみ）。未設定なら無効。
+  internal: z.custom<InternalSurfaceConfig>().optional(),
   logging: z.object({
     level: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
   }),

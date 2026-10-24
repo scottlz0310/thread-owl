@@ -162,6 +162,7 @@ Claude Code / agent workflow
 - **MCP は stateless**: Streamable HTTP に protocol-level session（`Mcp-Session-Id`）を持たせない。SDK が request/stream 単位でライフサイクルを管理するため、Thread Owl 側に session map は存在しない
 - **Streamable HTTP は internal endpoint**: 既定は `127.0.0.1` bind。remote client からは caller 認証を担う mcp-gateway 経由で接続し、直接公開しない
 - **cycle の台帳は永続化し、結果の本文は持たない**: 候補の受付・取消記録・結果索引は SQLite（`node:sqlite`）に永続する。取消は未受理の cycle にも記録して旧候補の起動と投稿を拒否し、GitHub 書込みが進行中・結果不明の間は取消を確定しない。結果は GitHub 上の投稿への参照（コメント ID と URL）だけを持ち、本文や Verdict は複製しない。契約は review-raven の固定コミットのコピー（`src/contract/v1`、`MANIFEST.json` の sha256 で手元の改変を検出）を正とし、取り込み直しは `scripts/pin-contract.mjs` で行う
+- **内部面は公開面と別の MCP server・別のパスで提供する**: review-raven との service-to-service の tool（`accept_review_candidate` など）は、公開の `/mcp` とは別のパス（既定 `/internal/mcp`）の別の `McpServer` に載せ、agent 向けの `tools/list` に出さない。認証は gateway の identity（`X-Authenticated-User`）と共有 proxy secret の Bearer で行い、サービス主体と操作・対象 repo の認可は `THREAD_OWL_SERVICE_ACL` で決める。入力・失敗は契約 schema（エラー envelope）に従う
 - **LLM を内蔵しない**: Thread Owl はプロキシであり、AI システムではない
 - **Allowlist を write のハードゲートとする**: write の GitHub API 呼び出し前に allowlist チェックを行い、read は GitHub App installation の repo scope に委ねる
 - **resolve は修正側の責務とする**: Thread Owl はレビュアー側 GitHub App であり、スレッドの resolve は PR author または repository write access を持つ修正側の MCP が行う
