@@ -17,8 +17,11 @@ import {
   postReviewVerdictTool,
 } from "../../../src/mcp/tools/post-review-verdict.js";
 import { postSummaryInputSchema, postSummaryTool } from "../../../src/mcp/tools/post-summary.js";
+import { createReviewQueue } from "../../../src/queue/review-queue.js";
 import { ContractError } from "../../../src/review-cycle/errors.js";
-import type { ResultBinder } from "../../../src/review-cycle/result-binder.js";
+import { ReviewCycleLedger } from "../../../src/review-cycle/ledger.js";
+import { ResultBinder } from "../../../src/review-cycle/result-binder.js";
+import { createFakeGithub } from "../../../src/review-cycle/testing/fake-github.js";
 
 const ctx = {
   client: {} as GitHubClient,
@@ -45,13 +48,14 @@ function makeDeps(binder?: Pick<ResultBinder, "post">): ToolDeps {
 // 束縛の本体は ResultBinder のテストで検証している。ここでは tool が渡す引数と、書込みの中身だけを見る。
 function stubBinder() {
   const post = vi.fn(async (request: Parameters<ResultBinder["post"]>[0]) => {
-    await request.write(MARKER);
+    // 実際の ResultBinder と同じく、書込みが返した投稿を結果の参照にする。
+    const written = await request.write(MARKER);
     return {
       source: "thread-owl" as const,
       kind: request.kind,
       headSha: HEAD,
       resultVersion: 3,
-      post: { commentId: 1, url: "https://github.com/o/r/pull/7#issuecomment-1" },
+      post: { commentId: written.id, url: written.url },
     };
   });
   return { post };
@@ -200,6 +204,64 @@ describe("candidateId 指定の投稿 tool", () => {
     expect(schema.safeParse(base).success).toBe(true);
     expect(schema.safeParse({ ...base, candidateId: CANDIDATE }).success).toBe(true);
     expect(schema.safeParse({ ...base, candidateId: "cand_short" }).success).toBe(false);
+  });
+});
+
+describe("post_review_verdict: 実際の ResultBinder を通る停止後の回復", () => {
+  it("投稿成功後に停止した Verdict を回復したとき、応答の commentId は既存の投稿の ID", async () => {
+    const ledger = new ReviewCycleLedger({ path: ":memory:" });
+    try {
+      const github = createFakeGithub();
+      const binder = new ResultBinder({
+        ledger,
+        queue: createReviewQueue(),
+        getClient: async () => github.client,
+        botLogin: "thread-owl[bot]",
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      });
+      const { candidateId } = ledger.accept({
+        cycleId: "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+        round: 1,
+        ...pr,
+        headSha: HEAD,
+        reason: "opened",
+        sourceId: null,
+        installationId: 1,
+      });
+      const deps = makeDeps(binder);
+
+      // 1 回目: GitHub に投稿されたが、記録の前に失敗した（マーカーは GitHub 上に残る）
+      let marker = "";
+      vi.mocked(pullRequests.postReviewVerdict).mockImplementationOnce(
+        async (_ctx, _o, _r, _n, _head, _summary, m) => {
+          marker = m ?? "";
+          throw new Error("crashed after post");
+        },
+      );
+      await expect(
+        postReviewVerdictTool(deps, { ...pr, headSha: HEAD, summary: "s", candidateId }),
+      ).rejects.toThrow("crashed after post");
+      github.posts.push({
+        kind: "comment",
+        id: 9200,
+        body: marker,
+        login: "thread-owl[bot]",
+        createdAt: "2026-10-25T00:00:00Z",
+      });
+
+      // 2 回目: 再投稿せず、既存の投稿 ID を返す
+      vi.mocked(pullRequests.postReviewVerdict).mockClear();
+      const result = await postReviewVerdictTool(deps, {
+        ...pr,
+        headSha: HEAD,
+        summary: "s",
+        candidateId,
+      });
+      expect(pullRequests.postReviewVerdict).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ ok: true, commentId: 9200 });
+    } finally {
+      ledger.close();
+    }
   });
 });
 

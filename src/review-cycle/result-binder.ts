@@ -62,21 +62,26 @@ export class ResultBinder {
 
   async post(request: BoundPostRequest): Promise<ReviewResult> {
     const { ledger, queue } = this.deps;
-    const binding = ledger.start(request.candidateId);
+    // 起動を記録する前に、状態を変えずに検証する（拒否された入力で、候補が未起動でなくならないように）。
+    const candidate = ledger.getCandidate(request.candidateId);
+    if (!candidate) {
+      throw new ContractError("REQUEST_NOT_FOUND", "候補が見つからない");
+    }
     if (
-      binding.owner.toLowerCase() !== request.pr.owner.toLowerCase() ||
-      binding.repo.toLowerCase() !== request.pr.repo.toLowerCase() ||
-      binding.prNumber !== request.pr.prNumber
+      candidate.owner.toLowerCase() !== request.pr.owner.toLowerCase() ||
+      candidate.repo.toLowerCase() !== request.pr.repo.toLowerCase() ||
+      candidate.prNumber !== request.pr.prNumber
     ) {
       throw new ContractError("INVALID_ARGUMENT", "candidateId の PR と、投稿先の PR が異なる");
     }
-    if (request.headSha !== undefined && request.headSha !== binding.headSha) {
+    if (request.headSha !== undefined && request.headSha !== candidate.headSha) {
       throw new ContractError(
         "RESULT_HEAD_MISMATCH",
         "投稿の HEAD が、候補の HEAD（cycle に固定された HEAD）と異なる",
       );
     }
-    // 起動した候補は、queue の「未起動の候補」から外す。
+    // 検証を通ったので、起動を記録する（取消済みなら CANDIDATE_CANCELLED）。起動した候補は queue から外す。
+    const binding = ledger.start(request.candidateId);
     queue.removeCycle(binding.cycleId);
 
     // 前の書込みが結果不明のまま残っていれば（停止・失敗の後）、投稿の有無を照合してから始める。
@@ -103,6 +108,7 @@ export class ResultBinder {
       this.active.delete(request.candidateId);
     }
     const result = ledger.recordResultPosted(request.candidateId, {
+      writeId: begun.writeId,
       kind: request.kind,
       headSha: binding.headSha,
       post: { commentId: posted.id, url: posted.url },
@@ -125,6 +131,7 @@ export class ResultBinder {
     const found = await this.findPost(pending);
     if (found) {
       const recorded = this.deps.ledger.recordResultPosted(pending.candidateId, {
+        writeId: pending.writeId,
         kind: pending.kind,
         headSha: pending.headSha,
         post: found.post,
@@ -137,7 +144,7 @@ export class ResultBinder {
       });
       return recorded;
     }
-    this.deps.ledger.abortResultWrite(pending.candidateId);
+    this.deps.ledger.abortResultWrite(pending.candidateId, pending.writeId);
     this.deps.logger.info("internal.result.reconciled", {
       event: "internal.result.reconciled",
       cycleId,

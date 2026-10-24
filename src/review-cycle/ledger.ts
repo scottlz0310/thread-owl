@@ -37,6 +37,11 @@ export interface CancelInput {
 }
 
 export interface ResultPost {
+  /**
+   * この投稿を記録する書込みの ID。指定時は、その書込みが現在も進行中のときだけ「進行中」を解除する
+   * （照合している間に始まった別の書込みを解除しない）。
+   */
+  writeId?: string;
   kind: ResultKind;
   headSha: string;
   post: { commentId: number; url: string };
@@ -332,9 +337,10 @@ export class ReviewCycleLedger {
         );
       this.db
         .prepare(
-          "UPDATE candidates SET write_state = 'idle', write_id = NULL, write_kind = NULL WHERE candidate_id = ?",
+          `UPDATE candidates SET write_state = 'idle', write_id = NULL, write_kind = NULL
+           WHERE candidate_id = ? AND (? IS NULL OR write_id = ?)`,
         )
-        .run(candidateId);
+        .run(candidateId, posted.writeId ?? null, posted.writeId ?? null);
       return {
         source: "thread-owl",
         kind: posted.kind,
@@ -345,15 +351,18 @@ export class ReviewCycleLedger {
     });
   }
 
-  /** 照合で GitHub に投稿が無いと確認できたとき、書込みの進行中を解除する。 */
-  abortResultWrite(candidateId: string): void {
+  /**
+   * 照合で GitHub に投稿が無いと確認できたとき、その書込みの進行中を解除する。
+   * 照合している間に別の書込みが始まっていた場合（writeId が違う）は、何も変えない。
+   */
+  abortResultWrite(candidateId: string, writeId: string): void {
     this.transaction(() => {
       this.requireCandidate(candidateId);
       this.db
         .prepare(
-          "UPDATE candidates SET write_state = 'idle', write_id = NULL, write_kind = NULL WHERE candidate_id = ?",
+          "UPDATE candidates SET write_state = 'idle', write_id = NULL, write_kind = NULL WHERE candidate_id = ? AND write_id = ?",
         )
-        .run(candidateId);
+        .run(candidateId, writeId);
     });
   }
 
@@ -461,6 +470,12 @@ export class ReviewCycleLedger {
       reason: row.reason as CandidateReason,
       acceptedAt: row.accepted_at,
     }));
+  }
+
+  /** 候補の同一性を、状態を変えずに読む。 */
+  getCandidate(candidateId: string): CandidateBinding | undefined {
+    const row = this.candidateById(candidateId);
+    return row ? bindingOf(row) : undefined;
   }
 
   /** cycle の受付済み候補。repo が入力に無い操作（取消・結果参照）で、対象 repo の認可に使う。 */

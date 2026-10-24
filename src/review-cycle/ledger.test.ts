@@ -219,9 +219,9 @@ describe("cancel", () => {
 
     test("投稿が無いと照合できれば、同じ取消 ID の再試行で確定する", () => {
       const { candidateId } = ledger.accept(accept);
-      ledger.beginResultWrite(candidateId, "approved");
+      const { writeId } = ledger.beginResultWrite(candidateId, "approved");
       expect(codeOf(() => ledger.cancel(cancel))).toBe("CANCEL_UNCONFIRMED");
-      ledger.abortResultWrite(candidateId);
+      ledger.abortResultWrite(candidateId, writeId);
       expect(ledger.cancel(cancel)).toEqual({ cancelId: CANCEL, candidateStatus: "queued" });
       expect(codeOf(() => ledger.accept(accept))).toBe("CANDIDATE_CANCELLED");
     });
@@ -292,7 +292,9 @@ describe("結果の索引", () => {
     const unknown = "cand_00000000000000000000009999";
     expect(codeOf(() => ledger.beginResultWrite(unknown, "approved"))).toBe("REQUEST_NOT_FOUND");
     expect(codeOf(() => ledger.recordResultPosted(unknown, posted))).toBe("REQUEST_NOT_FOUND");
-    expect(codeOf(() => ledger.abortResultWrite(unknown))).toBe("REQUEST_NOT_FOUND");
+    expect(codeOf(() => ledger.abortResultWrite(unknown, "0123456789abcdef"))).toBe(
+      "REQUEST_NOT_FOUND",
+    );
   });
 });
 
@@ -333,13 +335,13 @@ describe("再起動をまたぐ永続", () => {
     const path = join(dir, "ledger.sqlite");
     const first = open(path);
     const { candidateId } = first.accept(accept);
-    first.beginResultWrite(candidateId, "approved");
+    const { writeId } = first.beginResultWrite(candidateId, "approved");
     first.close();
 
     const second = open(path);
     try {
       expect(codeOf(() => second.cancel(cancel))).toBe("CANCEL_UNCONFIRMED");
-      second.abortResultWrite(candidateId);
+      second.abortResultWrite(candidateId, writeId);
       expect(second.cancel(cancel).candidateStatus).toBe("queued");
     } finally {
       second.close();
@@ -433,5 +435,43 @@ describe("未起動の候補の上限", () => {
       ledger.accept({ ...accept, cycleId: `cyc_${String(n).padStart(26, "0")}`, prNumber: n });
     }
     expect(ledger.listQueued()).toHaveLength(101);
+  });
+});
+
+describe("進行中の書込みの識別（writeId）", () => {
+  test("古い書込みの解除・記録は、あとから始まった書込みの進行中を解除しない", () => {
+    const { candidateId } = ledger.accept(accept);
+    const a = ledger.beginResultWrite(candidateId, "reviewed");
+    ledger.abortResultWrite(candidateId, a.writeId);
+    const b = ledger.beginResultWrite(candidateId, "reviewed");
+    expect(b.writeId).not.toBe(a.writeId);
+
+    // 古い書込み A の解除は、何も変えない
+    ledger.abortResultWrite(candidateId, a.writeId);
+    expect(ledger.pendingWriteByCycle(CYCLE)?.writeId).toBe(b.writeId);
+
+    // 古い書込み A として見つかった投稿を記録しても、B の進行中は残る（投稿自体は記録される）
+    ledger.recordResultPosted(candidateId, { ...posted, writeId: a.writeId });
+    expect(ledger.pendingWriteByCycle(CYCLE)?.writeId).toBe(b.writeId);
+    expect(ledger.getResult(CYCLE, candidateId)?.resultVersion).toBe(1);
+
+    // 現在の書込み B の記録は、進行中を解除する
+    ledger.recordResultPosted(candidateId, {
+      ...posted,
+      writeId: b.writeId,
+      post: { ...posted.post, commentId: 6000002 },
+    });
+    expect(ledger.pendingWriteByCycle(CYCLE)).toBeUndefined();
+  });
+
+  test("getCandidate は状態を変えずに候補の同一性を返し、未知なら undefined", () => {
+    const { candidateId } = ledger.accept(accept);
+    expect(ledger.getCandidate(candidateId)).toMatchObject({
+      candidateId,
+      cycleId: CYCLE,
+      headSha: HEAD_A,
+    });
+    expect(ledger.getCandidate("cand_00000000000000000000009999")).toBeUndefined();
+    expect(ledger.listQueued()).toHaveLength(1);
   });
 });

@@ -190,6 +190,61 @@ describe("post", () => {
   });
 });
 
+describe("拒否された入力と並行する照合", () => {
+  test.each<[string, Partial<PostRequest>]>([
+    ["HEAD が違う", { headSha: OTHER_HEAD }],
+    ["PR が違う", { pr: { ...pr, prNumber: 6 } }],
+  ])(
+    "%s で拒否しても、候補は未起動のまま（queue の復元対象から外れない）",
+    async (_name, override) => {
+      await expect(binder.post(request(override))).rejects.toBeInstanceOf(ContractError);
+      expect(ledger.listQueued().map((q) => q.candidateId)).toEqual([candidateId]);
+      expect(queue.size()).toBe(1);
+    },
+  );
+
+  test("再投稿と取消が同じ古い書込みを同時に照合しても、新しく始めた書込みを解除しない", async () => {
+    // 結果不明の書込み A（このプロセスは書込み中ではない）
+    ledger.beginResultWrite(candidateId, "reviewed");
+    // 照合（GitHub の一覧取得）を、こちらの合図まで止める
+    const gates: Array<() => void> = [];
+    const original = github.client.rest.paginate;
+    github.client.rest.paginate = ((...args: unknown[]) =>
+      new Promise((resolve) => {
+        gates.push(() => resolve((original as (...a: unknown[]) => unknown)(...args)));
+      })) as unknown as typeof original;
+
+    let releaseB: (post: { id: number; url: string }) => void = () => {};
+    const repost = binder.post(
+      request({
+        write: () =>
+          new Promise((resolve) => {
+            releaseB = resolve;
+          }),
+      }),
+    );
+    const cancelReconcile = binder.reconcileStale(CYCLE);
+    await vi.waitFor(() => expect(gates).toHaveLength(2));
+
+    // 再投稿側の照合が先に「投稿なし」で戻り、A を解除して B を開始する
+    gates[0]();
+    await vi.waitFor(() =>
+      expect(ledger.pendingWriteByCycle(CYCLE)?.writeId).toBe("0000000000000002"),
+    );
+
+    // 取消側の古い照合が後から戻っても、B を解除しない
+    gates[1]();
+    await cancelReconcile;
+    expect(ledger.pendingWriteByCycle(CYCLE)?.writeId).toBe("0000000000000002");
+    expect(() =>
+      ledger.cancel({ cycleId: CYCLE, round: 1, headSha: HEAD, cancelId: CANCEL }),
+    ).toThrow(expect.objectContaining({ code: "CANCEL_UNCONFIRMED" }));
+
+    releaseB({ id: 9001, url: `${COMMENT_URL}9001` });
+    await expect(repost).resolves.toMatchObject({ resultVersion: 1 });
+  });
+});
+
 describe("失敗・停止後の照合", () => {
   test("書込みが失敗したら進行中のまま残り、投稿が無ければ、次の投稿で解除して再投稿できる", async () => {
     await expect(

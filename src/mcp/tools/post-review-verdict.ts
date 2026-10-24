@@ -74,7 +74,6 @@ async function postBound(
       "candidateId を使うには、内部面（review-raven との連携）を有効にする必要がある",
     );
   }
-  let commentId = 0;
   const result = await binder.post({
     candidateId,
     pr: input,
@@ -82,7 +81,7 @@ async function postBound(
     kind: "reviewed",
     write: async (marker) => {
       const ctx = await deps.getWriteContext(input.owner, input.repo);
-      commentId = await postReviewVerdict(
+      const id = await postReviewVerdict(
         ctx,
         input.owner,
         input.repo,
@@ -92,10 +91,11 @@ async function postBound(
         marker,
       );
       return {
-        id: commentId,
-        url: `https://github.com/${input.owner}/${input.repo}/pull/${input.prNumber}#issuecomment-${commentId}`,
+        id,
+        url: `https://github.com/${input.owner}/${input.repo}/pull/${input.prNumber}#issuecomment-${id}`,
       };
     },
   });
-  return { ok: true, commentId, resultVersion: result.resultVersion };
+  // 停止後の回復では write を実行せず、既存の投稿を返す。返す ID は、記録された結果の投稿から読む。
+  return { ok: true, commentId: result.post.commentId, resultVersion: result.resultVersion };
 }
