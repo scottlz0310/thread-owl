@@ -28,8 +28,25 @@ export function purgeOnce(deps: RetentionDeps): PurgeReport {
 }
 
 /**
+ * 期限を過ぎた行を 1 回削除する。失敗は握りつぶさずログに残し（台帳の書込みの一時的なロックなど）、
+ * 例外としては投げない（起動や次の周期の再試行を止めないため）。削除できたら true。
+ */
+export function purgeSafely(deps: RetentionDeps): boolean {
+  try {
+    purgeOnce(deps);
+    return true;
+  } catch (error) {
+    deps.logger.error("internal.retention.error", {
+      event: "internal.retention.error",
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    return false;
+  }
+}
+
+/**
  * 起動時と、以後一定間隔で、保持期限を過ぎた行を台帳から削除する。signal が中断されたら止まる。
- * 失敗は握りつぶさずログに残し（台帳の書込みの失敗など）、次の周期で再試行する。
+ * 失敗は握りつぶさずログに残し、次の周期で再試行する。
  */
 export async function runRetention(
   deps: RetentionDeps,
@@ -37,14 +54,7 @@ export async function runRetention(
   intervalMs = RETENTION_INTERVAL_MS,
 ): Promise<void> {
   while (!signal.aborted) {
-    try {
-      purgeOnce(deps);
-    } catch (error) {
-      deps.logger.error("internal.retention.error", {
-        event: "internal.retention.error",
-        errorName: error instanceof Error ? error.name : "UnknownError",
-      });
-    }
+    purgeSafely(deps);
     if (signal.aborted) {
       return;
     }

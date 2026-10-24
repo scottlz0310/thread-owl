@@ -373,3 +373,45 @@ describe("保持期限の削除", () => {
     await surface.close();
   });
 });
+
+describe("起動時の初回削除の失敗", () => {
+  test("初回の削除が失敗しても起動でき、ログに残り、次の削除で queue も同期される", async () => {
+    const ledgerPath = join(dir, "ledger.sqlite");
+    const old = new Date(Date.now() - 40 * 86_400_000);
+    const seed = new ReviewCycleLedger({ path: ledgerPath, now: () => old });
+    seed.accept(acceptOf(1)); // 40 日前の未起動の候補
+    seed.close();
+
+    const config = loadInternalSurfaceConfig(
+      {
+        THREAD_OWL_LEDGER_PATH: ledgerPath,
+        THREAD_OWL_INTERNAL_PROXY_SECRET: "proxy-secret-0123456789",
+        THREAD_OWL_SERVICE_ACL: JSON.stringify({
+          services: { s: { actions: ["accept"], repos: ["org/*"] } },
+        }),
+      },
+      "/mcp",
+    );
+    if (!config) throw new Error("setup");
+    const purge = vi.spyOn(ReviewCycleLedger.prototype, "purgeExpired");
+    purge.mockImplementationOnce(() => {
+      throw new Error("database is locked");
+    });
+    const queue = createReviewQueue();
+    const surface = startInternalSurface(
+      config,
+      { getClient: vi.fn(), allowedRepos: [], allowedAuthors: [], resolveInstallationId: vi.fn() },
+      { queue, botLogin: "thread-owl[bot]" },
+      logger,
+      "0.0.0-test",
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      "internal.retention.error",
+      expect.objectContaining({ errorName: "Error" }),
+    );
+    // 定期削除の最初の周期が、続けて削除し、queue からも外す
+    await vi.waitFor(() => expect(queue.size()).toBe(0));
+    await surface.close();
+    purge.mockRestore();
+  });
+});

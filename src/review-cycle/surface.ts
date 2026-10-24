@@ -11,7 +11,7 @@ import { createOriginChecker } from "./origin.js";
 import { RavenClient } from "./raven-client.js";
 import { ResultBinder } from "./result-binder.js";
 import { runDelivery } from "./result-delivery.js";
-import { purgeOnce, runRetention } from "./retention.js";
+import { purgeSafely, runRetention } from "./retention.js";
 
 export interface InternalSurface {
   /** 公開の投稿 tool の candidateId 束縛に渡す。 */
@@ -83,7 +83,8 @@ export function startInternalSurface(
       runtime.queue.removeCycle(cycleId);
     }
   };
-  purgeOnce({ ledger, retentionDays: config.retentionDays, logger, onPurged });
+  // 一時的な失敗でも起動は止めない（ログに残し、定期削除が次の周期で再試行して queue も同期する）。
+  purgeSafely({ ledger, retentionDays: config.retentionDays, logger, onPurged });
   const restored = restoreQueue(ledger, runtime.queue, runtime.reviewStatus, binder);
   if (restored > 0) {
     logger.info("internal.queue.restored", { event: "internal.queue.restored", count: restored });

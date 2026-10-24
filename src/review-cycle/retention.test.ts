@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createReviewQueue } from "../queue/review-queue.js";
 import { abortableSleep } from "./abortable-sleep.js";
 import { type LedgerAccept, ReviewCycleLedger } from "./ledger.js";
-import { purgeOnce, runRetention } from "./retention.js";
+import { purgeOnce, purgeSafely, runRetention } from "./retention.js";
 
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const DAY = 86_400_000;
@@ -345,5 +345,20 @@ describe("abortableSleep", () => {
     expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
 
     await expect(abortableSleep(3_600_000, controller.signal)).resolves.toBeUndefined();
+  });
+});
+
+describe("purgeSafely", () => {
+  test("削除の失敗はログに残し、例外として投げない（起動と次の周期の再試行を止めない）", () => {
+    vi.spyOn(ledger, "purgeExpired").mockImplementationOnce(() => {
+      throw new Error("database is locked");
+    });
+    expect(purgeSafely({ ledger, retentionDays: 30, logger })).toBe(false);
+    expect(logger.error).toHaveBeenCalledWith(
+      "internal.retention.error",
+      expect.objectContaining({ errorName: "Error" }),
+    );
+    // 次の呼び出しは成功する
+    expect(purgeSafely({ ledger, retentionDays: 30, logger })).toBe(true);
   });
 });

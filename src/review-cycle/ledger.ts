@@ -294,6 +294,7 @@ export class ReviewCycleLedger {
     this.db = new DatabaseSync(options.path);
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec(SCHEMA);
+    this.migrate();
     this.now = options.now ?? (() => new Date());
     this.maxQueued = options.maxQueued ?? DEFAULT_MAX_QUEUED_CANDIDATES;
     this.newWriteId = options.newWriteId ?? (() => randomBytes(8).toString("hex"));
@@ -302,6 +303,41 @@ export class ReviewCycleLedger {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * 以前の版で作られた台帳（候補の表に列が足りない）を開いたときに、列を足す。
+   * CREATE TABLE IF NOT EXISTS は、既存の表に列を足さないため。
+   * - installation_id: 以前の候補は不明（0）。復元した queue の項目の installationId が 0 になるだけで、他では使わない。
+   * - write_id / write_kind: 進行中の書込みの識別。以前の版は、投稿の束縛をまだ使っていなかったため、進行中の行は無い。
+   * - last_result_version: 結果の版の採番。既存の結果（索引と通知）の最大版から始め、既存の版と衝突させない。
+   */
+  private migrate(): void {
+    const columns = new Set(
+      (this.db.prepare("PRAGMA table_info(candidates)").all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
+    );
+    this.transaction(() => {
+      const add = (name: string, definition: string): boolean => {
+        if (columns.has(name)) {
+          return false;
+        }
+        this.db.exec(`ALTER TABLE candidates ADD COLUMN ${definition}`);
+        return true;
+      };
+      add("installation_id", "installation_id INTEGER NOT NULL DEFAULT 0");
+      add("write_id", "write_id TEXT");
+      add("write_kind", "write_kind TEXT");
+      if (add("last_result_version", "last_result_version INTEGER NOT NULL DEFAULT 0")) {
+        this.db.exec(
+          `UPDATE candidates SET last_result_version = MAX(
+             COALESCE((SELECT MAX(result_version) FROM results r WHERE r.cycle_id = candidates.cycle_id), 0),
+             COALESCE((SELECT MAX(result_version) FROM result_outbox o WHERE o.cycle_id = candidates.cycle_id), 0)
+           )`,
+        );
+      }
+    });
   }
 
   /** 候補を受け付ける。同じ cycle の同一内容の再送は同じ candidateId を返す（duplicate）。 */
