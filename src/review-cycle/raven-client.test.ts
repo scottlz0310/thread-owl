@@ -116,22 +116,49 @@ async function publishError(client: RavenClient): Promise<ContractError> {
 }
 
 describe("validateRavenEndpoint", () => {
-  test.each([
-    ["https は許可", "https://gateway.example/mcp/raven-internal", true],
-    ["loopback の http は許可", "http://127.0.0.1:8080/internal/mcp", true],
-    ["localhost の http は許可", "http://localhost:8080/x", true],
-    ["外部ホストの http は拒否", "http://gateway.example/mcp", false],
-    ["資格情報つきの URL は拒否", "https://user:pass@gateway.example/mcp", false],
-    ["query つきの URL は拒否", "https://gateway.example/mcp?x=1", false],
-    ["fragment つきの URL は拒否", "https://gateway.example/mcp#x", false],
-    ["URL ではない", "not a url", false],
-    ["file スキームは拒否", "file:///etc/passwd", false],
-  ])("%s", (_name, url, allowed) => {
+  test.each<[string, string, boolean, boolean]>([
+    ["https は許可", "https://gateway.example/mcp/raven-internal", false, true],
+    ["loopback の http は許可", "http://127.0.0.1:8080/internal/mcp", false, true],
+    ["localhost の http は許可", "http://localhost:8080/x", false, true],
+    ["外部ホストの http は拒否", "http://gateway.example/mcp", false, false],
+    [
+      "サービス名の http は、既定では拒否",
+      "http://mcp-gateway:8080/mcp/raven-internal",
+      false,
+      false,
+    ],
+    [
+      "サービス名の http は、opt-in で許可",
+      "http://mcp-gateway:8080/mcp/raven-internal",
+      true,
+      true,
+    ],
+    ["資格情報つきの URL は拒否", "https://user:pass@gateway.example/mcp", false, false],
+    [
+      "資格情報つきの URL は、opt-in でも拒否",
+      "http://user:pass@mcp-gateway:8080/mcp",
+      true,
+      false,
+    ],
+    ["query つきの URL は拒否", "https://gateway.example/mcp?x=1", false, false],
+    ["query つきの URL は、opt-in でも拒否", "http://mcp-gateway:8080/mcp?x=1", true, false],
+    ["fragment つきの URL は拒否", "https://gateway.example/mcp#x", false, false],
+    ["URL ではない", "not a url", false, false],
+    ["URL ではない（opt-in でも）", "not a url", true, false],
+    ["file スキームは拒否", "file:///etc/passwd", false, false],
+    ["file スキームは、opt-in でも拒否", "file:///etc/passwd", true, false],
+  ])("%s", (_name, url, allowPlainHttp, allowed) => {
     if (allowed) {
-      expect(validateRavenEndpoint(url)).toBe(new URL(url).toString());
+      expect(validateRavenEndpoint(url, allowPlainHttp)).toBe(new URL(url).toString());
     } else {
-      expect(() => validateRavenEndpoint(url)).toThrow();
+      expect(() => validateRavenEndpoint(url, allowPlainHttp)).toThrow();
     }
+  });
+
+  test("RavenClient は、opt-in があるときだけ、サービス名の http で作れる", () => {
+    const endpoint = "http://mcp-gateway:8080/mcp/raven-internal";
+    expect(() => new RavenClient({ endpoint, token: TOKEN })).toThrow();
+    expect(() => new RavenClient({ endpoint, token: TOKEN, allowPlainHttp: true })).not.toThrow();
   });
 });
 

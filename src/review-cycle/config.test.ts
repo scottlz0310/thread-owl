@@ -69,6 +69,7 @@ describe("結果の配送の設定", () => {
       endpoint: "https://gateway.example/mcp/raven-internal",
       token: "service-credential-0123456789",
       intervalMs: 5000,
+      allowPlainHttp: false,
     });
   });
 
@@ -132,5 +133,85 @@ describe("保持期間の設定", () => {
     expect(() =>
       loadInternalSurfaceConfig({ ...full, THREAD_OWL_RETENTION_DAYS: value }, "/mcp"),
     ).toThrow(/THREAD_OWL_RETENTION_DAYS/);
+  });
+});
+
+describe("配送の平文 http の opt-in", () => {
+  const delivery = {
+    THREAD_OWL_RAVEN_INTERNAL_URL: "http://mcp-gateway:8080/mcp/raven-internal",
+    THREAD_OWL_RAVEN_INTERNAL_TOKEN: "service-credential-0123456789",
+  };
+
+  test("既定では、サービス名の http は起動を止める", () => {
+    expect(() => loadInternalSurfaceConfig({ ...full, ...delivery }, "/mcp")).toThrow(/https/);
+  });
+
+  test.each(["true", "1", "on", " TRUE "])(
+    "opt-in（%s）でサービス名の http を許可する",
+    (value) => {
+      const config = loadInternalSurfaceConfig(
+        { ...full, ...delivery, THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP: value },
+        "/mcp",
+      );
+      expect(config?.delivery).toMatchObject({
+        endpoint: "http://mcp-gateway:8080/mcp/raven-internal",
+        allowPlainHttp: true,
+      });
+    },
+  );
+
+  test.each(["", "false", "0", "off"])("opt-in が off（%s）なら、従来どおり拒否する", (value) => {
+    expect(() =>
+      loadInternalSurfaceConfig(
+        { ...full, ...delivery, THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP: value },
+        "/mcp",
+      ),
+    ).toThrow(/https/);
+  });
+
+  test("https の URL では、opt-in が off でも通り、allowPlainHttp は false", () => {
+    const config = loadInternalSurfaceConfig(
+      {
+        ...full,
+        THREAD_OWL_RAVEN_INTERNAL_URL: "https://gateway.example/mcp/raven-internal",
+        THREAD_OWL_RAVEN_INTERNAL_TOKEN: "service-credential-0123456789",
+      },
+      "/mcp",
+    );
+    expect(config?.delivery?.allowPlainHttp).toBe(false);
+  });
+
+  test("認識できない値は、https の URL でも起動を止める（黙って off にしない）", () => {
+    expect(() =>
+      loadInternalSurfaceConfig(
+        {
+          ...full,
+          THREAD_OWL_RAVEN_INTERNAL_URL: "https://gateway.example/mcp/raven-internal",
+          THREAD_OWL_RAVEN_INTERNAL_TOKEN: "service-credential-0123456789",
+          THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP: "maybe",
+        },
+        "/mcp",
+      ),
+    ).toThrow(/THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP/);
+  });
+
+  test("opt-in は、URL の資格情報・query・スキームの検査を緩めない", () => {
+    for (const url of [
+      "http://user:pass@mcp-gateway:8080/mcp",
+      "http://mcp-gateway:8080/mcp?x=1",
+      "ftp://mcp-gateway/mcp",
+    ]) {
+      expect(() =>
+        loadInternalSurfaceConfig(
+          {
+            ...full,
+            THREAD_OWL_RAVEN_INTERNAL_URL: url,
+            THREAD_OWL_RAVEN_INTERNAL_TOKEN: "service-credential-0123456789",
+            THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP: "true",
+          },
+          "/mcp",
+        ),
+      ).toThrow();
+    }
   });
 });

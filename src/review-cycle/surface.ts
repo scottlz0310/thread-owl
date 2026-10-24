@@ -113,7 +113,11 @@ export function startInternalSurface(
   // 結果を review-raven へ送る worker（配送を設定したときだけ）。止めるときは、実行中の 1 回を終えてから台帳を閉じる。
   const stopDelivery = new AbortController();
   const raven = config.delivery
-    ? new RavenClient({ endpoint: config.delivery.endpoint, token: config.delivery.token })
+    ? new RavenClient({
+        endpoint: config.delivery.endpoint,
+        token: config.delivery.token,
+        allowPlainHttp: config.delivery.allowPlainHttp,
+      })
     : undefined;
   const worker =
     raven && config.delivery
