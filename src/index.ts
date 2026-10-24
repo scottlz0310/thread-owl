@@ -245,6 +245,20 @@ if (mode === "mcp-stdio") {
   const runtime = createSharedRuntime(config, logger);
   const startedAt = new Date();
 
+  const internal = config.internal
+    ? startInternalSurface(
+        config.internal,
+        buildToolDeps(runtime.issueTokenDeps),
+        {
+          queue: runtime.reviewQueue,
+          reviewStatus: runtime.reviewStatus,
+          botLogin: `${config.appSlug}[bot]`,
+        },
+        logger,
+        VERSION,
+      )
+    : undefined;
+
   const honoApp = new Hono();
   honoApp.get("/health", (c) => c.json(getHealth()));
   honoApp.get("/status", (c) =>
@@ -261,24 +275,12 @@ if (mode === "mcp-stdio") {
       allowedRepos: config.policy.allowedRepos,
       allowedAuthors: config.policy.allowedAuthors,
       getPullRequest: createPullRequestFetcher(buildToolDeps(runtime.issueTokenDeps).getClient),
+      ingest: internal?.ingest,
     }),
   );
 
   const { getRequestListener } = await import("@hono/node-server");
   const honoHandler = getRequestListener(honoApp.fetch);
-  const internal = config.internal
-    ? startInternalSurface(
-        config.internal,
-        buildToolDeps(runtime.issueTokenDeps),
-        {
-          queue: runtime.reviewQueue,
-          reviewStatus: runtime.reviewStatus,
-          botLogin: `${config.appSlug}[bot]`,
-        },
-        logger,
-        VERSION,
-      )
-    : undefined;
 
   const httpServer = await startMcpHttpServer(
     () =>

@@ -93,6 +93,25 @@ export interface DueResultMessage {
   attempts: number;
 }
 
+/**
+ * webhook・コメント由来の候補を、review-raven の共通受付（ingest_review_candidate）へ渡す通知。
+ * sourceId（配送 ID・コメント ID）で冪等に積み、raven が cycle を作る。
+ */
+export interface IngestMessage {
+  sourceId: string;
+  owner: string;
+  repo: string;
+  prNumber: number;
+  headSha: string;
+  reason: CandidateReason;
+  delivery: "webhook" | "comment";
+}
+
+export interface DueIngestMessage {
+  message: IngestMessage;
+  attempts: number;
+}
+
 export interface LedgerOptions {
   /** SQLite のファイルパス。":memory:" で永続化なし（テスト用）。 */
   path: string;
@@ -160,6 +179,21 @@ CREATE TABLE IF NOT EXISTS result_outbox (
   finished_at     TEXT,
   PRIMARY KEY (cycle_id, result_version)
 );
+CREATE TABLE IF NOT EXISTS ingest_outbox (
+  source_id       TEXT PRIMARY KEY,
+  owner           TEXT NOT NULL,
+  repo            TEXT NOT NULL,
+  pr_number       INTEGER NOT NULL,
+  head_sha        TEXT NOT NULL,
+  reason          TEXT NOT NULL,
+  delivery        TEXT NOT NULL CHECK (delivery IN ('webhook', 'comment')),
+  state           TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (state IN ('pending', 'delivered', 'rejected', 'failed')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TEXT NOT NULL,
+  last_error      TEXT,
+  finished_at     TEXT
+);
 `;
 
 const ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -201,6 +235,17 @@ interface OutboxRow {
   comment_id: number;
   url: string;
   posted_at: string;
+  attempts: number;
+}
+
+interface IngestRow {
+  source_id: string;
+  owner: string;
+  repo: string;
+  pr_number: number;
+  head_sha: string;
+  reason: CandidateReason;
+  delivery: "webhook" | "comment";
   attempts: number;
 }
 
@@ -608,6 +653,97 @@ export class ReviewCycleLedger {
          WHERE cycle_id = ? AND result_version = ? AND state = 'pending'`,
       )
       .run(state, error, this.now().toISOString(), cycleId, resultVersion);
+  }
+
+  /**
+   * webhook・コメント由来の候補の通知を積む。同じ sourceId（配送の再送など）は積み直さない。
+   * 積んだら true、すでに積まれていたら false。
+   */
+  enqueueIngest(message: IngestMessage): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT OR IGNORE INTO ingest_outbox
+           (source_id, owner, repo, pr_number, head_sha, reason, delivery, next_attempt_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        message.sourceId,
+        message.owner,
+        message.repo,
+        message.prNumber,
+        message.headSha,
+        message.reason,
+        message.delivery,
+        this.now().toISOString(),
+      );
+    return result.changes > 0;
+  }
+
+  /** 送信の期限が来た候補の通知を、古い順に返す。 */
+  dueIngestMessages(limit = 50): DueIngestMessage[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM ingest_outbox
+         WHERE state = 'pending' AND next_attempt_at <= ?
+         ORDER BY next_attempt_at, rowid LIMIT ?`,
+      )
+      .all(this.now().toISOString(), limit) as unknown as IngestRow[];
+    return rows.map((row) => ({
+      attempts: row.attempts,
+      message: {
+        sourceId: row.source_id,
+        owner: row.owner,
+        repo: row.repo,
+        prNumber: row.pr_number,
+        headSha: row.head_sha,
+        reason: row.reason,
+        delivery: row.delivery,
+      },
+    }));
+  }
+
+  markIngestDelivered(sourceId: string): void {
+    this.finishIngest(sourceId, "delivered", null);
+  }
+
+  /** raven が再送しても通らない理由で拒否した（権限・schema 競合など）。再送しない。 */
+  markIngestRejected(sourceId: string, code: string): void {
+    this.finishIngest(sourceId, "rejected", code);
+  }
+
+  /** 結果の通知と同じ。nextAttemptAt が null なら試行上限として諦める（failed）。 */
+  recordIngestDeliveryFailure(
+    sourceId: string,
+    failure: { code: string; nextAttemptAt: Date | null },
+  ): void {
+    if (failure.nextAttemptAt === null) {
+      this.db
+        .prepare(
+          `UPDATE ingest_outbox SET attempts = attempts + 1, last_error = ?, state = 'failed', finished_at = ?
+           WHERE source_id = ? AND state = 'pending'`,
+        )
+        .run(failure.code, this.now().toISOString(), sourceId);
+      return;
+    }
+    this.db
+      .prepare(
+        `UPDATE ingest_outbox SET attempts = attempts + 1, last_error = ?, next_attempt_at = ?
+         WHERE source_id = ? AND state = 'pending'`,
+      )
+      .run(failure.code, failure.nextAttemptAt.toISOString(), sourceId);
+  }
+
+  private finishIngest(
+    sourceId: string,
+    state: "delivered" | "rejected",
+    error: string | null,
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE ingest_outbox SET state = ?, last_error = ?, attempts = attempts + 1, finished_at = ?
+         WHERE source_id = ? AND state = 'pending'`,
+      )
+      .run(state, error, this.now().toISOString(), sourceId);
   }
 
   /** 候補の同一性を、状態を変えずに読む。 */

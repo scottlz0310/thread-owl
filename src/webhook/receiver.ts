@@ -4,6 +4,7 @@ import type { PullRequest } from "../github/pull-requests.js";
 import { shouldIgnoreEvent } from "../policy/actor-policy.js";
 import type { DeliveryDedup } from "../queue/delivery-dedup.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
+import type { CandidateIngest } from "../review-cycle/ingest.js";
 import { handleIssueCommentEvent } from "./handlers/issue-comment.js";
 import { handlePullRequestEvent } from "./handlers/pull-request.js";
 import { handlePullRequestReviewEvent } from "./handlers/pull-request-review.js";
@@ -23,6 +24,8 @@ export interface WebhookReceiverDeps {
   allowedAuthors: readonly string[];
   // issue_comment の再レビュー依頼で、作成者と fork の検証に使う（投稿者が許可されたときだけ呼ぶ）。
   getPullRequest: (owner: string, repo: string, prNumber: number) => Promise<PullRequest>;
+  // review-raven の共通受付へ渡す記録（内部面と配送を設定したときだけ）。
+  ingest?: CandidateIngest;
 }
 
 const SUPPORTED_EVENTS = new Set([
@@ -98,6 +101,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
           logger: deps.logger,
           allowedRepos: deps.allowedRepos,
           allowedAuthors: deps.allowedAuthors,
+          ingest: deps.ingest,
         });
       } else if (normalized.type === "issue_comment") {
         await handleIssueCommentEvent(normalized, {
@@ -107,6 +111,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps): Hono {
           allowedAuthors: deps.allowedAuthors,
           getPullRequest: deps.getPullRequest,
           appSlug: deps.appSlug,
+          ingest: deps.ingest,
         });
       } else if (normalized.type === "pull_request_review") {
         await handlePullRequestReviewEvent(normalized, {

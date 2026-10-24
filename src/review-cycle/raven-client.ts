@@ -1,8 +1,8 @@
 import { Client, SdkHttpError, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { validateContract } from "../contract/validate.js";
 import { ContractError, type ContractErrorCode } from "./errors.js";
-import type { ResultMessage } from "./ledger.js";
-import type { ResultPublisher } from "./result-delivery.js";
+import type { IngestMessage, ResultMessage } from "./ledger.js";
+import type { IngestPublisher, ResultPublisher } from "./result-delivery.js";
 
 export interface RavenClientConfig {
   /** review-raven の内部面の MCP endpoint（通常は gateway のルート）。 */
@@ -47,8 +47,11 @@ const PEER_CODES: ReadonlySet<string> = new Set<ContractErrorCode>([
   "UNAVAILABLE",
 ]);
 
-/** review-raven の publish_review_result を呼ぶ。失敗は、再送の可否が分かる ContractError にして投げる。 */
-export class RavenClient implements ResultPublisher {
+/**
+ * review-raven の内部面を呼ぶ（結果の通知 publish_review_result、webhook・コメント由来の候補 ingest_review_candidate）。
+ * 失敗は、再送の可否が分かる ContractError にして投げる。
+ */
+export class RavenClient implements ResultPublisher, IngestPublisher {
   private readonly endpoint: string;
   private readonly token: string;
   private readonly fetchImpl: typeof fetch;
@@ -63,11 +66,21 @@ export class RavenClient implements ResultPublisher {
   }
 
   async publish(message: ResultMessage): Promise<void> {
-    const input = { schemaVersion: 1, ...message };
-    const valid = validateContract("publish_review_result.input", input);
+    await this.call("publish_review_result", { schemaVersion: 1, ...message });
+  }
+
+  async ingest(message: IngestMessage): Promise<void> {
+    await this.call("ingest_review_candidate", { schemaVersion: 1, ...message });
+  }
+
+  private async call(
+    tool: "publish_review_result" | "ingest_review_candidate",
+    input: Record<string, unknown>,
+  ): Promise<void> {
+    const valid = validateContract(`${tool}.input`, input);
     if (!valid.ok) {
       // 送る前の自己検査。通らない入力は、送っても同じなので再送しない。
-      throw new ContractError("INVALID_ARGUMENT", `結果の通知が契約に適合しない: ${valid.errors}`);
+      throw new ContractError("INVALID_ARGUMENT", `通知が契約に適合しない: ${valid.errors}`);
     }
     const client = new Client(
       { name: "thread-owl-delivery", version: "1.0.0" },
@@ -81,8 +94,8 @@ export class RavenClient implements ResultPublisher {
     });
     try {
       await client.connect(transport);
-      const result = await client.callTool({ name: "publish_review_result", arguments: input });
-      this.interpret(result);
+      const result = await client.callTool({ name: tool, arguments: input });
+      this.interpret(tool, result);
     } catch (error) {
       throw this.classify(error);
     } finally {
@@ -91,7 +104,10 @@ export class RavenClient implements ResultPublisher {
   }
 
   /** 結果を読む。契約のエラー envelope は、その code を保つ。想定外の形は、ACK 未受信と同じ再送可能な失敗。 */
-  private interpret(result: { isError?: boolean; structuredContent?: unknown }): void {
+  private interpret(
+    tool: "publish_review_result" | "ingest_review_candidate",
+    result: { isError?: boolean; structuredContent?: unknown },
+  ): void {
     if (result.isError) {
       const envelope = result.structuredContent;
       if (validateContract("error", envelope).ok) {
@@ -102,7 +118,7 @@ export class RavenClient implements ResultPublisher {
       }
       throw new ContractError("UNAVAILABLE", "review-raven が契約のエラーでない応答を返した");
     }
-    const output = validateContract("publish_review_result.output", result.structuredContent);
+    const output = validateContract(`${tool}.output`, result.structuredContent);
     if (!output.ok) {
       throw new ContractError("UNAVAILABLE", "review-raven の応答が契約に適合しない");
     }
