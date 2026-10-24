@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ContractError, type ContractErrorCode } from "./errors.js";
 import { type LedgerAccept, type ResultMessage, ReviewCycleLedger } from "./ledger.js";
@@ -211,6 +212,57 @@ describe("runDelivery", () => {
     await vi.waitFor(() => expect(sent).toHaveLength(1));
     controller.abort();
     await expect(loop).resolves.toBeUndefined();
+  });
+
+  test("配送の最中に中断されたら、配送を終えた後に周期全体を待たずに止まる", async () => {
+    record(100);
+    let release: () => void = () => {};
+    let started = false;
+    const controller = new AbortController();
+    const loop = runDelivery(
+      deps({
+        publish: () => {
+          started = true;
+          return new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        },
+      }),
+      3_600_000, // 周期が 1 時間でも、中断の後は待たない
+      controller.signal,
+    );
+    await vi.waitFor(() => expect(started).toBe(true));
+    controller.abort();
+    release();
+    const outcome = await Promise.race([
+      loop.then(() => "stopped"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("still waiting"), 1000)),
+    ]);
+    expect(outcome).toBe("stopped");
+  });
+
+  test("すでに中断されていれば、配送しない", async () => {
+    record(100);
+    const publish = vi.fn(async () => {});
+    const controller = new AbortController();
+    controller.abort();
+    await runDelivery(deps({ publish }), 5, controller.signal);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  test("周期を重ねても abort listener が増えず、停止で 0 になる", async () => {
+    const due = vi.spyOn(ledger, "dueResultMessages");
+    const controller = new AbortController();
+    const loop = runDelivery(deps({ publish: async () => {} }), 2, controller.signal);
+    const counts: number[] = [];
+    await vi.waitFor(() => {
+      counts.push(getEventListeners(controller.signal, "abort").length);
+      expect(due.mock.calls.length).toBeGreaterThanOrEqual(20);
+    });
+    expect(Math.max(...counts)).toBeLessThanOrEqual(1);
+    controller.abort();
+    await loop;
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
   });
 
   test("台帳の失敗では止まらず、次の周期で再試行する", async () => {

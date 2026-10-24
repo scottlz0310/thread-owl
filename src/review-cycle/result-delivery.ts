@@ -108,7 +108,9 @@ export async function deliverDue(deps: DeliveryDeps): Promise<DeliveryReport> {
   return report;
 }
 
-/** 一定間隔で deliverDue を回す。signal が中断されたら止まる（実行中の 1 回は終わらせる）。 */
+/**
+ * 一定間隔で deliverDue を回す。signal が中断されたら止まる（実行中の 1 回は終わらせ、終わったら待たずに止まる）。
+ */
 export async function runDelivery(
   deps: DeliveryDeps,
   intervalMs: number,
@@ -124,16 +126,25 @@ export async function runDelivery(
         errorName: error instanceof Error ? error.name : "UnknownError",
       });
     }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, intervalMs);
-      signal.addEventListener(
-        "abort",
-        () => {
-          clearTimeout(timer);
-          resolve();
-        },
-        { once: true },
-      );
-    });
+    // 配送の最中に中断された場合、AbortSignal は過去の中断を再通知しないため、待機に入る前に確認する。
+    if (signal.aborted) {
+      return;
+    }
+    await sleep(intervalMs, signal);
   }
+}
+
+/** ms 待つ。signal が中断されたら即座に戻る。満了・中断のどちらでも listener とタイマーを残さない。 */
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
