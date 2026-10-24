@@ -1,5 +1,13 @@
 const MAX_QUEUE_SIZE = 100;
 
+/** review-raven の依頼 cycle に結び付いた候補の同一性。reviewer が結果投稿まで束縛する。 */
+export interface CandidateCycle {
+  candidateId: string;
+  cycleId: string;
+  round: number;
+  headSha: string;
+}
+
 export interface ReviewCandidate {
   owner: string;
   repo: string;
@@ -10,12 +18,16 @@ export interface ReviewCandidate {
   // re-review-requested のとき付与
   sourceCommentId?: number;
   requestedBy?: string;
+  // review-raven 経由（accept_review_candidate）の候補のとき付与。旧経路（enqueue_review・webhook）には無い。
+  cycle?: CandidateCycle;
 }
 
 export interface ReviewQueue {
   enqueue(candidate: ReviewCandidate): void;
   dequeue(): ReviewCandidate | undefined;
   list(): ReviewCandidate[];
+  /** 取消された cycle の候補を queue から外す。外したら true。 */
+  removeCycle(cycleId: string): boolean;
   size(): number;
   /** enqueue 時に呼ばれる listener を登録する。戻り値は解除関数。 */
   onEnqueue(listener: () => void): () => void;
@@ -43,9 +55,16 @@ export function createReviewQueue(): ReviewQueue {
       // dedup を先に行うことで、同一 PR の再エンキューは上限カウントに影響しない。
       // 順序を逆にすると、満杯時に同一 PR を再エンキューすると無関係な最古エントリが誤って削除される。
       if (existing !== -1) {
+        // cycle 付きの候補は、依頼元が結果を待つ対象なので、旧経路の通知（cycle なし）で置き換えない。
+        // 置き換えると、reviewer が cycle に束縛されないまま走り、依頼元に結果が届かなくなる。
+        if (items[existing].cycle !== undefined && candidate.cycle === undefined) {
+          return;
+        }
         // re-review-requested は synchronized / opened より優先する。
         // 修正 push のタイミングで先着の re-review-requested が上書きされないよう保護する。
+        // cycle 付きの候補は依頼元の同一性を持つため、この保護の対象外（常に置き換える）。
         if (
+          candidate.cycle === undefined &&
           items[existing].reason === "re-review-requested" &&
           candidate.reason !== "re-review-requested"
         ) {
@@ -71,6 +90,14 @@ export function createReviewQueue(): ReviewQueue {
     },
     list(): ReviewCandidate[] {
       return [...items];
+    },
+    removeCycle(cycleId: string): boolean {
+      const index = items.findIndex((item) => item.cycle?.cycleId === cycleId);
+      if (index === -1) {
+        return false;
+      }
+      items.splice(index, 1);
+      return true;
     },
     size(): number {
       return items.length;

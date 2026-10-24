@@ -322,3 +322,57 @@ describe("createReviewQueue", () => {
     });
   });
 });
+
+describe("cycle 付きの候補（review-raven 経由）", () => {
+  function withCycle(
+    prNumber: number,
+    reason: ReviewCandidate["reason"],
+    cycleId = "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+  ): ReviewCandidate {
+    return {
+      ...makeCandidate(prNumber, reason),
+      cycle: {
+        candidateId: "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+        cycleId,
+        round: 1,
+        headSha: "0123456789abcdef0123456789abcdef01234567",
+      },
+    };
+  }
+
+  test.each<ReviewCandidate["reason"]>(["opened", "synchronized", "re-review-requested"])(
+    "旧経路（cycle なし）の %s は、cycle 付きの候補を置き換えない",
+    (reason) => {
+      const q = createReviewQueue();
+      q.enqueue(withCycle(1, "opened"));
+      q.enqueue(makeCandidate(1, reason));
+      expect(q.list()).toHaveLength(1);
+      expect(q.list()[0].cycle?.cycleId).toBe("cyc_01jbq3x8n5r7t9v2w4y6z8a0c1");
+    },
+  );
+
+  test("cycle 付きの候補は、旧経路の re-review-requested を置き換える（優先規則の対象外）", () => {
+    const q = createReviewQueue();
+    q.enqueue(makeCandidate(1, "re-review-requested"));
+    q.enqueue(withCycle(1, "synchronized"));
+    expect(q.list().map((c) => [c.reason, c.cycle?.cycleId])).toEqual([
+      ["synchronized", "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"],
+    ]);
+  });
+
+  test("新しい cycle の候補は、古い cycle の候補を置き換える", () => {
+    const q = createReviewQueue();
+    q.enqueue(withCycle(1, "opened", "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"));
+    q.enqueue(withCycle(1, "synchronized", "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2"));
+    expect(q.list().map((c) => c.cycle?.cycleId)).toEqual(["cyc_01jbq3x8n5r7t9v2w4y6z8a0c2"]);
+  });
+
+  test("removeCycle は該当する cycle の候補だけを外す", () => {
+    const q = createReviewQueue();
+    q.enqueue(withCycle(1, "opened"));
+    q.enqueue(makeCandidate(2));
+    expect(q.removeCycle("cyc_01jbq3x8n5r7t9v2w4y6z8a0c9")).toBe(false);
+    expect(q.removeCycle("cyc_01jbq3x8n5r7t9v2w4y6z8a0c1")).toBe(true);
+    expect(q.list().map((c) => c.prNumber)).toEqual([2]);
+  });
+});

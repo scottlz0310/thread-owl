@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { Logger } from "../config/logging.js";
 import { type ContractSchemaName, validateContract } from "../contract/validate.js";
+import { createReviewQueue, type ReviewQueue } from "../queue/review-queue.js";
+import { createReviewStatusStore, type ReviewStatusStore } from "../queue/review-status.js";
 import {
   callInternalTool,
   INTERNAL_TOOLS,
@@ -46,6 +48,8 @@ const acl = parseServiceAcl(
 );
 
 let ledger: ReviewCycleLedger;
+let queue: ReviewQueue;
+let reviewStatus: ReviewStatusStore;
 let sequence = 0;
 let originAnswer: Awaited<ReturnType<OriginChecker>> = { allowed: true };
 const logger = {
@@ -56,7 +60,16 @@ const logger = {
 } satisfies Logger;
 
 function deps(overrides: Partial<InternalToolDeps> = {}): InternalToolDeps {
-  return { ledger, acl, checkOrigin: async () => originAnswer, logger, ...overrides };
+  return {
+    ledger,
+    acl,
+    checkOrigin: async () => originAnswer,
+    queue,
+    reviewStatus,
+    resolveInstallationId: async () => 4242,
+    logger,
+    ...overrides,
+  };
 }
 
 const outputSchema: Record<InternalToolName, ContractSchemaName> = {
@@ -93,6 +106,8 @@ beforeEach(() => {
   sequence = 0;
   originAnswer = { allowed: true };
   vi.clearAllMocks();
+  queue = createReviewQueue();
+  reviewStatus = createReviewStatusStore();
   ledger = new ReviewCycleLedger({
     path: ":memory:",
     now: () => new Date("2026-10-25T00:00:00Z"),
@@ -230,7 +245,7 @@ describe("共有シナリオ（raven → owl の手順）", () => {
   const setups: Record<string, () => Promise<void>> = {
     "cancel-conflicts": async () => {
       // cyc…c1 は結果の投稿が先に確定、cyc…c2 は GitHub 書込みが進行中で結果不明
-      const c1 = ledger.accept({ ...acceptInput, sourceId: null });
+      const c1 = ledger.accept({ ...acceptInput, installationId: 1 });
       ledger.beginResultWrite(c1.candidateId);
       ledger.recordResultPosted(c1.candidateId, {
         kind: "approved",
@@ -241,11 +256,11 @@ describe("共有シナリオ（raven → owl の手順）", () => {
         },
         postedAt: "2026-10-25T00:00:00Z",
       });
-      const c2 = ledger.accept({ ...acceptInput, cycleId: CYCLE_2 });
+      const c2 = ledger.accept({ ...acceptInput, cycleId: CYCLE_2, installationId: 1 });
       ledger.beginResultWrite(c2.candidateId);
     },
     "result-recovery-from-owl-index": async () => {
-      ledger.accept(acceptInput);
+      ledger.accept({ ...acceptInput, installationId: 1 });
     },
     "owl-origin-and-delivery-limits": async () => {
       originAnswer = { allowed: false, reason: "fork" };
@@ -300,5 +315,96 @@ describe("共有シナリオ（raven → owl の手順）", () => {
         expect(outcome.ok && outcome.output, `${id}: ${step.op}`).toEqual(expected.output);
       }
     }
+  });
+});
+
+describe("review queue との連携", () => {
+  const pr = { owner: "scottlz0310", repo: "mcp-resource-subscriber", prNumber: 226 };
+
+  test("accept は候補を既存の queue に cycle 付きで載せ、status を pending にする", async () => {
+    await call("accept_review_candidate", acceptInput);
+    expect(queue.list()).toEqual([
+      expect.objectContaining({
+        ...pr,
+        installationId: 4242,
+        reason: "opened",
+        cycle: {
+          candidateId: "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          cycleId: CYCLE,
+          round: 1,
+          headSha: HEAD,
+        },
+      }),
+    ]);
+    expect(reviewStatus.get(pr)?.status).toBe("pending");
+  });
+
+  test("同じ候補の再送（duplicate）は、queue に載せ直さず、status のラウンドも進めない", async () => {
+    await call("accept_review_candidate", acceptInput);
+    const round = reviewStatus.currentRound(pr);
+    queue.removeCycle(CYCLE);
+    const again = await call("accept_review_candidate", acceptInput);
+    expect(again.ok && again.output.duplicate).toBe(true);
+    expect(queue.size()).toBe(0);
+    expect(reviewStatus.currentRound(pr)).toBe(round);
+  });
+
+  test("origin に違反する候補は、queue にも status にも載せない", async () => {
+    originAnswer = { allowed: false, reason: "fork" };
+    await call("accept_review_candidate", acceptInput);
+    expect(queue.size()).toBe(0);
+    expect(reviewStatus.get(pr)).toBeUndefined();
+  });
+
+  test("installation を解決できなければ UNAVAILABLE で、台帳にも queue にも残さない（再送できる）", async () => {
+    const failing = deps({
+      resolveInstallationId: async () => {
+        throw new Error("github down");
+      },
+    });
+    const outcome = await call("accept_review_candidate", acceptInput, "svc-raven", failing);
+    expect(errorCode(outcome)).toBe("UNAVAILABLE");
+    expect(ledger.findByCycle(CYCLE)).toBeUndefined();
+    expect(queue.size()).toBe(0);
+    const retry = await call("accept_review_candidate", acceptInput);
+    expect(retry.ok && retry.output.duplicate).toBe(false);
+  });
+
+  test("取消は、queue から候補を外す", async () => {
+    await call("accept_review_candidate", acceptInput);
+    expect((await call("cancel_review_candidate", cancelInput)).ok).toBe(true);
+    expect(queue.size()).toBe(0);
+  });
+
+  test("書込み中で取消が保留（CANCEL_UNCONFIRMED）でも、reviewer が走り出さないよう queue から外す", async () => {
+    const accepted = await call("accept_review_candidate", acceptInput);
+    ledger.beginResultWrite(accepted.ok ? (accepted.output.candidateId as string) : "");
+    expect(errorCode(await call("cancel_review_candidate", cancelInput))).toBe(
+      "CANCEL_UNCONFIRMED",
+    );
+    expect(queue.size()).toBe(0);
+  });
+
+  test("結果の投稿が先着していれば（CANCEL_RESULT_POSTED）、候補を外さない", async () => {
+    const accepted = await call("accept_review_candidate", acceptInput);
+    const candidateId = accepted.ok ? (accepted.output.candidateId as string) : "";
+    ledger.beginResultWrite(candidateId);
+    ledger.recordResultPosted(candidateId, {
+      kind: "approved",
+      headSha: HEAD,
+      post: { commentId: 1, url: "https://github.com/o/r/pull/1#issuecomment-1" },
+      postedAt: "2026-10-25T00:00:00Z",
+    });
+    expect(errorCode(await call("cancel_review_candidate", cancelInput))).toBe(
+      "CANCEL_RESULT_POSTED",
+    );
+    expect(queue.size()).toBe(1);
+  });
+
+  test("旧経路の enqueue（cycle なし）が後から来ても、cycle 付きの候補は残る", async () => {
+    await call("accept_review_candidate", acceptInput);
+    queue.enqueue({ ...pr, installationId: 1, queuedAt: new Date(), reason: "synchronized" });
+    expect(queue.list()).toHaveLength(1);
+    expect(queue.list()[0].cycle?.cycleId).toBe(CYCLE);
   });
 });

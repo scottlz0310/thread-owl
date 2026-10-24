@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { validateContract } from "../contract/validate.js";
 import { createMcpServer } from "../mcp/server.js";
 import { type StartedMcpHttpServer, startMcpHttpServer } from "../mcp/transports.js";
+import { createReviewQueue } from "../queue/review-queue.js";
 import {
   authenticateInternalRequest,
   createInternalEndpoint,
@@ -98,6 +99,8 @@ describe("内部 MCP endpoint（公開面と同じ HTTP server の別パス）",
           }),
         ),
         checkOrigin: async () => ({ allowed: true }),
+        queue: createReviewQueue(),
+        resolveInstallationId: async () => 1,
         logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       },
     });

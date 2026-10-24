@@ -93,7 +93,13 @@ if (mode === "mcp-stdio") {
   const reviewQueue = createReviewQueue();
   const reviewStatus = createReviewStatusStore();
   const internal = config.internal
-    ? startInternalSurface(config.internal, buildToolDeps(issueTokenDeps), logger, VERSION)
+    ? startInternalSurface(
+        config.internal,
+        buildToolDeps(issueTokenDeps),
+        { queue: reviewQueue, reviewStatus },
+        logger,
+        VERSION,
+      )
     : undefined;
   const httpServer = await startMcpHttpServer(
     () =>
@@ -256,7 +262,13 @@ if (mode === "mcp-stdio") {
   const { getRequestListener } = await import("@hono/node-server");
   const honoHandler = getRequestListener(honoApp.fetch);
   const internal = config.internal
-    ? startInternalSurface(config.internal, buildToolDeps(runtime.issueTokenDeps), logger, VERSION)
+    ? startInternalSurface(
+        config.internal,
+        buildToolDeps(runtime.issueTokenDeps),
+        { queue: runtime.reviewQueue, reviewStatus: runtime.reviewStatus },
+        logger,
+        VERSION,
+      )
     : undefined;
 
   const httpServer = await startMcpHttpServer(

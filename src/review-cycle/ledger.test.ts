@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { validateContract } from "../contract/validate.js";
 import { ContractError, type ContractErrorCode } from "./errors.js";
 import {
-  type AcceptInput,
   type CancelInput,
+  type LedgerAccept,
   type ResultPost,
   ReviewCycleLedger,
 } from "./ledger.js";
@@ -16,7 +16,8 @@ const CANCEL = "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1";
 const HEAD_A = "0123456789abcdef0123456789abcdef01234567";
 const HEAD_B = "89abcdef0123456789abcdef0123456789abcdef";
 
-const accept: AcceptInput = {
+const accept: LedgerAccept = {
+  installationId: 42,
   cycleId: CYCLE,
   round: 1,
   owner: "scottlz0310",
@@ -96,7 +97,7 @@ describe("accept", () => {
     expect(ledger.accept(accept)).toEqual({ candidateId: first.candidateId, duplicate: true });
   });
 
-  test.each<[string, Partial<AcceptInput>, ContractErrorCode]>([
+  test.each<[string, Partial<LedgerAccept>, ContractErrorCode]>([
     ["HEAD が違う", { headSha: HEAD_B }, "HEAD_CONFLICT"],
     ["round が違う", { round: 2 }, "INVALID_ARGUMENT"],
     ["PR が違う", { prNumber: 227 }, "INVALID_ARGUMENT"],
@@ -339,5 +340,37 @@ describe("再起動をまたぐ永続", () => {
     } finally {
       second.close();
     }
+  });
+});
+
+describe("listQueued", () => {
+  test("未起動・未取消の候補を、受付順に installationId つきで返す", () => {
+    const a = ledger.accept(accept);
+    const b = ledger.accept({
+      ...accept,
+      cycleId: "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2",
+      prNumber: 227,
+      installationId: 43,
+    });
+    const c = ledger.accept({
+      ...accept,
+      cycleId: "cyc_01jbq3x8n5r7t9v2w4y6z8a0c3",
+      prNumber: 228,
+    });
+    ledger.accept({ ...accept, cycleId: "cyc_01jbq3x8n5r7t9v2w4y6z8a0c4", prNumber: 229 });
+    ledger.start(c.candidateId);
+    ledger.cancel({
+      cycleId: "cyc_01jbq3x8n5r7t9v2w4y6z8a0c4",
+      round: 1,
+      headSha: HEAD_A,
+      cancelId: CANCEL,
+    });
+
+    expect(
+      ledger.listQueued().map((q) => [q.candidateId, q.prNumber, q.installationId, q.reason]),
+    ).toEqual([
+      [a.candidateId, 226, 42, "opened"],
+      [b.candidateId, 227, 43, "opened"],
+    ]);
   });
 });
