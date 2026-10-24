@@ -1,5 +1,7 @@
 import type { Logger } from "../config/logging.js";
 import { type ContractSchemaName, validateContract } from "../contract/validate.js";
+import type { ReviewQueue } from "../queue/review-queue.js";
+import type { ReviewStatusStore } from "../queue/review-status.js";
 import { ContractError } from "./errors.js";
 import type { ReviewCycleLedger } from "./ledger.js";
 import type { OriginChecker } from "./origin.js";
@@ -27,6 +29,10 @@ export interface InternalToolDeps {
   ledger: ReviewCycleLedger;
   acl: ServiceAcl;
   checkOrigin: OriginChecker;
+  /** 受け付けた候補を載せる既存の review queue。reviewer の起動と購読の経路は旧経路と共通。 */
+  queue: ReviewQueue;
+  reviewStatus?: ReviewStatusStore;
+  resolveInstallationId: (owner: string, repo: string) => Promise<number>;
   logger: Logger;
 }
 
@@ -73,7 +79,7 @@ export async function callInternalTool(
 }
 
 async function run(
-  { ledger, acl, checkOrigin }: InternalToolDeps,
+  { ledger, acl, checkOrigin, queue, reviewStatus, resolveInstallationId }: InternalToolDeps,
   principal: string,
   name: InternalToolName,
   input: Record<string, unknown>,
@@ -100,7 +106,32 @@ async function run(
       if (!origin.allowed) {
         throw new ContractError("ORIGIN_REJECTED", `候補を受け付けない PR: ${origin.reason}`);
       }
-      return { schemaVersion: 1, ...ledger.accept(accept) };
+      // 失敗しうる外部呼び出し（installation の解決）は、台帳へ永続する前に済ませる。
+      const installationId = await resolveInstallationId(accept.owner, accept.repo);
+      const accepted = ledger.accept({ ...accept, installationId });
+      // 再送（duplicate）は queue に載せ直さない。再起動後は台帳から queue を再構築する。
+      if (!accepted.duplicate) {
+        queue.enqueue({
+          owner: accept.owner,
+          repo: accept.repo,
+          prNumber: accept.prNumber,
+          installationId,
+          queuedAt: new Date(),
+          reason: accept.reason,
+          cycle: {
+            candidateId: accepted.candidateId,
+            cycleId: accept.cycleId,
+            round: accept.round,
+            headSha: accept.headSha,
+          },
+        });
+        reviewStatus?.markPending({
+          owner: accept.owner,
+          repo: accept.repo,
+          prNumber: accept.prNumber,
+        });
+      }
+      return { schemaVersion: 1, ...accepted };
     }
     case "cancel_review_candidate": {
       const cancel = {
@@ -113,7 +144,18 @@ async function run(
       if (!acl.allows(principal, action, ledger.findByCycle(cancel.cycleId))) {
         throw denied();
       }
-      const done = ledger.cancel(cancel);
+      let done: ReturnType<ReviewCycleLedger["cancel"]>;
+      try {
+        done = ledger.cancel(cancel);
+      } catch (error) {
+        // 取消の要求は永続済みで、旧候補は起動できない。reviewer が走り出さないよう queue から外す。
+        // 結果の投稿が先着した場合（CANCEL_RESULT_POSTED）は、候補を外さない。
+        if (error instanceof ContractError && error.code === "CANCEL_UNCONFIRMED") {
+          queue.removeCycle(cancel.cycleId);
+        }
+        throw error;
+      }
+      queue.removeCycle(cancel.cycleId);
       return {
         schemaVersion: 1,
         cancelId: done.cancelId,

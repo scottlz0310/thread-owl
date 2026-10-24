@@ -46,6 +46,7 @@ function makeQueue(): ReviewQueue {
   return {
     enqueue: vi.fn(),
     dequeue: vi.fn(),
+    removeCycle: vi.fn(() => false),
     list: vi.fn(() => []),
     size: vi.fn(() => 0),
     onEnqueue: vi.fn(() => () => {}),

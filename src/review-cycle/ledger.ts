@@ -17,6 +17,18 @@ export interface AcceptInput {
   sourceId: string | null;
 }
 
+/** 台帳へ受け付ける候補。installationId は raven の入力ではなく、受付時に owl が解決する。 */
+export interface LedgerAccept extends AcceptInput {
+  installationId: number;
+}
+
+/** 受付済みで、まだ reviewer が起動していない候補（再起動後の queue の再構築に使う）。 */
+export interface QueuedCandidate extends CandidateBinding {
+  installationId: number;
+  reason: CandidateReason;
+  acceptedAt: string;
+}
+
 export interface CancelInput {
   cycleId: string;
   round: number;
@@ -50,9 +62,14 @@ export interface CandidateBinding {
   headSha: string;
 }
 
+/** 未起動の候補の既定の上限。超える新規の受付は、永続せず UNAVAILABLE（再送可）にする。 */
+export const DEFAULT_MAX_QUEUED_CANDIDATES = 1000;
+
 export interface LedgerOptions {
   /** SQLite のファイルパス。":memory:" で永続化なし（テスト用）。 */
   path: string;
+  /** 受付済みで未起動・未取消の候補の上限。 */
+  maxQueued?: number;
   now?: () => Date;
   newCandidateId?: () => string;
 }
@@ -68,6 +85,7 @@ CREATE TABLE IF NOT EXISTS candidates (
   head_sha     TEXT NOT NULL,
   reason       TEXT NOT NULL,
   source_id    TEXT,
+  installation_id INTEGER NOT NULL,
   status       TEXT NOT NULL CHECK (status IN ('queued', 'started')),
   write_state  TEXT NOT NULL DEFAULT 'idle' CHECK (write_state IN ('idle', 'in-progress')),
   accepted_at  TEXT NOT NULL,
@@ -118,6 +136,8 @@ interface CandidateRow {
   head_sha: string;
   reason: string;
   source_id: string | null;
+  installation_id: number;
+  accepted_at: string;
   status: "queued" | "started";
   write_state: "idle" | "in-progress";
 }
@@ -147,12 +167,14 @@ export class ReviewCycleLedger {
   private readonly db: DatabaseSync;
   private readonly now: () => Date;
   private readonly newCandidateId: () => string;
+  private readonly maxQueued: number;
 
   constructor(options: LedgerOptions) {
     this.db = new DatabaseSync(options.path);
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec(SCHEMA);
     this.now = options.now ?? (() => new Date());
+    this.maxQueued = options.maxQueued ?? DEFAULT_MAX_QUEUED_CANDIDATES;
     this.newCandidateId = options.newCandidateId ?? (() => generateCandidateId(this.now()));
   }
 
@@ -161,7 +183,7 @@ export class ReviewCycleLedger {
   }
 
   /** 候補を受け付ける。同じ cycle の同一内容の再送は同じ candidateId を返す（duplicate）。 */
-  accept(input: AcceptInput): { candidateId: string; duplicate: boolean } {
+  accept(input: LedgerAccept): { candidateId: string; duplicate: boolean } {
     return this.transaction(() => {
       if (this.cancellation(input.cycleId)) {
         throw new ContractError("CANDIDATE_CANCELLED", "取消済みの cycle の候補は受け付けない");
@@ -171,13 +193,20 @@ export class ReviewCycleLedger {
         this.assertSameCandidate(existing, input);
         return { candidateId: existing.candidate_id, duplicate: true };
       }
+      // 未起動の候補が上限なら、新規の受付は永続せず再送可能にする（queue から黙って脱落させない）。
+      if (this.countQueued() >= this.maxQueued) {
+        throw new ContractError(
+          "UNAVAILABLE",
+          "未起動の候補が上限に達しているため、いまは受け付けられない",
+        );
+      }
       const candidateId = this.newCandidateId();
       this.db
         .prepare(
           `INSERT INTO candidates
              (candidate_id, cycle_id, round, owner, repo, pr_number, head_sha, reason, source_id,
-              status, accepted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+              installation_id, status, accepted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
         )
         .run(
           candidateId,
@@ -189,6 +218,7 @@ export class ReviewCycleLedger {
           input.headSha,
           input.reason,
           input.sourceId,
+          input.installationId,
           this.now().toISOString(),
         );
       return { candidateId, duplicate: false };
@@ -373,6 +403,35 @@ export class ReviewCycleLedger {
         candidateStatus: candidate ? candidate.status : "not-accepted",
       };
     });
+  }
+
+  private countQueued(): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM candidates
+         WHERE status = 'queued'
+           AND NOT EXISTS (SELECT 1 FROM cancellations c WHERE c.cycle_id = candidates.cycle_id)`,
+      )
+      .get() as { n: number };
+    return row.n;
+  }
+
+  /** 受付済みで未起動、かつ取消記録のない候補を、受付順に返す。 */
+  listQueued(): QueuedCandidate[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM candidates
+         WHERE status = 'queued'
+           AND NOT EXISTS (SELECT 1 FROM cancellations c WHERE c.cycle_id = candidates.cycle_id)
+         ORDER BY accepted_at, rowid`,
+      )
+      .all() as unknown as CandidateRow[];
+    return rows.map((row) => ({
+      ...bindingOf(row),
+      installationId: row.installation_id,
+      reason: row.reason as CandidateReason,
+      acceptedAt: row.accepted_at,
+    }));
   }
 
   /** cycle の受付済み候補。repo が入力に無い操作（取消・結果参照）で、対象 repo の認可に使う。 */
