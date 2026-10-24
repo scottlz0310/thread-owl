@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { z } from "zod";
 import { validateContract } from "../contract/validate.js";
 import { ContractError, type ContractErrorCode } from "./errors.js";
-import type { ResultMessage } from "./ledger.js";
+import type { IngestMessage, ResultMessage } from "./ledger.js";
 import { RavenClient, validateRavenEndpoint } from "./raven-client.js";
 
 const TOKEN = "service-credential-0123456789abcdef";
@@ -23,10 +23,29 @@ const message: ResultMessage = {
   postedAt: "2026-10-25T00:00:00Z",
 };
 const ok = { schemaVersion: 1, accepted: true, snapshotRevision: 6, terminal: true };
+const ingestOk = {
+  schemaVersion: 1,
+  cycleId: "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+  round: 1,
+  dispatch: "pending",
+  resourceUri: "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+  deduplicated: false,
+};
+const ingestMessage: IngestMessage = {
+  sourceId: "delivery:0f1e2d3c-0001",
+  owner: "scottlz0310",
+  repo: "mcp-resource-subscriber",
+  prNumber: 226,
+  headSha: "0123456789abcdef0123456789abcdef01234567",
+  reason: "opened",
+  delivery: "webhook",
+};
 
 interface FakeRaven {
   url: string;
-  received: Array<{ authorization: string | undefined; input: unknown }>;
+  received: Array<{ tool: string; authorization: string | undefined; input: unknown }>;
+  /** 次の ingest の応答。 */
+  replyIngest: () => CallToolResult;
   /** 次の応答を差し替える。 */
   reply: () => CallToolResult | Promise<CallToolResult>;
   /** 設定すると、MCP に入る前に HTTP でこの状態を返す。 */
@@ -38,6 +57,7 @@ async function startFakeRaven(): Promise<FakeRaven> {
   const fake: FakeRaven = {
     url: "",
     received: [],
+    replyIngest: () => ({ content: [{ type: "text", text: "{}" }], structuredContent: ingestOk }),
     reply: () => ({ content: [{ type: "text", text: "{}" }], structuredContent: ok }),
     httpStatus: undefined,
     close: async () => {},
@@ -50,8 +70,16 @@ async function startFakeRaven(): Promise<FakeRaven> {
         "publish_review_result",
         { description: "fake", inputSchema: z.looseObject({}) },
         async (args) => {
-          fake.received.push({ authorization, input: args });
+          fake.received.push({ tool: "publish_review_result", authorization, input: args });
           return fake.reply();
+        },
+      );
+      server.registerTool(
+        "ingest_review_candidate",
+        { description: "fake", inputSchema: z.looseObject({}) },
+        async (args) => {
+          fake.received.push({ tool: "ingest_review_candidate", authorization, input: args });
+          return fake.replyIngest();
         },
       );
       return server;
@@ -216,6 +244,63 @@ describe("RavenClient", () => {
       retryable: false,
     });
     expect(raven.received).toHaveLength(0);
+  });
+
+  describe("ingest_review_candidate", () => {
+    test("資格情報を Bearer で送り、契約に適合する入力を送る", async () => {
+      await expect(client.ingest(ingestMessage)).resolves.toBeUndefined();
+      expect(raven.received).toHaveLength(1);
+      expect(raven.received[0].tool).toBe("ingest_review_candidate");
+      expect(raven.received[0].authorization).toBe(`Bearer ${TOKEN}`);
+      expect(validateContract("ingest_review_candidate.input", raven.received[0].input)).toEqual({
+        ok: true,
+      });
+      expect(raven.received[0].input).toEqual({ schemaVersion: 1, ...ingestMessage });
+    });
+
+    test.each<[ContractErrorCode, boolean]>([
+      ["PERMISSION_DENIED", false],
+      ["INVALID_ARGUMENT", false],
+      ["HEAD_CONFLICT", false],
+      ["UNAVAILABLE", true],
+    ])("raven の契約のエラー（%s）は、その code を保ち、再送可否は %s", async (code, retryable) => {
+      raven.replyIngest = () => ({
+        isError: true,
+        content: [{ type: "text", text: "{}" }],
+        structuredContent: { schemaVersion: 1, error: { code, message: "scripted", retryable } },
+      });
+      await expect(client.ingest(ingestMessage)).rejects.toMatchObject({ code, retryable });
+    });
+
+    test("契約に適合しない出力の成功は、再送可能な UNAVAILABLE にする", async () => {
+      raven.replyIngest = () => ({
+        content: [{ type: "text", text: "{}" }],
+        structuredContent: { schemaVersion: 1, cycleId: "nope" },
+      });
+      await expect(client.ingest(ingestMessage)).rejects.toMatchObject({
+        code: "UNAVAILABLE",
+        retryable: true,
+      });
+    });
+
+    test("契約に適合しない通知は、送らずに INVALID_ARGUMENT（再送しない）", async () => {
+      await expect(client.ingest({ ...ingestMessage, headSha: "NOT-A-SHA" })).rejects.toMatchObject(
+        {
+          code: "INVALID_ARGUMENT",
+          retryable: false,
+        },
+      );
+      expect(raven.received).toHaveLength(0);
+    });
+
+    test("結果の通知と候補の通知は、別の tool に届く", async () => {
+      await client.publish(message);
+      await client.ingest(ingestMessage);
+      expect(raven.received.map((r) => r.tool)).toEqual([
+        "publish_review_result",
+        "ingest_review_candidate",
+      ]);
+    });
   });
 
   test("リダイレクトは追われず、転送先に資格情報を送らない（SDK の挙動を固定する）", async () => {

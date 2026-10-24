@@ -221,3 +221,77 @@ describe("結果の配送 worker", () => {
     }
   });
 });
+
+describe("webhook・コメント由来の候補の記録（ingest）", () => {
+  const baseEnv = (ledgerPath: string) => ({
+    THREAD_OWL_LEDGER_PATH: ledgerPath,
+    THREAD_OWL_INTERNAL_PROXY_SECRET: "proxy-secret-0123456789",
+    THREAD_OWL_SERVICE_ACL: JSON.stringify({
+      services: { s: { actions: ["accept"], repos: ["org/*"] } },
+    }),
+  });
+  const tools = {
+    getClient: vi.fn(),
+    allowedRepos: [],
+    allowedAuthors: [],
+    resolveInstallationId: vi.fn(),
+  };
+
+  test("配送を設定していなければ、記録の窓口は無い（積んでも送り先が無いため）", async () => {
+    const config = loadInternalSurfaceConfig(baseEnv(join(dir, "ledger.sqlite")), "/mcp");
+    if (!config) throw new Error("setup");
+    const surface = startInternalSurface(
+      config,
+      tools,
+      { queue: createReviewQueue(), botLogin: "thread-owl[bot]" },
+      logger,
+      "0.0.0-test",
+    );
+    expect(surface.ingest).toBeUndefined();
+    await surface.close();
+  });
+
+  test("配送を設定すると窓口があり、記録した候補を review-raven の ingest_review_candidate へ送る", async () => {
+    const received: Array<{ authorization: string | undefined }> = [];
+    const fake = createServer((req, res) => {
+      received.push({ authorization: req.headers.authorization });
+      res.writeHead(503).end();
+    });
+    await new Promise<void>((resolve) => fake.listen(0, "127.0.0.1", resolve));
+    try {
+      const config = loadInternalSurfaceConfig(
+        {
+          ...baseEnv(join(dir, "ledger.sqlite")),
+          THREAD_OWL_RAVEN_INTERNAL_URL: `http://127.0.0.1:${(fake.address() as AddressInfo).port}/internal/mcp`,
+          THREAD_OWL_RAVEN_INTERNAL_TOKEN: "service-credential-0123456789",
+          THREAD_OWL_DELIVERY_INTERVAL_SEC: "1",
+        },
+        "/mcp",
+      );
+      if (!config) throw new Error("setup");
+      const surface = startInternalSurface(
+        config,
+        tools,
+        { queue: createReviewQueue(), botLogin: "thread-owl[bot]" },
+        logger,
+        "0.0.0-test",
+      );
+      expect(surface.ingest).toBeDefined();
+      surface.ingest?.record({
+        sourceId: "delivery:0f1e2d3c-0001",
+        owner: "org",
+        repo: "repo",
+        prNumber: 5,
+        headSha: HEAD,
+        reason: "opened",
+        delivery: "webhook",
+      });
+      await vi.waitFor(() => expect(received.length).toBeGreaterThan(0), { timeout: 5000 });
+      expect(received[0].authorization).toBe("Bearer service-credential-0123456789");
+      await surface.close();
+    } finally {
+      fake.closeAllConnections();
+      await new Promise<void>((resolve) => fake.close(() => resolve()));
+    }
+  });
+});

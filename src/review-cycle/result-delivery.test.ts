@@ -1,11 +1,18 @@
 import { getEventListeners } from "node:events";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ContractError, type ContractErrorCode } from "./errors.js";
-import { type LedgerAccept, type ResultMessage, ReviewCycleLedger } from "./ledger.js";
+import {
+  type IngestMessage,
+  type LedgerAccept,
+  type ResultMessage,
+  ReviewCycleLedger,
+} from "./ledger.js";
 import {
   backoffMs,
   DEFAULT_DELIVERY_SETTINGS,
   deliverDue,
+  deliverIngestDue,
+  type IngestPublisher,
   type ResultPublisher,
   runDelivery,
 } from "./result-delivery.js";
@@ -278,5 +285,115 @@ describe("runDelivery", () => {
       "internal.result.delivery.error",
       expect.objectContaining({ errorName: "Error" }),
     );
+  });
+});
+
+describe("候補の通知（ingest）の outbox と配送", () => {
+  const message: IngestMessage = {
+    sourceId: "delivery:0f1e2d3c-0001",
+    owner: "org",
+    repo: "repo",
+    prNumber: 5,
+    headSha: HEAD,
+    reason: "opened",
+    delivery: "webhook",
+  };
+
+  function ingester(error?: unknown): IngestPublisher & { calls: IngestMessage[] } {
+    const calls: IngestMessage[] = [];
+    return {
+      calls,
+      ingest: async (m) => {
+        calls.push(m);
+        if (error) throw error;
+      },
+    };
+  }
+
+  test("同じ sourceId は積み直さない（配送の再送・GitHub の再配信で増えない）", () => {
+    expect(ledger.enqueueIngest(message)).toBe(true);
+    expect(ledger.enqueueIngest(message)).toBe(false);
+    expect(ledger.dueIngestMessages()).toEqual([{ attempts: 0, message }]);
+  });
+
+  test("送れた通知は delivered になり、もう積まれない", async () => {
+    ledger.enqueueIngest(message);
+    const sink = ingester();
+    const report = await deliverIngestDue({ ...deps({ publish: async () => {} }), ingester: sink });
+    expect(report).toEqual({ delivered: 1, retried: 0, rejected: 0, failed: 0 });
+    expect(sink.calls).toEqual([message]);
+    expect(ledger.dueIngestMessages()).toEqual([]);
+    // 配送済みの sourceId は、積み直しても再送されない
+    ledger.enqueueIngest(message);
+    expect(ledger.dueIngestMessages()).toEqual([]);
+  });
+
+  test("ingester が無ければ何もしない（積まれたままで、送らない）", async () => {
+    ledger.enqueueIngest(message);
+    const report = await deliverIngestDue(deps({ publish: async () => {} }));
+    expect(report).toEqual({ delivered: 0, retried: 0, rejected: 0, failed: 0 });
+    expect(ledger.dueIngestMessages()).toHaveLength(1);
+  });
+
+  test.each<ContractErrorCode>(["PERMISSION_DENIED", "INVALID_ARGUMENT", "HEAD_CONFLICT"])(
+    "再送しても通らない拒否（%s）は rejected で、再送しない",
+    async (code) => {
+      ledger.enqueueIngest(message);
+      const sink = ingester(new ContractError(code, "rejected"));
+      const report = await deliverIngestDue({
+        ...deps({ publish: async () => {} }),
+        ingester: sink,
+      });
+      expect(report.rejected).toBe(1);
+      clock = new Date(clock.getTime() + 3_600_000);
+      await deliverIngestDue({ ...deps({ publish: async () => {} }), ingester: sink });
+      expect(sink.calls).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "internal.ingest.delivery.rejected",
+        expect.objectContaining({ sourceId: message.sourceId, code }),
+      );
+    },
+  );
+
+  test("再送可能な失敗はバックオフで再送し、上限に達したら failed にして諦める", async () => {
+    ledger.enqueueIngest(message);
+    const sink = ingester(new ContractError("UNAVAILABLE", "down"));
+    const settings = { ...DEFAULT_DELIVERY_SETTINGS, maxAttempts: 2 };
+    const reports = [];
+    for (let i = 0; i < 3; i++) {
+      reports.push(
+        await deliverIngestDue({ ...deps({ publish: async () => {} }), ingester: sink, settings }),
+      );
+      clock = new Date(clock.getTime() + 600_000);
+    }
+    expect(reports.map((r) => [r.retried, r.failed])).toEqual([
+      [1, 0],
+      [0, 1],
+      [0, 0],
+    ]);
+    expect(sink.calls).toHaveLength(2);
+    expect(logger.error).toHaveBeenCalledWith(
+      "internal.ingest.delivery.failed",
+      expect.objectContaining({ sourceId: message.sourceId, attempts: 2 }),
+    );
+  });
+
+  test("runDelivery は、候補の通知を結果の通知より先に送る", async () => {
+    const order: string[] = [];
+    record(100);
+    ledger.enqueueIngest(message);
+    const controller = new AbortController();
+    const loop = runDelivery(
+      {
+        ...deps({ publish: async () => void order.push("result") }),
+        ingester: { ingest: async () => void order.push("ingest") },
+      },
+      5,
+      controller.signal,
+    );
+    await vi.waitFor(() => expect(order).toHaveLength(2));
+    controller.abort();
+    await loop;
+    expect(order).toEqual(["ingest", "result"]);
   });
 });

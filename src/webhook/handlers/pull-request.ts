@@ -2,6 +2,7 @@ import type { Logger } from "../../config/logging.js";
 import { isAllowed } from "../../policy/allowlist.js";
 import { evaluatePullRequestOrigin, type PullRequestOrigin } from "../../policy/author-policy.js";
 import type { ReviewCandidate, ReviewQueue } from "../../queue/review-queue.js";
+import type { CandidateIngest } from "../../review-cycle/ingest.js";
 import type { NormalizedEvent } from "../normalize-event.js";
 import { isRecord } from "../utils.js";
 
@@ -11,6 +12,8 @@ export interface PullRequestHandlerDeps {
   allowedRepos: readonly string[];
   // PR の作成者 allowlist（正規化済みの login）。空の間は、すべて拒否する（fail-closed）。
   allowedAuthors: readonly string[];
+  // review-raven の共通受付へ渡す記録（内部面と配送を設定したときだけ）。旧経路の queue への投入はそのまま行う。
+  ingest?: CandidateIngest;
 }
 
 // payload から作成者と head の repository を取り出す。読めないものは null（拒否される）。
@@ -93,6 +96,19 @@ export async function handlePullRequestEvent(
     queuedAt: new Date(),
     reason: reasonFor(action),
   });
+
+  const headSha = isRecord(pr.head) && typeof pr.head.sha === "string" ? pr.head.sha : undefined;
+  if (deps.ingest && headSha !== undefined) {
+    deps.ingest.record({
+      sourceId: `delivery:${event.deliveryId}`,
+      owner: owner.toLowerCase(),
+      repo: repo.toLowerCase(),
+      prNumber,
+      headSha,
+      reason: reasonFor(action),
+      delivery: "webhook",
+    });
+  }
 
   deps.logger.info("webhook.pull_request.queued", {
     event: "webhook.pull_request.queued",

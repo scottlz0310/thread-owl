@@ -166,6 +166,7 @@ Claude Code / agent workflow
 - **raven 由来の候補も既存の review queue に載せる**: 内部面の `accept_review_candidate` は、旧経路と同じ in-memory queue に、`cycle`（candidateId・cycleId・round・HEAD）つきで候補を載せる。reviewer の起動・購読・Squirrel の busy 制御は旧経路と共通。cycle 付きの候補は旧経路の通知で置き換えず、queue の上限（100 件）で押し出さず（上限は旧経路の項目だけ。受付は台帳の未起動の候補数の上限で制限する）、取消で queue から外し、再起動時は永続台帳（受付済みで未起動・未取消）から再構築する
 - **結果の投稿は cycle に束縛し、投稿本文の相関マーカーで回復する**: 投稿 tool の任意の `candidateId` を指定すると、`ResultBinder` が、台帳の「書込み開始 → GitHub 投稿 → 結果の記録」で投稿を挟み、cycle・round・HEAD を候補に固定する（投稿時に現在の round を引き直さない）。本文の末尾に付ける相関マーカー（`cycleId`・`candidateId`・`writeId`・`kind` の HTML コメント）で、停止後に結果不明のまま残った書込みを GitHub 上の自身の投稿から照合して回復し、同じ投稿を再投稿しない。他者のマーカーは信用しない
 - **結果の通知は outbox で少なくとも 1 回届ける**: 結果を台帳に記録するのと同じトランザクションで `result_outbox` に積み、worker が review-raven の `publish_review_result` へ送る。再送するのは ACK 未受信の失敗だけで、上限（既定 8 回・指数バックオフ）で諦める。拒否（取消済み・期限切れ・権限・schema 競合）は再送せず記録し、別の経路へ自動で切り替えない
+- **webhook 由来の候補も raven の共通受付へ渡す（旧経路は維持する）**: webhook の `pull_request`・再レビュー依頼の `issue_comment` は、旧経路の queue へ投入した後に、台帳の `ingest_outbox` へ `sourceId` で冪等に記録し、結果の通知と同じ worker で `ingest_review_candidate` へ送る。raven が cycle を作って候補を送り返し、cycle 付きの項目が旧経路の項目を置き換える。記録の失敗は webhook を失敗させ、再配信に任せる
 - **LLM を内蔵しない**: Thread Owl はプロキシであり、AI システムではない
 - **Allowlist を write のハードゲートとする**: write の GitHub API 呼び出し前に allowlist チェックを行い、read は GitHub App installation の repo scope に委ねる
 - **resolve は修正側の責務とする**: Thread Owl はレビュアー側 GitHub App であり、スレッドの resolve は PR author または repository write access を持つ修正側の MCP が行う

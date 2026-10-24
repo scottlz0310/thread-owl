@@ -4,6 +4,7 @@ import type { ToolDeps } from "../mcp/tool-deps.js";
 import type { ReviewQueue } from "../queue/review-queue.js";
 import type { ReviewStatusStore } from "../queue/review-status.js";
 import type { InternalSurfaceConfig } from "./config.js";
+import { type CandidateIngest, createLedgerIngest } from "./ingest.js";
 import { createInternalEndpoint } from "./internal-endpoint.js";
 import { ReviewCycleLedger } from "./ledger.js";
 import { createOriginChecker } from "./origin.js";
@@ -14,6 +15,8 @@ import { runDelivery } from "./result-delivery.js";
 export interface InternalSurface {
   /** 公開の投稿 tool の candidateId 束縛に渡す。 */
   binder: ResultBinder;
+  /** webhook・コメント由来の候補を review-raven の共通受付へ渡す記録。配送を設定したときだけ。 */
+  ingest: CandidateIngest | undefined;
   /** 内部面のパスなら処理して true を返す。公開面の HTTP server の fallbackHandler から呼ぶ。 */
   handle(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
   close(): Promise<void>;
@@ -100,20 +103,17 @@ export function startInternalSurface(
   });
   // 結果を review-raven へ送る worker（配送を設定したときだけ）。止めるときは、実行中の 1 回を終えてから台帳を閉じる。
   const stopDelivery = new AbortController();
-  const worker = config.delivery
-    ? runDelivery(
-        {
-          ledger,
-          publisher: new RavenClient({
-            endpoint: config.delivery.endpoint,
-            token: config.delivery.token,
-          }),
-          logger,
-        },
-        config.delivery.intervalMs,
-        stopDelivery.signal,
-      )
-    : Promise.resolve();
+  const raven = config.delivery
+    ? new RavenClient({ endpoint: config.delivery.endpoint, token: config.delivery.token })
+    : undefined;
+  const worker =
+    raven && config.delivery
+      ? runDelivery(
+          { ledger, publisher: raven, ingester: raven, logger },
+          config.delivery.intervalMs,
+          stopDelivery.signal,
+        )
+      : Promise.resolve();
   if (config.delivery) {
     logger.info("internal.result.delivery.started", {
       event: "internal.result.delivery.started",
@@ -123,6 +123,7 @@ export function startInternalSurface(
   }
   return {
     binder,
+    ingest: config.delivery ? createLedgerIngest(ledger, logger) : undefined,
     handle: (req, res) => endpoint.handle(req, res),
     close: async () => {
       stopDelivery.abort();
