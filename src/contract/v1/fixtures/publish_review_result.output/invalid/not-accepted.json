@@ -1,0 +1,10 @@
+{
+  "base": "terminal",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/accepted",
+      "value": false
+    }
+  ]
+}

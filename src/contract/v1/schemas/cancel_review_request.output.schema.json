@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/cancel_review_request.output.schema.json",
+  "title": "CancelReviewRequestOutput",
+  "description": "取消要求の受付結果。cancellation=requested の間は terminal=false。owl の無効化 ACK 後に confirmed / terminal=true になる。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "cycleId",
+    "cancelId",
+    "cancellation",
+    "terminal",
+    "snapshotRevision",
+    "deduplicated"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "cycleId": {
+      "$ref": "common.schema.json#/$defs/cycleId"
+    },
+    "cancelId": {
+      "$ref": "common.schema.json#/$defs/cancelId"
+    },
+    "cancellation": {
+      "enum": [
+        "requested",
+        "confirmed"
+      ]
+    },
+    "terminal": {
+      "type": "boolean"
+    },
+    "snapshotRevision": {
+      "$ref": "common.schema.json#/$defs/revision"
+    },
+    "deduplicated": {
+      "type": "boolean"
+    }
+  }
+}

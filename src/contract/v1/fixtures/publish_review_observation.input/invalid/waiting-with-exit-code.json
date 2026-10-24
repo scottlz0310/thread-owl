@@ -1,0 +1,10 @@
+{
+  "base": "waiting-ci-pending",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/exitCode",
+      "value": 0
+    }
+  ]
+}

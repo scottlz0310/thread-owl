@@ -1,0 +1,10 @@
+{
+  "base": "result-approved",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/result/body",
+      "value": "APPROVED"
+    }
+  ]
+}

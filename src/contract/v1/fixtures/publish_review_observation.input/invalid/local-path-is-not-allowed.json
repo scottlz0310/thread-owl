@@ -1,0 +1,10 @@
+{
+  "base": "waiting-ci-pending",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/workDir",
+      "value": "C:\\Users\\dev"
+    }
+  ]
+}

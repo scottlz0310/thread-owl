@@ -5,6 +5,9 @@
     "clientKind": "git",
     "useIgnoreFile": true
   },
+  "files": {
+    "includes": ["**", "!src/contract/v1"]
+  },
   "assist": {
     "actions": {
       "source": {

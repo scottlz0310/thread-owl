@@ -1,0 +1,10 @@
+{
+  "base": "pending",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/cancellation/cancelId",
+      "value": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1"
+    }
+  ]
+}

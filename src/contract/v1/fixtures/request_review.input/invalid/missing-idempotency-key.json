@@ -1,0 +1,9 @@
+{
+  "base": "opened",
+  "patch": [
+    {
+      "op": "remove",
+      "path": "/idempotencyKey"
+    }
+  ]
+}

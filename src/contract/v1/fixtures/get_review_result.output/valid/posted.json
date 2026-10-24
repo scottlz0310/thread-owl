@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "result": {
+    "source": "thread-owl",
+    "kind": "approved",
+    "headSha": "0123456789abcdef0123456789abcdef01234567",
+    "resultVersion": 1,
+    "post": {
+      "commentId": 6384700041,
+      "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+    }
+  }
+}

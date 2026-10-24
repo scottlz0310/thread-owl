@@ -1,0 +1,10 @@
+{
+  "base": "dispatch-failed",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/dispatch/errorCode",
+      "value": null
+    }
+  ]
+}

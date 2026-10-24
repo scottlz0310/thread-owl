@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/publish_review_result.output.schema.json",
+  "title": "PublishReviewResultOutput",
+  "description": "受理結果。結果受理後の実行終了・heartbeat は result / terminal を退行させない。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "accepted",
+    "snapshotRevision",
+    "terminal"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "accepted": {
+      "const": true
+    },
+    "snapshotRevision": {
+      "$ref": "common.schema.json#/$defs/revision"
+    },
+    "terminal": {
+      "type": "boolean"
+    }
+  }
+}

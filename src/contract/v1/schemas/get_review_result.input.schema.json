@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/get_review_result.input.schema.json",
+  "title": "GetReviewResultInput",
+  "description": "raven → owl。通知欠落時に owl の永続結果索引から結果参照を再取得する。投稿者・対象 PR・HEAD・cycle 相関は owl 側で検証済みのものだけを返す。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "cycleId",
+    "candidateId"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "cycleId": {
+      "$ref": "common.schema.json#/$defs/cycleId"
+    },
+    "candidateId": {
+      "$ref": "common.schema.json#/$defs/candidateId"
+    }
+  }
+}

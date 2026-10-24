@@ -1,0 +1,10 @@
+{
+  "base": "waiting-ci-pending",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/producerEpoch",
+      "value": 0
+    }
+  ]
+}

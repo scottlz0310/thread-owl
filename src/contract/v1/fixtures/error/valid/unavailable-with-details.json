@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "error": {
+    "code": "UNAVAILABLE",
+    "message": "owl did not acknowledge",
+    "retryable": true,
+    "details": {
+      "attempts": 3
+    }
+  }
+}

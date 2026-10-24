@@ -1,0 +1,10 @@
+{
+  "base": "defaults",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/delivery/maxAttempts",
+      "value": 0
+    }
+  ]
+}

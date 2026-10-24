@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "delivery:0f1e2d3c-0001",
+  "owner": "scottlz0310",
+  "repo": "mcp-resource-subscriber",
+  "prNumber": 226,
+  "headSha": "0123456789abcdef0123456789abcdef01234567",
+  "reason": "opened",
+  "delivery": "webhook"
+}

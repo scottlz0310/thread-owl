@@ -1,0 +1,10 @@
+{
+  "base": "not-accepted",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/acknowledged",
+      "value": false
+    }
+  ]
+}

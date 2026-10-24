@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/request_review.input.schema.json",
+  "title": "RequestReviewInput",
+  "description": "初回・再依頼の同一入口。呼び出し主体は gateway が検証した identity から得る（requestedBy のような自己申告は受け付けない）。同一主体・PR で idempotencyKey は一意。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "owner",
+    "repo",
+    "prNumber",
+    "expectedHeadSha",
+    "reason",
+    "idempotencyKey"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "owner": {
+      "$ref": "common.schema.json#/$defs/owner"
+    },
+    "repo": {
+      "$ref": "common.schema.json#/$defs/repo"
+    },
+    "prNumber": {
+      "$ref": "common.schema.json#/$defs/prNumber"
+    },
+    "expectedHeadSha": {
+      "$ref": "common.schema.json#/$defs/sha"
+    },
+    "reason": {
+      "$ref": "common.schema.json#/$defs/reason"
+    },
+    "idempotencyKey": {
+      "$ref": "common.schema.json#/$defs/idempotencyKey"
+    }
+  }
+}

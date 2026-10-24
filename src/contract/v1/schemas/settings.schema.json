@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/settings.schema.json",
+  "title": "ContractSettings",
+  "description": "再送・保持・鮮度の設定。テスト可能な設定として明示する初期値と下限。実装は設定値を変更できるが、下限未満は起動時に拒否する。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "retention",
+    "delivery",
+    "observation"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finishedRequestDays",
+        "idempotencyDays",
+        "cancellationRecordDays",
+        "resultIndexDays"
+      ],
+      "properties": {
+        "finishedRequestDays": {
+          "type": "integer",
+          "minimum": 30
+        },
+        "idempotencyDays": {
+          "type": "integer",
+          "minimum": 30
+        },
+        "cancellationRecordDays": {
+          "type": "integer",
+          "minimum": 30
+        },
+        "resultIndexDays": {
+          "type": "integer",
+          "minimum": 30
+        }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxAttempts",
+        "initialBackoffMs",
+        "backoffMultiplier",
+        "maxBackoffMs",
+        "jitterRatio",
+        "retryOn"
+      ],
+      "properties": {
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "initialBackoffMs": {
+          "type": "integer",
+          "minimum": 100
+        },
+        "backoffMultiplier": {
+          "type": "number",
+          "minimum": 1
+        },
+        "maxBackoffMs": {
+          "type": "integer",
+          "minimum": 100
+        },
+        "jitterRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "retryOn": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "network",
+              "http5xx"
+            ]
+          }
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "heartbeatSeconds",
+        "staleAfterSeconds",
+        "clockSkewToleranceSeconds"
+      ],
+      "properties": {
+        "heartbeatSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "staleAfterSeconds": {
+          "type": "integer",
+          "minimum": 120
+        },
+        "clockSkewToleranceSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        }
+      }
+    }
+  }
+}

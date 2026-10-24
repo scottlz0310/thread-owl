@@ -1,0 +1,10 @@
+{
+  "base": "head-conflict",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/error/message",
+      "value": ""
+    }
+  ]
+}

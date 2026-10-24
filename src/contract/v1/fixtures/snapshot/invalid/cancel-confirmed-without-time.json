@@ -1,0 +1,10 @@
+{
+  "base": "cancelled",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/cancellation/confirmedAt",
+      "value": null
+    }
+  ]
+}

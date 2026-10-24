@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- review-raven との「レビュー依頼サイクル」契約 v1 の取り込みと、reviewer 側の永続台帳の基盤を追加した（review-raven#144 の O1、thread-owl#279 の段階 1。まだ MCP の面には公開しておらず、挙動は変わらない）。(1) 契約は review-raven の固定コミット `a4ff116` のコピー（`src/contract/v1`: JSON Schema・fixture・シナリオ）で、`MANIFEST.json` の sha256 が手元での改変・欠落・追加をテストで検出し、`scripts/pin-contract.mjs` で取り込み直す。schema は ajv（2020-12）で検証し（`src/contract/validate.ts`）、valid/invalid の fixture をすべて通す。(2) 台帳 `ReviewCycleLedger`（`src/review-cycle/`、SQLite の `node:sqlite`。追加の native 依存なし）が、候補の受付（同一 cycle の同一内容の再送は同じ candidateId を返し、内容が違えば `HEAD_CONFLICT`／`INVALID_ARGUMENT`）、reviewer の起動時の cycle・round・HEAD の束縛、取消記録、結果索引を持つ。取消は未受理の cycle にも永続し、後から来た旧受付・旧候補の起動・新規投稿を `CANDIDATE_CANCELLED` で拒否する。GitHub 書込みが進行中・結果不明の間は取消を確定せず（`CANCEL_UNCONFIRMED`。記録は残して起動と投稿を拒否する）、投稿が先着していれば `CANCEL_RESULT_POSTED` で要求中の取消を撤回する。結果は GitHub 投稿への参照（版・コメント ID・URL）だけを持ち、再起動後も保持する。保持期限による削除、outbox、MCP の内部面、旧 enqueue／queue／status との共存は、後続の段階で実装する。
 - `get_pr` の返却に、PR の作成元の判定 `origin`（`allowed`、拒否のときは `reason`）を追加した。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗せず、`pr` と `files` は従来どおり返す。reviewer が、queue を経由しない CLI からの直接起動でも、ローカル検証の前に、許可外の作成者・fork の PR を止められるようにする（#252）。
 
 ### Changed

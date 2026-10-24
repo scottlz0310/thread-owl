@@ -1,0 +1,10 @@
+{
+  "base": "defaults",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/retention/cancellationRecordDays",
+      "value": 7
+    }
+  ]
+}

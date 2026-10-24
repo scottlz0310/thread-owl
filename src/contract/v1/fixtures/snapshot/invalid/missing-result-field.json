@@ -1,0 +1,9 @@
+{
+  "base": "pending",
+  "patch": [
+    {
+      "op": "remove",
+      "path": "/result"
+    }
+  ]
+}

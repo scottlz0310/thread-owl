@@ -1,0 +1,10 @@
+{
+  "base": "accepted",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/candidateId",
+      "value": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+    }
+  ]
+}
