@@ -114,6 +114,8 @@ export interface DueIngestMessage {
 
 /** 保持期限で削除した行数。 */
 export interface PurgeReport {
+  /** 削除した候補の cycleId。in-memory の queue から外すために使う。 */
+  purgedCycleIds: string[];
   candidates: number;
   results: number;
   cancellations: number;
@@ -147,6 +149,7 @@ CREATE TABLE IF NOT EXISTS candidates (
   write_state  TEXT NOT NULL DEFAULT 'idle' CHECK (write_state IN ('idle', 'in-progress')),
   write_id     TEXT,
   write_kind   TEXT,
+  last_result_version INTEGER NOT NULL DEFAULT 0,
   accepted_at  TEXT NOT NULL,
   started_at   TEXT
 );
@@ -233,6 +236,7 @@ interface CandidateRow {
   write_state: "idle" | "in-progress";
   write_id: string | null;
   write_kind: ResultKind | null;
+  last_result_version: number;
 }
 
 interface OutboxRow {
@@ -412,13 +416,12 @@ export class ReviewCycleLedger {
       if (same) {
         return resultOf(same);
       }
-      const current =
-        (
-          this.db
-            .prepare("SELECT MAX(result_version) AS v FROM results WHERE cycle_id = ?")
-            .get(row.cycle_id) as { v: number | null }
-        ).v ?? 0;
-      const version = current + 1;
+      // 版は候補ごとの単調増加の採番で、結果索引の保持期限による削除後も戻らない
+      // （索引だけが消えても、残っている通知の版や raven が持つ版と衝突させない）。
+      const version = row.last_result_version + 1;
+      this.db
+        .prepare("UPDATE candidates SET last_result_version = ? WHERE candidate_id = ?")
+        .run(version, candidateId);
       this.db
         .prepare(
           `INSERT INTO results
@@ -777,18 +780,31 @@ export class ReviewCycleLedger {
         "DELETE FROM cancellations WHERE state = 'confirmed' AND julianday(confirmed_at) < julianday(?)",
       );
       const results = run("DELETE FROM results WHERE julianday(posted_at) < julianday(?)");
-      const candidates = run(
-        `DELETE FROM candidates
-         WHERE julianday(accepted_at) < julianday(?)
-           AND write_state = 'idle'
-           AND NOT EXISTS (SELECT 1 FROM results r WHERE r.cycle_id = candidates.cycle_id)
-           AND NOT EXISTS (SELECT 1 FROM cancellations c WHERE c.cycle_id = candidates.cycle_id)
-           AND NOT EXISTS (
-             SELECT 1 FROM result_outbox o
-             WHERE o.cycle_id = candidates.cycle_id AND o.state = 'pending'
-           )`,
-      );
-      return { candidates, results, cancellations, resultOutbox, ingestOutbox };
+      const expired = this.db
+        .prepare(
+          `SELECT cycle_id FROM candidates
+           WHERE julianday(accepted_at) < julianday(?)
+             AND write_state = 'idle'
+             AND NOT EXISTS (SELECT 1 FROM results r WHERE r.cycle_id = candidates.cycle_id)
+             AND NOT EXISTS (SELECT 1 FROM cancellations c WHERE c.cycle_id = candidates.cycle_id)
+             AND NOT EXISTS (
+               SELECT 1 FROM result_outbox o
+               WHERE o.cycle_id = candidates.cycle_id AND o.state = 'pending'
+             )`,
+        )
+        .all(cutoff) as Array<{ cycle_id: string }>;
+      const remove = this.db.prepare("DELETE FROM candidates WHERE cycle_id = ?");
+      for (const { cycle_id } of expired) {
+        remove.run(cycle_id);
+      }
+      return {
+        purgedCycleIds: expired.map((c) => c.cycle_id),
+        candidates: expired.length,
+        results,
+        cancellations,
+        resultOutbox,
+        ingestOutbox,
+      };
     });
   }
 

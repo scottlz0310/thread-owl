@@ -1,8 +1,9 @@
 import { getEventListeners } from "node:events";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { createReviewQueue } from "../queue/review-queue.js";
 import { abortableSleep } from "./abortable-sleep.js";
 import { type LedgerAccept, ReviewCycleLedger } from "./ledger.js";
-import { runRetention } from "./retention.js";
+import { purgeOnce, runRetention } from "./retention.js";
 
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const DAY = 86_400_000;
@@ -46,7 +47,14 @@ function cancel(n: number) {
   ledger.cancel({ cycleId: cycleOf(n), round: 1, headSha: HEAD, cancelId: cancelOf(n) });
 }
 
-const zero = { candidates: 0, results: 0, cancellations: 0, resultOutbox: 0, ingestOutbox: 0 };
+const zero = {
+  purgedCycleIds: [],
+  candidates: 0,
+  results: 0,
+  cancellations: 0,
+  resultOutbox: 0,
+  ingestOutbox: 0,
+};
 
 beforeEach(() => {
   clock = T0;
@@ -194,6 +202,92 @@ describe("purgeExpired", () => {
     expect(ledger.purgeExpired(60)).toEqual(zero);
     advance(20);
     expect(ledger.purgeExpired(60).results).toBe(1);
+  });
+});
+
+describe("結果の版の採番（保持期限の削除の後も単調増加）", () => {
+  test("結果索引だけが削除されても、残っている通知の版と衝突せず、次の結果は次の版になる", () => {
+    const { candidateId } = ledger.accept(acceptOf(1));
+    post(candidateId, 1); // 版 1。通知は送信待ちのまま残す
+    advance(31);
+    const { writeId } = ledger.beginResultWrite(candidateId, "approved");
+    // 結果索引（版 1）は期限切れで削除されるが、候補（書込みが進行中）と送信待ちの通知は残る
+    expect(ledger.purgeExpired(30)).toMatchObject({ results: 1, candidates: 0 });
+    expect(ledger.dueResultMessages().map((d) => d.message.resultVersion)).toEqual([1]);
+
+    const second = ledger.recordResultPosted(candidateId, {
+      kind: "approved",
+      headSha: HEAD,
+      post: { commentId: 2, url: "https://github.com/org/repo/pull/101#issuecomment-2" },
+      postedAt: clock.toISOString(),
+      writeId,
+    });
+    expect(second.resultVersion).toBe(2);
+    expect(ledger.dueResultMessages().map((d) => d.message.resultVersion)).toEqual([1, 2]);
+  });
+
+  test("版は候補ごとに独立して採番される", () => {
+    const a = ledger.accept(acceptOf(1)).candidateId;
+    const b = ledger.accept(acceptOf(2)).candidateId;
+    post(a, 1);
+    post(a, 2);
+    post(b, 3);
+    expect(ledger.getResult(cycleOf(1), a)?.resultVersion).toBe(2);
+    expect(ledger.getResult(cycleOf(2), b)?.resultVersion).toBe(1);
+  });
+});
+
+describe("削除した候補と配信対象（queue）の同期", () => {
+  test("purgeOnce は、削除した候補の cycleId を onPurged に渡す", () => {
+    ledger.accept(acceptOf(1));
+    ledger.accept(acceptOf(2));
+    post(
+      ledger.getCandidate(ledger.findByCycle(cycleOf(2))?.candidateId ?? "")?.candidateId ?? "",
+      9,
+    );
+    advance(31);
+    const onPurged = vi.fn();
+    purgeOnce({ ledger, retentionDays: 30, logger, onPurged });
+    expect(onPurged).toHaveBeenCalledWith(expect.arrayContaining([cycleOf(1)]));
+    expect(onPurged.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  test("削除がなければ onPurged を呼ばない", () => {
+    ledger.accept(acceptOf(1));
+    const onPurged = vi.fn();
+    purgeOnce({ ledger, retentionDays: 30, logger, onPurged });
+    expect(onPurged).not.toHaveBeenCalled();
+  });
+
+  test("定期削除でも、削除した cycle が queue に残らない", async () => {
+    const { candidateId } = ledger.accept(acceptOf(1));
+    const queue = createReviewQueue();
+    queue.enqueue({
+      owner: "org",
+      repo: "repo",
+      prNumber: 101,
+      installationId: 1,
+      queuedAt: clock,
+      reason: "opened",
+      cycle: { candidateId, cycleId: cycleOf(1), round: 1, headSha: HEAD },
+    });
+    advance(31);
+    const controller = new AbortController();
+    const loop = runRetention(
+      {
+        ledger,
+        retentionDays: 30,
+        logger,
+        onPurged: (ids) => {
+          for (const id of ids) queue.removeCycle(id);
+        },
+      },
+      controller.signal,
+      5,
+    );
+    await vi.waitFor(() => expect(queue.size()).toBe(0));
+    controller.abort();
+    await loop;
   });
 });
 
