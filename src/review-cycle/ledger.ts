@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { ContractError } from "./errors.js";
 
@@ -65,6 +65,12 @@ export interface CandidateBinding {
 /** 未起動の候補の既定の上限。超える新規の受付は、永続せず UNAVAILABLE（再送可）にする。 */
 export const DEFAULT_MAX_QUEUED_CANDIDATES = 1000;
 
+/** 進行中（または結果不明）の GitHub 書込み。投稿本文の相関マーカーの writeId で照合する。 */
+export interface PendingWrite extends CandidateBinding {
+  writeId: string;
+  kind: ResultKind;
+}
+
 export interface LedgerOptions {
   /** SQLite のファイルパス。":memory:" で永続化なし（テスト用）。 */
   path: string;
@@ -72,6 +78,7 @@ export interface LedgerOptions {
   maxQueued?: number;
   now?: () => Date;
   newCandidateId?: () => string;
+  newWriteId?: () => string;
 }
 
 const SCHEMA = `
@@ -88,6 +95,8 @@ CREATE TABLE IF NOT EXISTS candidates (
   installation_id INTEGER NOT NULL,
   status       TEXT NOT NULL CHECK (status IN ('queued', 'started')),
   write_state  TEXT NOT NULL DEFAULT 'idle' CHECK (write_state IN ('idle', 'in-progress')),
+  write_id     TEXT,
+  write_kind   TEXT,
   accepted_at  TEXT NOT NULL,
   started_at   TEXT
 );
@@ -140,6 +149,8 @@ interface CandidateRow {
   accepted_at: string;
   status: "queued" | "started";
   write_state: "idle" | "in-progress";
+  write_id: string | null;
+  write_kind: ResultKind | null;
 }
 
 interface CancellationRow {
@@ -167,6 +178,7 @@ export class ReviewCycleLedger {
   private readonly db: DatabaseSync;
   private readonly now: () => Date;
   private readonly newCandidateId: () => string;
+  private readonly newWriteId: () => string;
   private readonly maxQueued: number;
 
   constructor(options: LedgerOptions) {
@@ -175,6 +187,7 @@ export class ReviewCycleLedger {
     this.db.exec(SCHEMA);
     this.now = options.now ?? (() => new Date());
     this.maxQueued = options.maxQueued ?? DEFAULT_MAX_QUEUED_CANDIDATES;
+    this.newWriteId = options.newWriteId ?? (() => randomBytes(8).toString("hex"));
     this.newCandidateId = options.newCandidateId ?? (() => generateCandidateId(this.now()));
   }
 
@@ -250,7 +263,7 @@ export class ReviewCycleLedger {
    * GitHub への結果投稿を始める印を付ける。取消済みの候補には投稿させない。
    * 投稿が進行中または結果不明の間は、取消を確定しない（照合前に ACK を返さない）。
    */
-  beginResultWrite(candidateId: string): CandidateBinding {
+  beginResultWrite(candidateId: string, kind: ResultKind): CandidateBinding & { writeId: string } {
     return this.transaction(() => {
       const row = this.requireCandidate(candidateId);
       if (this.cancellation(row.cycle_id)) {
@@ -262,10 +275,13 @@ export class ReviewCycleLedger {
           "この候補の GitHub 書込みが進行中または結果不明のため、照合が済むまで始めない",
         );
       }
+      const writeId = this.newWriteId();
       this.db
-        .prepare("UPDATE candidates SET write_state = 'in-progress' WHERE candidate_id = ?")
-        .run(candidateId);
-      return bindingOf(row);
+        .prepare(
+          "UPDATE candidates SET write_state = 'in-progress', write_id = ?, write_kind = ? WHERE candidate_id = ?",
+        )
+        .run(writeId, kind, candidateId);
+      return { ...bindingOf(row), writeId };
     });
   }
 
@@ -315,7 +331,9 @@ export class ReviewCycleLedger {
           posted.postedAt,
         );
       this.db
-        .prepare("UPDATE candidates SET write_state = 'idle' WHERE candidate_id = ?")
+        .prepare(
+          "UPDATE candidates SET write_state = 'idle', write_id = NULL, write_kind = NULL WHERE candidate_id = ?",
+        )
         .run(candidateId);
       return {
         source: "thread-owl",
@@ -332,7 +350,9 @@ export class ReviewCycleLedger {
     this.transaction(() => {
       this.requireCandidate(candidateId);
       this.db
-        .prepare("UPDATE candidates SET write_state = 'idle' WHERE candidate_id = ?")
+        .prepare(
+          "UPDATE candidates SET write_state = 'idle', write_id = NULL, write_kind = NULL WHERE candidate_id = ?",
+        )
         .run(candidateId);
     });
   }
@@ -414,6 +434,15 @@ export class ReviewCycleLedger {
       )
       .get() as { n: number };
     return row.n;
+  }
+
+  /** cycle の候補に、進行中（または結果不明）の GitHub 書込みがあれば返す。 */
+  pendingWriteByCycle(cycleId: string): PendingWrite | undefined {
+    const row = this.candidateByCycle(cycleId);
+    if (row?.write_state !== "in-progress" || row.write_id === null || row.write_kind === null) {
+      return undefined;
+    }
+    return { ...bindingOf(row), writeId: row.write_id, kind: row.write_kind };
   }
 
   /** 受付済みで未起動、かつ取消記録のない候補を、受付順に返す。 */

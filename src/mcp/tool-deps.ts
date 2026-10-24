@@ -5,6 +5,7 @@ import type { GitHubClient } from "../github/client.js";
 import { createClient } from "../github/client.js";
 import type { WriteContext } from "../github/write-context.js";
 import { type IssueTokenDeps, issueToken, type TokenAccess } from "../internal-api/token-source.js";
+import type { ResultBinder } from "../review-cycle/result-binder.js";
 
 export interface ToolDeps {
   getClient: (owner: string, repo: string) => Promise<GitHubClient>;
@@ -14,6 +15,8 @@ export interface ToolDeps {
   allowedAuthors: readonly string[];
   logger: Logger;
   resolveInstallationId: (owner: string, repo: string) => Promise<number>;
+  // 内部面（review-raven との連携）を有効にしたときだけ渡る。投稿 tool の candidateId の束縛に使う。
+  resultBinder?: ResultBinder;
 }
 
 // 各 tool は owner/repo から installation token を都度発行し、認証済み client を得る。

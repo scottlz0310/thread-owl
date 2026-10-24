@@ -10,7 +10,9 @@ import {
   type InternalEndpoint,
 } from "./internal-endpoint.js";
 import { ReviewCycleLedger } from "./ledger.js";
+import { ResultBinder } from "./result-binder.js";
 import { parseServiceAcl } from "./service-acl.js";
+import { createFakeGithub } from "./testing/fake-github.js";
 
 const SECRET = "proxy-secret-0123456789abcdef";
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
@@ -82,6 +84,8 @@ describe("内部 MCP endpoint（公開面と同じ HTTP server の別パス）",
       path: ":memory:",
       newCandidateId: () => "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
     });
+    const queue = createReviewQueue();
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
     endpoint = createInternalEndpoint({
       path: "/internal/mcp",
       proxySecret: SECRET,
@@ -99,8 +103,15 @@ describe("内部 MCP endpoint（公開面と同じ HTTP server の別パス）",
           }),
         ),
         checkOrigin: async () => ({ allowed: true }),
-        queue: createReviewQueue(),
+        queue,
         resolveInstallationId: async () => 1,
+        binder: new ResultBinder({
+          ledger,
+          queue,
+          getClient: async () => createFakeGithub().client,
+          botLogin: "thread-owl[bot]",
+          logger,
+        }),
         logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       },
     });

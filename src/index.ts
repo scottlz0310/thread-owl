@@ -96,7 +96,7 @@ if (mode === "mcp-stdio") {
     ? startInternalSurface(
         config.internal,
         buildToolDeps(issueTokenDeps),
-        { queue: reviewQueue, reviewStatus },
+        { queue: reviewQueue, reviewStatus, botLogin: `${config.appSlug}[bot]` },
         logger,
         VERSION,
       )
@@ -104,7 +104,12 @@ if (mode === "mcp-stdio") {
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
-        { ...buildToolDeps(issueTokenDeps), queue: reviewQueue, reviewStatus },
+        {
+          ...buildToolDeps(issueTokenDeps),
+          queue: reviewQueue,
+          reviewStatus,
+          resultBinder: internal?.binder,
+        },
         { name: "thread-owl", version: VERSION },
       ),
     {
@@ -265,7 +270,11 @@ if (mode === "mcp-stdio") {
     ? startInternalSurface(
         config.internal,
         buildToolDeps(runtime.issueTokenDeps),
-        { queue: runtime.reviewQueue, reviewStatus: runtime.reviewStatus },
+        {
+          queue: runtime.reviewQueue,
+          reviewStatus: runtime.reviewStatus,
+          botLogin: `${config.appSlug}[bot]`,
+        },
         logger,
         VERSION,
       )
@@ -278,6 +287,7 @@ if (mode === "mcp-stdio") {
           ...buildToolDeps(runtime.issueTokenDeps),
           queue: runtime.reviewQueue,
           reviewStatus: runtime.reviewStatus,
+          resultBinder: internal?.binder,
         },
         { name: "thread-owl", version: VERSION },
       ),

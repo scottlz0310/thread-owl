@@ -161,7 +161,9 @@ describe("cancel", () => {
     }
     expect(ledger.cancel(cancel)).toEqual({ cancelId: CANCEL, candidateStatus: status });
     expect(codeOf(() => ledger.start(candidateId))).toBe("CANDIDATE_CANCELLED");
-    expect(codeOf(() => ledger.beginResultWrite(candidateId))).toBe("CANDIDATE_CANCELLED");
+    expect(codeOf(() => ledger.beginResultWrite(candidateId, "approved"))).toBe(
+      "CANDIDATE_CANCELLED",
+    );
   });
 
   test("同じ取消の再送は冪等で、取消後は同じ受付の再送も拒否する", () => {
@@ -186,7 +188,7 @@ describe("cancel", () => {
 
   test("結果の投稿が先に確定していれば CANCEL_RESULT_POSTED で、結果は取り消さない", () => {
     const { candidateId } = ledger.accept(accept);
-    ledger.beginResultWrite(candidateId);
+    ledger.beginResultWrite(candidateId, "approved");
     ledger.recordResultPosted(candidateId, posted);
     expect(codeOf(() => ledger.cancel(cancel))).toBe("CANCEL_RESULT_POSTED");
     expect(ledger.getResult(CYCLE, candidateId)?.resultVersion).toBe(1);
@@ -197,16 +199,18 @@ describe("cancel", () => {
   describe("GitHub 書込みの進行中", () => {
     test("照合前は ACK せず、取消記録を残して起動と新規投稿を拒否する", () => {
       const { candidateId } = ledger.accept(accept);
-      ledger.beginResultWrite(candidateId);
+      ledger.beginResultWrite(candidateId, "approved");
       expect(codeOf(() => ledger.cancel(cancel))).toBe("CANCEL_UNCONFIRMED");
       expect(codeOf(() => ledger.cancel(cancel))).toBe("CANCEL_UNCONFIRMED");
       expect(codeOf(() => ledger.start(candidateId))).toBe("CANDIDATE_CANCELLED");
-      expect(codeOf(() => ledger.beginResultWrite(candidateId))).toBe("CANDIDATE_CANCELLED");
+      expect(codeOf(() => ledger.beginResultWrite(candidateId, "approved"))).toBe(
+        "CANDIDATE_CANCELLED",
+      );
     });
 
     test("投稿の実在が照合できれば CANCEL_RESULT_POSTED になり、要求中の取消は撤回される", () => {
       const { candidateId } = ledger.accept(accept);
-      ledger.beginResultWrite(candidateId);
+      ledger.beginResultWrite(candidateId, "approved");
       expect(codeOf(() => ledger.cancel(cancel))).toBe("CANCEL_UNCONFIRMED");
       ledger.recordResultPosted(candidateId, posted);
       expect(codeOf(() => ledger.cancel(cancel))).toBe("CANCEL_RESULT_POSTED");
@@ -215,7 +219,7 @@ describe("cancel", () => {
 
     test("投稿が無いと照合できれば、同じ取消 ID の再試行で確定する", () => {
       const { candidateId } = ledger.accept(accept);
-      ledger.beginResultWrite(candidateId);
+      ledger.beginResultWrite(candidateId, "approved");
       expect(codeOf(() => ledger.cancel(cancel))).toBe("CANCEL_UNCONFIRMED");
       ledger.abortResultWrite(candidateId);
       expect(ledger.cancel(cancel)).toEqual({ cancelId: CANCEL, candidateStatus: "queued" });
@@ -228,7 +232,7 @@ describe("結果の索引", () => {
   test("投稿の前は null で、投稿後は版つきの参照を返し、契約の出力 schema に適合する", () => {
     const { candidateId } = ledger.accept(accept);
     expect(ledger.getResult(CYCLE, candidateId)).toBeNull();
-    ledger.beginResultWrite(candidateId);
+    ledger.beginResultWrite(candidateId, "approved");
     const recorded = ledger.recordResultPosted(candidateId, posted);
     expect(recorded).toEqual({
       source: "thread-owl",
@@ -248,7 +252,7 @@ describe("結果の索引", () => {
 
   test("同じ投稿の再記録は同じ版を返し、別の投稿は版が増える", () => {
     const { candidateId } = ledger.accept(accept);
-    ledger.beginResultWrite(candidateId);
+    ledger.beginResultWrite(candidateId, "approved");
     expect(ledger.recordResultPosted(candidateId, posted).resultVersion).toBe(1);
     expect(ledger.recordResultPosted(candidateId, posted).resultVersion).toBe(1);
     const second = {
@@ -262,7 +266,7 @@ describe("結果の索引", () => {
 
   test("候補の HEAD と違う結果は記録しない", () => {
     const { candidateId } = ledger.accept(accept);
-    ledger.beginResultWrite(candidateId);
+    ledger.beginResultWrite(candidateId, "approved");
     expect(
       codeOf(() => ledger.recordResultPosted(candidateId, { ...posted, headSha: HEAD_B })),
     ).toBe("RESULT_HEAD_MISMATCH");
@@ -280,13 +284,13 @@ describe("結果の索引", () => {
 
   test("書込みの進行中に、もう一度始めることはできない", () => {
     const { candidateId } = ledger.accept(accept);
-    ledger.beginResultWrite(candidateId);
-    expect(codeOf(() => ledger.beginResultWrite(candidateId))).toBe("UNAVAILABLE");
+    ledger.beginResultWrite(candidateId, "approved");
+    expect(codeOf(() => ledger.beginResultWrite(candidateId, "approved"))).toBe("UNAVAILABLE");
   });
 
   test("未知の候補への操作は REQUEST_NOT_FOUND", () => {
     const unknown = "cand_00000000000000000000009999";
-    expect(codeOf(() => ledger.beginResultWrite(unknown))).toBe("REQUEST_NOT_FOUND");
+    expect(codeOf(() => ledger.beginResultWrite(unknown, "approved"))).toBe("REQUEST_NOT_FOUND");
     expect(codeOf(() => ledger.recordResultPosted(unknown, posted))).toBe("REQUEST_NOT_FOUND");
     expect(codeOf(() => ledger.abortResultWrite(unknown))).toBe("REQUEST_NOT_FOUND");
   });
@@ -307,7 +311,7 @@ describe("再起動をまたぐ永続", () => {
     const path = join(dir, "ledger.sqlite");
     const first = open(path);
     const { candidateId } = first.accept(accept);
-    first.beginResultWrite(candidateId);
+    first.beginResultWrite(candidateId, "approved");
     first.recordResultPosted(candidateId, posted);
     first.cancel({ ...cancel, cycleId: "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2" });
     first.close();
@@ -329,7 +333,7 @@ describe("再起動をまたぐ永続", () => {
     const path = join(dir, "ledger.sqlite");
     const first = open(path);
     const { candidateId } = first.accept(accept);
-    first.beginResultWrite(candidateId);
+    first.beginResultWrite(candidateId, "approved");
     first.close();
 
     const second = open(path);

@@ -3,6 +3,7 @@
 import { McpServer, ResourceNotFoundError } from "@modelcontextprotocol/server";
 import type { ReviewQueue } from "../queue/review-queue.js";
 import type { PullRequestRef, ReviewStatusStore } from "../queue/review-status.js";
+import { ContractError } from "../review-cycle/errors.js";
 import type { ToolDeps } from "./tool-deps.js";
 import {
   APPROVE_PULL_REQUEST_TOOL_NAME,
@@ -83,7 +84,16 @@ export async function runTool(fn: () => Promise<unknown>) {
     return {
       isError: true,
       content: [
-        { type: "text" as const, text: error instanceof Error ? error.message : String(error) },
+        {
+          type: "text" as const,
+          // 契約のエラー（候補の取消・HEAD の不一致など）は、reviewer が区別できるよう code を付ける。
+          text:
+            error instanceof ContractError
+              ? `${error.code}: ${error.message}`
+              : error instanceof Error
+                ? error.message
+                : String(error),
+        },
       ],
     };
   }

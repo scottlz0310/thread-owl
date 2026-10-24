@@ -112,6 +112,59 @@ export async function listPullRequestFiles(
   }));
 }
 
+export interface ListedPost {
+  id: number;
+  body: string;
+  authorLogin: string | null;
+  createdAt: string;
+}
+
+// PR の issue comment を全件（ページネーションを完了して）返す。投稿の照合（相関マーカーの検索）に使う。
+export async function listIssueComments(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<ListedPost[]> {
+  const comments = await request("issues.listComments", () =>
+    client.rest.paginate(client.rest.issues.listComments, {
+      owner,
+      repo,
+      issue_number: prNumber,
+      per_page: 100,
+    }),
+  );
+  return comments.map((c) => ({
+    id: c.id,
+    body: c.body ?? "",
+    authorLogin: c.user?.login ?? null,
+    createdAt: c.created_at,
+  }));
+}
+
+// PR の review を全件（ページネーションを完了して）返す。APPROVE の照合に使う。
+export async function listPullRequestReviews(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<ListedPost[]> {
+  const reviews = await request("pulls.listReviews", () =>
+    client.rest.paginate(client.rest.pulls.listReviews, {
+      owner,
+      repo,
+      pull_number: prNumber,
+      per_page: 100,
+    }),
+  );
+  return reviews.map((r) => ({
+    id: r.id,
+    body: r.body ?? "",
+    authorLogin: r.user?.login ?? null,
+    createdAt: r.submitted_at ?? new Date(0).toISOString(),
+  }));
+}
+
 // PR 本文へのサマリーコメント（issue comment）を投稿し、作成された comment id を返す。
 export async function createIssueComment(
   client: GitHubClient,
