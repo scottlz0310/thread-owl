@@ -62,9 +62,14 @@ export interface CandidateBinding {
   headSha: string;
 }
 
+/** 未起動の候補の既定の上限。超える新規の受付は、永続せず UNAVAILABLE（再送可）にする。 */
+export const DEFAULT_MAX_QUEUED_CANDIDATES = 1000;
+
 export interface LedgerOptions {
   /** SQLite のファイルパス。":memory:" で永続化なし（テスト用）。 */
   path: string;
+  /** 受付済みで未起動・未取消の候補の上限。 */
+  maxQueued?: number;
   now?: () => Date;
   newCandidateId?: () => string;
 }
@@ -162,12 +167,14 @@ export class ReviewCycleLedger {
   private readonly db: DatabaseSync;
   private readonly now: () => Date;
   private readonly newCandidateId: () => string;
+  private readonly maxQueued: number;
 
   constructor(options: LedgerOptions) {
     this.db = new DatabaseSync(options.path);
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec(SCHEMA);
     this.now = options.now ?? (() => new Date());
+    this.maxQueued = options.maxQueued ?? DEFAULT_MAX_QUEUED_CANDIDATES;
     this.newCandidateId = options.newCandidateId ?? (() => generateCandidateId(this.now()));
   }
 
@@ -185,6 +192,13 @@ export class ReviewCycleLedger {
       if (existing) {
         this.assertSameCandidate(existing, input);
         return { candidateId: existing.candidate_id, duplicate: true };
+      }
+      // 未起動の候補が上限なら、新規の受付は永続せず再送可能にする（queue から黙って脱落させない）。
+      if (this.countQueued() >= this.maxQueued) {
+        throw new ContractError(
+          "UNAVAILABLE",
+          "未起動の候補が上限に達しているため、いまは受け付けられない",
+        );
       }
       const candidateId = this.newCandidateId();
       this.db
@@ -389,6 +403,17 @@ export class ReviewCycleLedger {
         candidateStatus: candidate ? candidate.status : "not-accepted",
       };
     });
+  }
+
+  private countQueued(): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM candidates
+         WHERE status = 'queued'
+           AND NOT EXISTS (SELECT 1 FROM cancellations c WHERE c.cycle_id = candidates.cycle_id)`,
+      )
+      .get() as { n: number };
+    return row.n;
   }
 
   /** 受付済みで未起動、かつ取消記録のない候補を、受付順に返す。 */

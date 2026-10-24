@@ -122,3 +122,40 @@ describe("startInternalSurface", () => {
     expect(existsSync(ledgerPath)).toBe(true);
   });
 });
+
+describe("容量", () => {
+  test("101 件の受付は、すべて queue に戻り、旧経路の項目が混在しても押し出されない", () => {
+    const ledger = new ReviewCycleLedger({ path: ":memory:" });
+    try {
+      for (let n = 1; n <= 101; n++) {
+        ledger.accept({
+          cycleId: `cyc_${String(n).padStart(26, "0")}`,
+          round: 1,
+          owner: "org",
+          repo: "repo",
+          prNumber: n,
+          headSha: HEAD,
+          reason: "opened",
+          sourceId: null,
+          installationId: 7,
+        });
+      }
+      const queue = createReviewQueue();
+      for (let pr = 5000; pr < 5101; pr++) {
+        queue.enqueue({
+          owner: "org",
+          repo: "legacy",
+          prNumber: pr,
+          installationId: 1,
+          queuedAt: new Date(),
+          reason: "opened",
+        });
+      }
+      expect(restoreQueue(ledger, queue)).toBe(101);
+      expect(queue.list().filter((c) => c.cycle !== undefined)).toHaveLength(101);
+      expect(queue.list().filter((c) => c.cycle === undefined)).toHaveLength(100);
+    } finally {
+      ledger.close();
+    }
+  });
+});

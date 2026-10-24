@@ -72,8 +72,13 @@ export function createReviewQueue(): ReviewQueue {
         }
         items.splice(existing, 1);
       }
-      if (items.length >= MAX_QUEUE_SIZE) {
-        items.shift();
+      // 上限は旧経路の項目だけに適用する。cycle 付きの候補は、受付を台帳（未起動の候補数に上限あり）が
+      // 制限しているため、レビューされないまま黙って押し出さない。
+      if (candidate.cycle === undefined) {
+        const legacy = items.filter((item) => item.cycle === undefined);
+        if (legacy.length >= MAX_QUEUE_SIZE) {
+          items.splice(items.indexOf(legacy[0]), 1);
+        }
       }
       items.push(candidate);
       for (const listener of listeners) {

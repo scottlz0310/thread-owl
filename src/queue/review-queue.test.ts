@@ -376,3 +376,43 @@ describe("cycle 付きの候補（review-raven 経由）", () => {
     expect(q.list().map((c) => c.prNumber)).toEqual([2]);
   });
 });
+
+describe("容量（上限は旧経路の項目だけに適用し、cycle 付きの候補は押し出さない）", () => {
+  function cycleCandidate(prNumber: number): ReviewCandidate {
+    return {
+      ...makeCandidate(prNumber, "opened"),
+      cycle: {
+        candidateId: `cand_${String(prNumber).padStart(26, "0")}`,
+        cycleId: `cyc_${String(prNumber).padStart(26, "0")}`,
+        round: 1,
+        headSha: "0123456789abcdef0123456789abcdef01234567",
+      },
+    };
+  }
+
+  test("cycle 付きの候補は 100 件を超えても、すべて残る", () => {
+    const q = createReviewQueue();
+    for (let pr = 1; pr <= 101; pr++) q.enqueue(cycleCandidate(pr));
+    expect(q.size()).toBe(101);
+    expect(q.list()[0].prNumber).toBe(1);
+  });
+
+  test("旧経路の項目が上限を超えたら、最も古い旧経路の項目だけを押し出す（cycle 付きは残る）", () => {
+    const q = createReviewQueue();
+    q.enqueue(cycleCandidate(1));
+    for (let pr = 1000; pr < 1101; pr++) q.enqueue(makeCandidate(pr));
+    const prs = q.list().map((c) => c.prNumber);
+    expect(prs).toContain(1);
+    expect(prs).not.toContain(1000);
+    expect(prs).toContain(1100);
+    expect(q.list().filter((c) => c.cycle === undefined)).toHaveLength(100);
+  });
+
+  test("旧経路の項目で満杯でも、cycle 付きの候補を受け付ける（旧経路の項目は押し出さない）", () => {
+    const q = createReviewQueue();
+    for (let pr = 1000; pr < 1100; pr++) q.enqueue(makeCandidate(pr));
+    q.enqueue(cycleCandidate(1));
+    expect(q.size()).toBe(101);
+    expect(q.list().map((c) => c.prNumber)).toContain(1000);
+  });
+});

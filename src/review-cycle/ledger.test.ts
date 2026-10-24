@@ -374,3 +374,60 @@ describe("listQueued", () => {
     ]);
   });
 });
+
+describe("未起動の候補の上限", () => {
+  const cycleOf = (n: number) => `cyc_01jbq3x8n5r7t9v2w4y6z8a0c${n}`;
+  const acceptOf = (n: number): LedgerAccept => ({
+    ...accept,
+    cycleId: cycleOf(n),
+    prNumber: 300 + n,
+  });
+
+  test("上限に達した新規の受付は、永続せず再送可能な UNAVAILABLE にする", () => {
+    const small = new ReviewCycleLedger({ path: ":memory:", maxQueued: 2 });
+    try {
+      small.accept(acceptOf(1));
+      small.accept(acceptOf(2));
+      let thrown: unknown;
+      try {
+        small.accept(acceptOf(3));
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(ContractError);
+      expect(thrown).toMatchObject({ code: "UNAVAILABLE", retryable: true });
+      expect(small.findByCycle(cycleOf(3))).toBeUndefined();
+      expect(small.listQueued()).toHaveLength(2);
+    } finally {
+      small.close();
+    }
+  });
+
+  test("上限でも、受付済みの再送(duplicate)は受理する。取消・起動で空きができれば受け付ける", () => {
+    const small = new ReviewCycleLedger({ path: ":memory:", maxQueued: 2 });
+    try {
+      const first = small.accept(acceptOf(1));
+      small.accept(acceptOf(2));
+      expect(small.accept(acceptOf(1))).toEqual({
+        candidateId: first.candidateId,
+        duplicate: true,
+      });
+
+      small.start(first.candidateId);
+      expect(small.accept(acceptOf(3)).duplicate).toBe(false);
+      expect(codeOf(() => small.accept(acceptOf(4)))).toBe("UNAVAILABLE");
+
+      small.cancel({ cycleId: cycleOf(2), round: 1, headSha: HEAD_A, cancelId: CANCEL });
+      expect(small.accept(acceptOf(4)).duplicate).toBe(false);
+    } finally {
+      small.close();
+    }
+  });
+
+  test("既定の上限で、101 件の受付がすべて台帳に残り、listQueued が 101 件返す", () => {
+    for (let n = 10; n < 111; n++) {
+      ledger.accept({ ...accept, cycleId: `cyc_${String(n).padStart(26, "0")}`, prNumber: n });
+    }
+    expect(ledger.listQueued()).toHaveLength(101);
+  });
+});
