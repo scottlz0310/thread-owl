@@ -1,0 +1,10 @@
+{
+  "base": "applied",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/result",
+      "value": "stale"
+    }
+  ]
+}

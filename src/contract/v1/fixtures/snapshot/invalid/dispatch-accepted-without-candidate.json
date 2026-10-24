@@ -1,0 +1,10 @@
+{
+  "base": "running",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/dispatch/candidateId",
+      "value": null
+    }
+  ]
+}

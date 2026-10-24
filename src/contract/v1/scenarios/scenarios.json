@@ -1,0 +1,1329 @@
+[
+  {
+    "id": "idempotent-resend-and-conflict",
+    "description": "同じ key・同じ payload の再送は同じ cycle を返す。同じ key で HEAD だけ変えると競合し、副作用を起こさない。",
+    "covers": "同key・同payloadを再送／同keyでHEADだけ変更",
+    "steps": [
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "snapshotRevision": 1,
+            "deduplicated": false
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "snapshotRevision": 1,
+            "deduplicated": true
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "error": "IDEMPOTENCY_CONFLICT"
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "round": 1,
+            "snapshotRevision": 1,
+            "dispatch.state": "pending",
+            "terminal": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "head-conflict-and-invalid-argument",
+    "description": "expectedHeadSha が現在の PR HEAD と異なる依頼は HEAD_CONFLICT。書式違反は受付前に INVALID_ARGUMENT。",
+    "covers": "HEAD競合・入力検証",
+    "steps": [
+      {
+        "event": "PR の現在 HEAD は HA"
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0002"
+        },
+        "expect": {
+          "error": "HEAD_CONFLICT"
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "abc123",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0002"
+        },
+        "expect": {
+          "error": "INVALID_ARGUMENT"
+        }
+      }
+    ]
+  },
+  {
+    "id": "permission-denied",
+    "description": "repo ACL にない主体、または installation 対象外の PR は、cycleId を知っていても拒否する。",
+    "covers": "認可（read/list/listen を含む）",
+    "steps": [
+      {
+        "event": "呼び出し主体は repo ACL に含まれない"
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "error": "PERMISSION_DENIED"
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "error": "PERMISSION_DENIED"
+        }
+      }
+    ]
+  },
+  {
+    "id": "not-found-and-expired",
+    "description": "未知の cycle は REQUEST_NOT_FOUND。保持期限後は URI を別 cycle に再利用せず REQUEST_EXPIRED。",
+    "covers": "30日保持・失効URI",
+    "steps": [
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2"
+        },
+        "expect": {
+          "error": "REQUEST_NOT_FOUND"
+        }
+      },
+      {
+        "event": "CYC1 は完了後 30 日を超えて削除された"
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "error": "REQUEST_EXPIRED"
+        }
+      }
+    ]
+  },
+  {
+    "id": "webhook-and-manual-merge",
+    "description": "webhook と手動依頼が逆順・重複で到着しても、同じ未完了依頼に結合し、queue へ二重に載せない。",
+    "covers": "手動依頼とwebhookが逆順・重複で到着",
+    "steps": [
+      {
+        "actor": "owl",
+        "op": "ingest_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "sourceId": "delivery:0f1e2d3c-0001",
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "delivery": "webhook"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "deduplicated": false
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "snapshotRevision": 1,
+            "deduplicated": true
+          }
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "ingest_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "sourceId": "delivery:0f1e2d3c-0001",
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "delivery": "webhook"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "deduplicated": true
+          }
+        }
+      },
+      {
+        "actor": "raven",
+        "op": "accept_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "round": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "sourceId": "delivery:0f1e2d3c-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+            "duplicate": false
+          }
+        }
+      },
+      {
+        "actor": "raven",
+        "op": "accept_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "round": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "sourceId": "delivery:0f1e2d3c-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+            "duplicate": true
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "new-head-supersedes-old",
+    "description": "新 HEAD の受付は旧未完了 cycle を superseded にする。購読先を新 cycle へ付け替えない。",
+    "covers": "旧HEAD実行の結果が新HEAD受付後に到着",
+    "steps": [
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "snapshotRevision": 1,
+            "deduplicated": false
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "reason": "synchronized",
+          "idempotencyKey": "agent-req-0002"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2",
+            "round": 2,
+            "headSha": "89abcdef0123456789abcdef0123456789abcdef",
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c2",
+            "snapshotRevision": 1,
+            "deduplicated": false
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "terminal": true,
+            "terminalReason": "superseded",
+            "supersededBy": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2"
+          }
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 1,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "accepted": true,
+            "snapshotRevision": 6,
+            "terminal": true
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "terminal": true,
+            "terminalReason": "superseded",
+            "supersededBy": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2",
+            "result.kind": "approved"
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2"
+        },
+        "expect": {
+          "snapshot": {
+            "result": null,
+            "terminal": false,
+            "execution.state": "unknown"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "observation-order-and-ownership",
+    "description": "sequence の退行・同一 sequence の内容違い・旧 epoch・割当外 producer は現状態を変えずに拒否する。",
+    "covers": "観測sequence 3→2→3／再起動後の旧producerEpoch、別PR・別HEADの観測",
+    "steps": [
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "squirrel-notifier",
+          "producerEpoch": 1,
+          "sequence": 3,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "waiting",
+          "holdReason": "ciPending",
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "result": "applied",
+            "snapshotRevision": 3
+          }
+        }
+      },
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "squirrel-notifier",
+          "producerEpoch": 1,
+          "sequence": 2,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "waiting",
+          "holdReason": "ciPending",
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "error": "OBSERVATION_STALE"
+        }
+      },
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "squirrel-notifier",
+          "producerEpoch": 1,
+          "sequence": 3,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "waiting",
+          "holdReason": "ciPending",
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "result": "duplicate",
+            "snapshotRevision": 3
+          }
+        }
+      },
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "squirrel-notifier",
+          "producerEpoch": 1,
+          "sequence": 3,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "running",
+          "holdReason": null,
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "error": "SEQUENCE_CONFLICT"
+        }
+      },
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "squirrel-notifier",
+          "producerEpoch": 2,
+          "sequence": 0,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "waiting",
+          "holdReason": "ciPending",
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "result": "applied",
+            "snapshotRevision": 4
+          }
+        }
+      },
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "squirrel-notifier",
+          "producerEpoch": 1,
+          "sequence": 9,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "waiting",
+          "holdReason": "ciPending",
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "error": "EPOCH_STALE"
+        }
+      },
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "other-producer",
+          "producerEpoch": 3,
+          "sequence": 3,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "waiting",
+          "holdReason": "ciPending",
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "error": "PRODUCER_NOT_ASSIGNED"
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "execution.producerEpoch": 2,
+            "execution.sequence": 0,
+            "execution.freshness": "fresh"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "result-before-process-exit",
+    "description": "結果がプロセス終了より先着しても terminal を維持し、後続の観測・heartbeat で退行させない。古い resultVersion と別 HEAD の結果は拒否する。",
+    "covers": "結果がプロセス終了より先着／古い結果の遅着",
+    "steps": [
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 2,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "accepted": true,
+            "snapshotRevision": 6,
+            "terminal": true
+          }
+        }
+      },
+      {
+        "actor": "squirrel",
+        "op": "publish_review_observation",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "producerId": "squirrel-notifier",
+          "producerEpoch": 1,
+          "sequence": 8,
+          "observedAt": "2026-10-24T13:00:00Z",
+          "state": "running",
+          "holdReason": null,
+          "outcome": null,
+          "exitCode": null,
+          "stopped": false
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "result": "applied",
+            "snapshotRevision": 7
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "terminal": true,
+            "terminalReason": "result",
+            "result.kind": "approved",
+            "result.resultVersion": 2,
+            "execution.state": "running"
+          }
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 1,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "error": "RESULT_VERSION_STALE"
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "resultVersion": 3,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "error": "RESULT_HEAD_MISMATCH"
+        }
+      }
+    ]
+  },
+  {
+    "id": "result-recovery-from-owl-index",
+    "description": "結果通知が欠落しても、owl の永続結果索引から参照を再取得して回復する。本文や Verdict は複製しない。",
+    "covers": "ravenまたはowlがACK前・GitHub投稿直後に停止",
+    "steps": [
+      {
+        "actor": "raven",
+        "op": "get_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "result": null
+          }
+        }
+      },
+      {
+        "event": "owl が GitHub 投稿後に停止し、再起動後に投稿 ID の相関から結果索引を復元した"
+      },
+      {
+        "actor": "raven",
+        "op": "get_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "result": {
+              "source": "thread-owl",
+              "kind": "approved",
+              "headSha": "0123456789abcdef0123456789abcdef01234567",
+              "resultVersion": 1,
+              "post": {
+                "commentId": 6384700041,
+                "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+              }
+            }
+          }
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 1,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "accepted": true,
+            "snapshotRevision": 6,
+            "terminal": true
+          }
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 1,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "accepted": true,
+            "snapshotRevision": 6,
+            "terminal": true
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "recover-failed-cycle-with-cancel",
+    "description": "結果なし失敗 cycle は、認可された取消→無効化 ACK→新 key の再依頼の順で、同じ HEAD でも新 round として復旧する。取消中の再依頼は新 round を作らない。",
+    "covers": "結果投稿前の異常終了／通常配送の再送上限到達後に同HEADで復旧、取消要求中の再依頼",
+    "steps": [
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "snapshotRevision": 1,
+            "deduplicated": false
+          }
+        }
+      },
+      {
+        "event": "O1 への配送が再送上限（maxAttempts）に達した"
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "dispatch.state": "failed",
+            "dispatch.errorCode": "UNAVAILABLE",
+            "terminal": false,
+            "cancellation.state": "none"
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "cancel_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "expectedSnapshotRevision": 3,
+          "idempotencyKey": "agent-cancel-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1",
+            "cancellation": "requested",
+            "terminal": false,
+            "snapshotRevision": 4,
+            "deduplicated": false
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "cancel_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "expectedSnapshotRevision": 3,
+          "idempotencyKey": "agent-cancel-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1",
+            "cancellation": "requested",
+            "terminal": false,
+            "snapshotRevision": 4,
+            "deduplicated": true
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0002"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "failed",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "snapshotRevision": 4,
+            "deduplicated": true
+          }
+        }
+      },
+      {
+        "actor": "raven",
+        "op": "cancel_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "round": 1,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1",
+            "acknowledged": true,
+            "candidateStatus": "not-accepted",
+            "githubWriteReconciled": true
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "cancellation.state": "confirmed",
+            "terminal": true,
+            "terminalReason": "cancelled"
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0003"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2",
+            "round": 2,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "pending",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c2",
+            "snapshotRevision": 1,
+            "deduplicated": false
+          }
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "request_review",
+        "input": {
+          "schemaVersion": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "idempotencyKey": "agent-req-0001"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "headSha": "0123456789abcdef0123456789abcdef01234567",
+            "dispatch": "failed",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "snapshotRevision": 5,
+            "deduplicated": true
+          }
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "ingest_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "sourceId": "delivery:0f1e2d3c-0001",
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "delivery": "webhook"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "dispatch": "failed",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "deduplicated": true
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "cancel-conflicts",
+    "description": "snapshot の revision 競合、結果投稿との競合、GitHub 書込み結果不明の間は、取消を確定させず新 round へ進めない。",
+    "covers": "取消と結果投稿が競合／GitHub書込み結果が不明",
+    "steps": [
+      {
+        "actor": "agent",
+        "op": "cancel_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+          "expectedSnapshotRevision": 1,
+          "idempotencyKey": "agent-cancel-0001"
+        },
+        "expect": {
+          "error": "REVISION_CONFLICT"
+        }
+      },
+      {
+        "actor": "raven",
+        "op": "cancel_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "round": 1,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1"
+        },
+        "expect": {
+          "error": "CANCEL_RESULT_POSTED"
+        }
+      },
+      {
+        "actor": "raven",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1"
+        },
+        "expect": {
+          "snapshot": {
+            "terminal": true,
+            "terminalReason": "result",
+            "cancellation.state": "none"
+          }
+        }
+      },
+      {
+        "event": "別 cycle で owl の GitHub 書込みが進行中で、結果を照合できない"
+      },
+      {
+        "actor": "raven",
+        "op": "cancel_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2",
+          "round": 1,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1"
+        },
+        "expect": {
+          "error": "CANCEL_UNCONFIRMED"
+        }
+      },
+      {
+        "actor": "agent",
+        "op": "get_review_request",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2"
+        },
+        "expect": {
+          "snapshot": {
+            "cancellation.state": "requested",
+            "terminal": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "cancel-before-accept",
+    "description": "取消が候補受付より先着した場合、後から来る旧受付と旧 webhook 再送を拒否し、新 cycle を作らない。",
+    "covers": "取消が候補受付より先着／取消確定後に旧candidate起動・結果・webhookが遅着",
+    "steps": [
+      {
+        "actor": "raven",
+        "op": "cancel_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "round": 1,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cancelId": "cxl_01jbq3x8n5r7t9v2w4y6z8a0e1",
+            "acknowledged": true,
+            "candidateStatus": "not-accepted",
+            "githubWriteReconciled": true
+          }
+        }
+      },
+      {
+        "actor": "raven",
+        "op": "accept_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "round": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "sourceId": null
+        },
+        "expect": {
+          "error": "CANDIDATE_CANCELLED"
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 1,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "error": "CANDIDATE_CANCELLED"
+        }
+      },
+      {
+        "actor": "owl",
+        "op": "ingest_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "sourceId": "delivery:0f1e2d3c-0001",
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "delivery": "webhook"
+        },
+        "expect": {
+          "output": {
+            "schemaVersion": 1,
+            "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "round": 1,
+            "dispatch": "failed",
+            "resourceUri": "review-raven://requests/cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+            "deduplicated": true
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "owl-origin-and-delivery-limits",
+    "description": "origin policy に違反する候補は owl が拒否する。保持期限を過ぎた遅延再送は 410 相当で停止し、一時的な障害だけが retryable になる。",
+    "covers": "origin検証・DELIVERY_EXPIRED・再送ポリシー",
+    "steps": [
+      {
+        "event": "対象 PR は fork 由来で、ALLOWED_AUTHORS / origin policy を満たさない"
+      },
+      {
+        "actor": "raven",
+        "op": "accept_review_candidate",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "round": 1,
+          "owner": "scottlz0310",
+          "repo": "mcp-resource-subscriber",
+          "prNumber": 226,
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "reason": "opened",
+          "sourceId": null
+        },
+        "expect": {
+          "error": "ORIGIN_REJECTED"
+        }
+      },
+      {
+        "event": "削除済み依頼（保持期限切れ）への遅延再送"
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 1,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "error": "DELIVERY_EXPIRED"
+        }
+      },
+      {
+        "event": "raven が一時的に応答できない（5xx 相当。retryable=true で上限付き再送）"
+      },
+      {
+        "actor": "owl",
+        "op": "publish_review_result",
+        "input": {
+          "schemaVersion": 1,
+          "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+          "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "resultVersion": 1,
+          "kind": "approved",
+          "post": {
+            "commentId": 6384700041,
+            "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+          },
+          "postedAt": "2026-10-24T13:00:00Z"
+        },
+        "expect": {
+          "error": "UNAVAILABLE"
+        }
+      }
+    ]
+  }
+]

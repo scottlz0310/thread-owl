@@ -1,0 +1,9 @@
+{
+  "base": "head-conflict",
+  "patch": [
+    {
+      "op": "remove",
+      "path": "/error/retryable"
+    }
+  ]
+}

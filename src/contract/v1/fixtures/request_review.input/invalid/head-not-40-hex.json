@@ -1,0 +1,10 @@
+{
+  "base": "opened",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/expectedHeadSha",
+      "value": "abc123"
+    }
+  ]
+}

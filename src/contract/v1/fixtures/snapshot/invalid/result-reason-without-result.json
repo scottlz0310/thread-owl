@@ -1,0 +1,10 @@
+{
+  "base": "result-approved",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/result",
+      "value": null
+    }
+  ]
+}

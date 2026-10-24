@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/publish_review_result.input.schema.json",
+  "title": "PublishReviewResultInput",
+  "description": "owl → raven。GitHub 投稿後の結果参照通知。raven は Verdict を生成せず、参照だけを保存する。resultVersion は owl で単調増加。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "cycleId",
+    "candidateId",
+    "headSha",
+    "resultVersion",
+    "kind",
+    "post",
+    "postedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "cycleId": {
+      "$ref": "common.schema.json#/$defs/cycleId"
+    },
+    "candidateId": {
+      "$ref": "common.schema.json#/$defs/candidateId"
+    },
+    "headSha": {
+      "$ref": "common.schema.json#/$defs/sha"
+    },
+    "resultVersion": {
+      "$ref": "common.schema.json#/$defs/revision"
+    },
+    "kind": {
+      "enum": [
+        "reviewed",
+        "approved"
+      ]
+    },
+    "post": {
+      "$ref": "common.schema.json#/$defs/githubRef"
+    },
+    "postedAt": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    }
+  }
+}

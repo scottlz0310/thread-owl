@@ -1,0 +1,10 @@
+{
+  "base": "finished-completed",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/holdReason",
+      "value": "ciPending"
+    }
+  ]
+}

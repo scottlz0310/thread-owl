@@ -1,0 +1,10 @@
+{
+  "base": "cycle",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/cycleId",
+      "value": "226"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+  "owner": "scottlz0310",
+  "repo": "mcp-resource-subscriber",
+  "prNumber": 226,
+  "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+  "round": 1,
+  "dispatch": {
+    "state": "accepted",
+    "candidateId": "cand_01jbq3x8n5r7t9v2w4y6z8a0d1",
+    "attempts": 1,
+    "errorCode": null
+  },
+  "cancellation": {
+    "state": "none",
+    "cancelId": null,
+    "requestedAt": null,
+    "confirmedAt": null,
+    "errorCode": null
+  },
+  "execution": {
+    "state": "finished",
+    "holdReason": null,
+    "producerId": "squirrel-notifier",
+    "producerEpoch": 1,
+    "sequence": 4,
+    "observedAt": "2026-10-24T13:00:00Z",
+    "receivedAt": "2026-10-24T13:00:00Z",
+    "freshness": "fresh",
+    "outcome": "completed",
+    "exitCode": 0
+  },
+  "result": {
+    "source": "thread-owl",
+    "kind": "approved",
+    "headSha": "0123456789abcdef0123456789abcdef01234567",
+    "resultVersion": 1,
+    "post": {
+      "commentId": 6384700041,
+      "url": "https://github.com/scottlz0310/mcp-resource-subscriber/pull/226#issuecomment-6384700041"
+    }
+  },
+  "terminal": true,
+  "terminalReason": "result",
+  "supersededBy": null,
+  "snapshotRevision": 7,
+  "updatedAt": "2026-10-24T13:00:00Z"
+}

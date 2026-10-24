@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "cycleId": "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1",
+  "expectedHeadSha": "0123456789abcdef0123456789abcdef01234567",
+  "expectedSnapshotRevision": 3,
+  "idempotencyKey": "agent-cancel-0001"
+}

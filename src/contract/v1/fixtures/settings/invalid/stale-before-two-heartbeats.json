@@ -1,0 +1,10 @@
+{
+  "base": "defaults",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/observation/staleAfterSeconds",
+      "value": 60
+    }
+  ]
+}

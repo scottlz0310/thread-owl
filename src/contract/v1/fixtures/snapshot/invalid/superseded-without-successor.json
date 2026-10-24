@@ -1,0 +1,10 @@
+{
+  "base": "superseded",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/supersededBy",
+      "value": null
+    }
+  ]
+}

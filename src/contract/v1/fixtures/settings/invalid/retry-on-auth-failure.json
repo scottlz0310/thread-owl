@@ -1,0 +1,13 @@
+{
+  "base": "defaults",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/delivery/retryOn",
+      "value": [
+        "network",
+        "http401"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "base": "webhook",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/delivery",
+      "value": "manual"
+    }
+  ]
+}

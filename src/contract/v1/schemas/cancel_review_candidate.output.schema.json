@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/cancel_review_candidate.output.schema.json",
+  "title": "CancelReviewCandidateOutput",
+  "description": "無効化 ACK。GitHub 書込みが進行中・結果不明の間は ACK を返さない（CANCEL_UNCONFIRMED）。結果が先に確定していた場合は CANCEL_RESULT_POSTED。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "cancelId",
+    "acknowledged",
+    "candidateStatus",
+    "githubWriteReconciled"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "cancelId": {
+      "$ref": "common.schema.json#/$defs/cancelId"
+    },
+    "acknowledged": {
+      "const": true
+    },
+    "candidateStatus": {
+      "enum": [
+        "not-accepted",
+        "queued",
+        "started"
+      ]
+    },
+    "githubWriteReconciled": {
+      "const": true
+    }
+  }
+}

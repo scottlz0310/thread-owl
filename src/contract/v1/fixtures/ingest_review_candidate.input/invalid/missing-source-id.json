@@ -1,0 +1,9 @@
+{
+  "base": "webhook",
+  "patch": [
+    {
+      "op": "remove",
+      "path": "/sourceId"
+    }
+  ]
+}

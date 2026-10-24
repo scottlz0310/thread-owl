@@ -19,6 +19,8 @@ src/
   policy/               allowlist 適用および per-repo ポリシー
   webhook/              GitHub Webhook 受信とイベントハンドラ
   queue/                レビュー候補キューと delivery 重複排除
+  review-cycle/         レビュー依頼 cycle の永続台帳（候補の受付・取消記録・結果索引。SQLite）
+  contract/             review-raven とのレビュー依頼契約 v1（固定コミットのコピー・検証）
   mcp/                  MCP server・tools・subscription 通知
   internal-api/         health・token-source・status エンドポイント
 ```
@@ -159,6 +161,7 @@ Claude Code / agent workflow
 - **MCP transport 分離**: `createMcpServer` は transport 非依存とし、stdio は `serveStdio`、Streamable HTTP は `createMcpHandler` に渡す factory として再利用する
 - **MCP は stateless**: Streamable HTTP に protocol-level session（`Mcp-Session-Id`）を持たせない。SDK が request/stream 単位でライフサイクルを管理するため、Thread Owl 側に session map は存在しない
 - **Streamable HTTP は internal endpoint**: 既定は `127.0.0.1` bind。remote client からは caller 認証を担う mcp-gateway 経由で接続し、直接公開しない
+- **cycle の台帳は永続化し、結果の本文は持たない**: 候補の受付・取消記録・結果索引は SQLite（`node:sqlite`）に永続する。取消は未受理の cycle にも記録して旧候補の起動と投稿を拒否し、GitHub 書込みが進行中・結果不明の間は取消を確定しない。結果は GitHub 上の投稿への参照（コメント ID と URL）だけを持ち、本文や Verdict は複製しない。契約は review-raven の固定コミットのコピー（`src/contract/v1`、`MANIFEST.json` の sha256 で手元の改変を検出）を正とし、取り込み直しは `scripts/pin-contract.mjs` で行う
 - **LLM を内蔵しない**: Thread Owl はプロキシであり、AI システムではない
 - **Allowlist を write のハードゲートとする**: write の GitHub API 呼び出し前に allowlist チェックを行い、read は GitHub App installation の repo scope に委ねる
 - **resolve は修正側の責務とする**: Thread Owl はレビュアー側 GitHub App であり、スレッドの resolve は PR author または repository write access を持つ修正側の MCP が行う

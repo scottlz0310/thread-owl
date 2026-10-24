@@ -1,0 +1,10 @@
+{
+  "base": "pending",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/terminal",
+      "value": true
+    }
+  ]
+}

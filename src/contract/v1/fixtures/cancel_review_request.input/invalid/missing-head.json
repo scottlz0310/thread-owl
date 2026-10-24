@@ -1,0 +1,9 @@
+{
+  "base": "basic",
+  "patch": [
+    {
+      "op": "remove",
+      "path": "/expectedHeadSha"
+    }
+  ]
+}

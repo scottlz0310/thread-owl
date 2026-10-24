@@ -1,0 +1,10 @@
+{
+  "base": "requested",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/cancellation",
+      "value": "none"
+    }
+  ]
+}

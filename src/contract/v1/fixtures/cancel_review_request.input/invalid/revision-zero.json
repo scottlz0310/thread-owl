@@ -1,0 +1,10 @@
+{
+  "base": "basic",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/expectedSnapshotRevision",
+      "value": 0
+    }
+  ]
+}

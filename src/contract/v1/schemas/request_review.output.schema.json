@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/request_review.output.schema.json",
+  "title": "RequestReviewOutput",
+  "description": "受付結果。dispatch.state は受付直後の配送状態（pending=未配送）であり、queue 登録済みを意味しない。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "cycleId",
+    "round",
+    "headSha",
+    "dispatch",
+    "resourceUri",
+    "snapshotRevision",
+    "deduplicated"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "cycleId": {
+      "$ref": "common.schema.json#/$defs/cycleId"
+    },
+    "round": {
+      "$ref": "common.schema.json#/$defs/revision"
+    },
+    "headSha": {
+      "$ref": "common.schema.json#/$defs/sha"
+    },
+    "dispatch": {
+      "$ref": "common.schema.json#/$defs/dispatchState"
+    },
+    "resourceUri": {
+      "$ref": "common.schema.json#/$defs/requestUri"
+    },
+    "snapshotRevision": {
+      "$ref": "common.schema.json#/$defs/revision"
+    },
+    "deduplicated": {
+      "type": "boolean"
+    }
+  }
+}

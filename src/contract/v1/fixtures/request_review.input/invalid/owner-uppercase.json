@@ -1,0 +1,10 @@
+{
+  "base": "opened",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/owner",
+      "value": "Scottlz0310"
+    }
+  ]
+}

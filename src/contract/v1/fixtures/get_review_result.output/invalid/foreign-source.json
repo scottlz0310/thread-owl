@@ -1,0 +1,10 @@
+{
+  "base": "posted",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/result/source",
+      "value": "copilot"
+    }
+  ]
+}

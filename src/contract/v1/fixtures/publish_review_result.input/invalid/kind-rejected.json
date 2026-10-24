@@ -1,0 +1,10 @@
+{
+  "base": "approved",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/kind",
+      "value": "rejected"
+    }
+  ]
+}

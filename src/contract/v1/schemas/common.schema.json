@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/common.schema.json",
+  "title": "CommonDefinitions",
+  "description": "依頼・候補・結果・観測の契約で共有する定義。契約の版は schemaVersion で示す。",
+  "$defs": {
+    "schemaVersion": { "const": 1 },
+    "owner": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$" },
+    "repo": { "type": "string", "pattern": "^[a-z0-9._-]{1,100}$" },
+    "prNumber": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "cycleId": { "type": "string", "pattern": "^cyc_[0-9a-z]{26}$" },
+    "candidateId": { "type": "string", "pattern": "^cand_[0-9a-z]{26}$" },
+    "cancelId": { "type": "string", "pattern": "^cxl_[0-9a-z]{26}$" },
+    "idempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{8,128}$" },
+    "sourceId": { "type": "string", "pattern": "^[A-Za-z0-9._:/#-]{1,128}$" },
+    "producerId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$" },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    },
+    "reason": { "enum": ["opened", "synchronized", "re-review-requested"] },
+    "requestUri": { "type": "string", "pattern": "^review-raven://requests/cyc_[0-9a-z]{26}$" },
+    "dispatchState": { "enum": ["pending", "accepted", "failed"] },
+    "revision": { "type": "integer", "minimum": 1 },
+    "githubRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commentId", "url"],
+      "properties": {
+        "commentId": { "type": "integer", "minimum": 1 },
+        "url": { "type": "string", "pattern": "^https://github\\.com/[^ ]+$" }
+      }
+    },
+    "reviewResult": {
+      "description": "GitHub 上の thread-owl 投稿への参照。本文・Verdict の複製は持たない。headSha は cycle の expectedHeadSha と一致しなければならない（意味上の不変条件）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "kind", "headSha", "resultVersion", "post"],
+      "properties": {
+        "source": { "const": "thread-owl" },
+        "kind": { "enum": ["reviewed", "approved"] },
+        "headSha": { "$ref": "#/$defs/sha" },
+        "resultVersion": { "$ref": "#/$defs/revision" },
+        "post": { "$ref": "#/$defs/githubRef" }
+      }
+    },
+    "errorCode": {
+      "enum": [
+        "INVALID_ARGUMENT",
+        "PERMISSION_DENIED",
+        "REQUEST_NOT_FOUND",
+        "REQUEST_EXPIRED",
+        "HEAD_CONFLICT",
+        "IDEMPOTENCY_CONFLICT",
+        "REVISION_CONFLICT",
+        "CANCEL_RESULT_POSTED",
+        "CANCEL_UNCONFIRMED",
+        "CANDIDATE_CANCELLED",
+        "ORIGIN_REJECTED",
+        "DELIVERY_EXPIRED",
+        "EPOCH_STALE",
+        "SEQUENCE_CONFLICT",
+        "OBSERVATION_STALE",
+        "PRODUCER_NOT_ASSIGNED",
+        "RESULT_VERSION_STALE",
+        "RESULT_HEAD_MISMATCH",
+        "UNAVAILABLE"
+      ]
+    },
+    "cycleIdOrNull": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/cycleId" }] },
+    "candidateIdOrNull": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/candidateId" }] },
+    "cancelIdOrNull": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/cancelId" }] },
+    "timestampOrNull": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/timestamp" }] },
+    "errorCodeOrNull": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/errorCode" }] },
+    "sourceIdOrNull": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/sourceId" }] }
+  }
+}

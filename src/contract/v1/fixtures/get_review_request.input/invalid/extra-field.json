@@ -1,0 +1,10 @@
+{
+  "base": "cycle",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/includeBody",
+      "value": true
+    }
+  ]
+}
