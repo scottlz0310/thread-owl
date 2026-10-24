@@ -17,9 +17,13 @@ const target = fileURLToPath(new URL("../src/contract/v1", import.meta.url));
 rmSync(target, { recursive: true, force: true });
 mkdirSync(target, { recursive: true });
 
-const archive = execFileSync("git", ["-C", source, "archive", commit, "docs/design/contracts"], {
-  maxBuffer: 64 * 1024 * 1024,
-});
+const archive = execFileSync(
+  "git",
+  ["-c", "core.autocrlf=false", "-C", source, "archive", commit, "docs/design/contracts"],
+  {
+    maxBuffer: 64 * 1024 * 1024,
+  },
+);
 execFileSync("tar", ["-x", "--strip-components=3"], { input: archive, cwd: target });
 
 function walk(dir) {
