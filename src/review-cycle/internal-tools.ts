@@ -5,6 +5,7 @@ import type { ReviewStatusStore } from "../queue/review-status.js";
 import { ContractError } from "./errors.js";
 import type { ReviewCycleLedger } from "./ledger.js";
 import type { OriginChecker } from "./origin.js";
+import type { ResultBinder } from "./result-binder.js";
 import type { ServiceAcl, ServiceAction } from "./service-acl.js";
 
 /** 内部面（raven → owl）の tool 名と、ACL の操作・入力 schema の対応。 */
@@ -33,6 +34,8 @@ export interface InternalToolDeps {
   queue: ReviewQueue;
   reviewStatus?: ReviewStatusStore;
   resolveInstallationId: (owner: string, repo: string) => Promise<number>;
+  /** 結果投稿の束縛。取消の前に、結果不明の書込みを GitHub 上の投稿で照合する。 */
+  binder: ResultBinder;
   logger: Logger;
 }
 
@@ -79,7 +82,15 @@ export async function callInternalTool(
 }
 
 async function run(
-  { ledger, acl, checkOrigin, queue, reviewStatus, resolveInstallationId }: InternalToolDeps,
+  {
+    ledger,
+    acl,
+    checkOrigin,
+    queue,
+    reviewStatus,
+    resolveInstallationId,
+    binder,
+  }: InternalToolDeps,
   principal: string,
   name: InternalToolName,
   input: Record<string, unknown>,
@@ -125,11 +136,10 @@ async function run(
             headSha: accept.headSha,
           },
         });
-        reviewStatus?.markPending({
-          owner: accept.owner,
-          repo: accept.repo,
-          prNumber: accept.prNumber,
-        });
+        const pr = { owner: accept.owner, repo: accept.repo, prNumber: accept.prNumber };
+        reviewStatus?.markPending(pr);
+        // 結果の投稿時に、この受付の status のラウンドを使う（投稿時に現在のラウンドを引き直さない）。
+        binder.noteStatusRound(accept.cycleId, pr);
       }
       return { schemaVersion: 1, ...accepted };
     }
@@ -144,6 +154,10 @@ async function run(
       if (!acl.allows(principal, action, ledger.findByCycle(cancel.cycleId))) {
         throw denied();
       }
+      // 停止後の再起動などで結果不明のまま残った書込みは、取消の前に GitHub 上の投稿で照合する
+      // （投稿が見つかれば CANCEL_RESULT_POSTED、無ければ書込みを解除して取消を確定できる）。
+      // このプロセスが書込み中のものは対象外で、取消は保留（CANCEL_UNCONFIRMED）のまま。
+      await binder.reconcileStale(cancel.cycleId);
       let done: ReturnType<ReviewCycleLedger["cancel"]>;
       try {
         done = ledger.cancel(cancel);

@@ -236,10 +236,12 @@ describe("approvePR", () => {
     const createReview = vi.fn().mockResolvedValue({ data: { id: 42 } });
     const ctx = makeCtx("abc123", createReview);
 
-    await approvePR(ctx, "o", "r", 7, "abc123");
+    const reviewId = await approvePR(ctx, "o", "r", 7, "abc123", "本文");
 
+    // 戻り値の review ID は、結果索引の投稿参照に使う
+    expect(reviewId).toBe(42);
     expect(createReview).toHaveBeenCalledWith(
-      expect.objectContaining({ commit_id: "abc123", event: "APPROVE" }),
+      expect.objectContaining({ commit_id: "abc123", event: "APPROVE", body: "本文" }),
     );
     expect(ctx.logger.info).toHaveBeenCalledWith(
       "review.approve",
@@ -335,6 +337,22 @@ describe("postReviewVerdict", () => {
       "review.review_verdict",
       expect.objectContaining({ prNumber: 7, commentId: 100, headSha }),
     );
+  });
+
+  it("相関マーカーは固定書式の末尾に別の行として付き、照合規則の 3 行はちょうど 1 行ずつのまま", async () => {
+    const createComment = vi.fn().mockResolvedValue({ data: { id: 101 } });
+    const ctx = makeCtx(headSha, createComment);
+    const marker = "<!-- thread-owl:cycle test-marker -->";
+
+    await postReviewVerdict(ctx, "o", "r", 7, headSha, "本文", marker);
+
+    const body = createComment.mock.calls[0][0].body as string;
+    expect(body.endsWith(`\n\n${marker}`)).toBe(true);
+    const lines = body.split("\n");
+    const count = (re: RegExp) => lines.filter((line) => re.test(line)).length;
+    expect(count(/^## @thread-owl Review Verdict: APPROVED$/)).toBe(1);
+    expect(count(/^- Reviewed HEAD SHA: `([0-9a-f]{40})`$/)).toBe(1);
+    expect(count(/^- Status: `READY_TO_MERGE`$/)).toBe(1);
   });
 
   it("head SHA 不一致なら throw し投稿しない", async () => {

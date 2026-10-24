@@ -5,6 +5,7 @@ import type { Logger } from "../config/logging.js";
 import { type ContractSchemaName, validateContract } from "../contract/validate.js";
 import { createReviewQueue, type ReviewQueue } from "../queue/review-queue.js";
 import { createReviewStatusStore, type ReviewStatusStore } from "../queue/review-status.js";
+import { buildMarker } from "./correlation.js";
 import {
   callInternalTool,
   INTERNAL_TOOLS,
@@ -14,7 +15,9 @@ import {
 } from "./internal-tools.js";
 import { ReviewCycleLedger } from "./ledger.js";
 import type { OriginChecker } from "./origin.js";
+import { ResultBinder } from "./result-binder.js";
 import { parseServiceAcl } from "./service-acl.js";
+import { createFakeGithub, type FakeGithub } from "./testing/fake-github.js";
 
 const CYCLE = "cyc_01jbq3x8n5r7t9v2w4y6z8a0c1";
 const CYCLE_2 = "cyc_01jbq3x8n5r7t9v2w4y6z8a0c2";
@@ -50,6 +53,8 @@ const acl = parseServiceAcl(
 let ledger: ReviewCycleLedger;
 let queue: ReviewQueue;
 let reviewStatus: ReviewStatusStore;
+let github: FakeGithub;
+let binder: ResultBinder;
 let sequence = 0;
 let originAnswer: Awaited<ReturnType<OriginChecker>> = { allowed: true };
 const logger = {
@@ -67,6 +72,7 @@ function deps(overrides: Partial<InternalToolDeps> = {}): InternalToolDeps {
     queue,
     reviewStatus,
     resolveInstallationId: async () => 4242,
+    binder,
     logger,
     ...overrides,
   };
@@ -108,12 +114,36 @@ beforeEach(() => {
   vi.clearAllMocks();
   queue = createReviewQueue();
   reviewStatus = createReviewStatusStore();
+  github = createFakeGithub();
   ledger = new ReviewCycleLedger({
     path: ":memory:",
     now: () => new Date("2026-10-25T00:00:00Z"),
     newCandidateId: () => `cand_01jbq3x8n5r7t9v2w4y6z8a0d${++sequence}`,
+    newWriteId: () => "0123456789abcdef",
+  });
+  binder = new ResultBinder({
+    ledger,
+    queue,
+    reviewStatus,
+    getClient: async () => github.client,
+    botLogin: "thread-owl[bot]",
+    logger,
   });
 });
+
+/** このプロセスが GitHub へ書込み中の状態にする（終わらない書込みを保持する）。 */
+async function holdWrite(candidateId: string, cycleId: string): Promise<void> {
+  void binder
+    .post({
+      candidateId,
+      pr: { owner: "scottlz0310", repo: "mcp-resource-subscriber", prNumber: 226 },
+      headSha: HEAD,
+      kind: "reviewed",
+      write: () => new Promise(() => {}),
+    })
+    .catch(() => {});
+  await vi.waitFor(() => expect(ledger.pendingWriteByCycle(cycleId)).toBeDefined());
+}
 
 afterEach(() => {
   ledger.close();
@@ -246,7 +276,7 @@ describe("共有シナリオ（raven → owl の手順）", () => {
     "cancel-conflicts": async () => {
       // cyc…c1 は結果の投稿が先に確定、cyc…c2 は GitHub 書込みが進行中で結果不明
       const c1 = ledger.accept({ ...acceptInput, installationId: 1 });
-      ledger.beginResultWrite(c1.candidateId);
+      ledger.beginResultWrite(c1.candidateId, "approved");
       ledger.recordResultPosted(c1.candidateId, {
         kind: "approved",
         headSha: HEAD,
@@ -257,7 +287,8 @@ describe("共有シナリオ（raven → owl の手順）", () => {
         postedAt: "2026-10-25T00:00:00Z",
       });
       const c2 = ledger.accept({ ...acceptInput, cycleId: CYCLE_2, installationId: 1 });
-      ledger.beginResultWrite(c2.candidateId);
+      // このプロセスが書込み中（結果を照合できない）
+      await holdWrite(c2.candidateId, CYCLE_2);
     },
     "result-recovery-from-owl-index": async () => {
       ledger.accept({ ...acceptInput, installationId: 1 });
@@ -271,7 +302,7 @@ describe("共有シナリオ（raven → owl の手順）", () => {
     "owl が GitHub 投稿後に停止し、再起動後に投稿 ID の相関から結果索引を復元した": () => {
       const found = ledger.findByCycle(CYCLE);
       if (!found) throw new Error("setup");
-      ledger.beginResultWrite(found.candidateId);
+      ledger.beginResultWrite(found.candidateId, "approved");
       ledger.recordResultPosted(found.candidateId, {
         kind: "approved",
         headSha: HEAD,
@@ -378,7 +409,7 @@ describe("review queue との連携", () => {
 
   test("書込み中で取消が保留（CANCEL_UNCONFIRMED）でも、reviewer が走り出さないよう queue から外す", async () => {
     const accepted = await call("accept_review_candidate", acceptInput);
-    ledger.beginResultWrite(accepted.ok ? (accepted.output.candidateId as string) : "");
+    await holdWrite(accepted.ok ? (accepted.output.candidateId as string) : "", CYCLE);
     expect(errorCode(await call("cancel_review_candidate", cancelInput))).toBe(
       "CANCEL_UNCONFIRMED",
     );
@@ -388,7 +419,7 @@ describe("review queue との連携", () => {
   test("結果の投稿が先着していれば（CANCEL_RESULT_POSTED）、候補を外さない", async () => {
     const accepted = await call("accept_review_candidate", acceptInput);
     const candidateId = accepted.ok ? (accepted.output.candidateId as string) : "";
-    ledger.beginResultWrite(candidateId);
+    ledger.beginResultWrite(candidateId, "approved");
     ledger.recordResultPosted(candidateId, {
       kind: "approved",
       headSha: HEAD,
@@ -406,5 +437,66 @@ describe("review queue との連携", () => {
     queue.enqueue({ ...pr, installationId: 1, queuedAt: new Date(), reason: "synchronized" });
     expect(queue.list()).toHaveLength(1);
     expect(queue.list()[0].cycle?.cycleId).toBe(CYCLE);
+  });
+});
+
+describe("取消の前の照合（停止後に結果不明のまま残った書込み）", () => {
+  const pr = { owner: "scottlz0310", repo: "mcp-resource-subscriber", prNumber: 226 };
+
+  async function pendingAfterRestart() {
+    const accepted = await call("accept_review_candidate", acceptInput);
+    const candidateId = accepted.ok ? (accepted.output.candidateId as string) : "";
+    // 前のプロセスが書込みを始めて停止した状態（このプロセスは書込み中ではない）
+    const begun = ledger.beginResultWrite(candidateId, "reviewed");
+    const marker = buildMarker({
+      cycleId: CYCLE,
+      candidateId,
+      writeId: begun.writeId,
+      kind: "reviewed",
+    });
+    return { candidateId, marker };
+  }
+
+  test("投稿が GitHub に存在すれば、結果として記録し、CANCEL_RESULT_POSTED にする", async () => {
+    const { candidateId, marker } = await pendingAfterRestart();
+    github.posts.push({
+      kind: "comment",
+      id: 7001,
+      body: `## summary\n\n${marker}`,
+      login: "thread-owl[bot]",
+      createdAt: "2026-10-25T00:00:00Z",
+    });
+    expect(errorCode(await call("cancel_review_candidate", cancelInput))).toBe(
+      "CANCEL_RESULT_POSTED",
+    );
+    expect(ledger.getResult(CYCLE, candidateId)?.post).toEqual({
+      commentId: 7001,
+      url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.prNumber}#issuecomment-7001`,
+    });
+  });
+
+  test("投稿が無ければ、書込みを解除して取消を確定する", async () => {
+    await pendingAfterRestart();
+    expect((await call("cancel_review_candidate", cancelInput)).ok).toBe(true);
+    expect(ledger.pendingWriteByCycle(CYCLE)).toBeUndefined();
+  });
+
+  test("他者が付けたマーカーは信用しない（bot 以外の投稿は照合の対象外）", async () => {
+    const { marker } = await pendingAfterRestart();
+    github.posts.push({
+      kind: "comment",
+      id: 7002,
+      body: marker,
+      login: "mallory",
+      createdAt: "2026-10-25T00:00:00Z",
+    });
+    expect((await call("cancel_review_candidate", cancelInput)).ok).toBe(true);
+  });
+
+  test("GitHub を読めなければ照合できず、UNAVAILABLE で、書込みは進行中のまま（取消を確定しない）", async () => {
+    await pendingAfterRestart();
+    github.failing = true;
+    expect(errorCode(await call("cancel_review_candidate", cancelInput))).toBe("UNAVAILABLE");
+    expect(ledger.pendingWriteByCycle(CYCLE)).toBeDefined();
   });
 });

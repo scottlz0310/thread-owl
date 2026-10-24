@@ -81,6 +81,8 @@ export async function postReviewVerdict(
   prNumber: number,
   headSha: string,
   summary: string,
+  // 結果索引との相関マーカー。固定書式の末尾に別の行として足す（照合規則は 3 行の一致だけを見るため影響しない）。
+  marker?: string,
 ): Promise<number> {
   assertFullCommitSha(headSha);
   normalizeVerdictSummary(summary);
@@ -129,7 +131,8 @@ export async function postReviewVerdict(
       `Base branch changed during Verdict verification: expected ${pr.base.ref} but PR #${prNumber} base is ${latestPr.base.ref}`,
     );
   }
-  const body = buildVerdictBody(summary, headSha);
+  const verdictBody = buildVerdictBody(summary, headSha);
+  const body = marker === undefined ? verdictBody : `${verdictBody}\n\n${marker}`;
   const commentId = await createIssueComment(ctx.client, owner, repo, prNumber, body);
   auditWrite(ctx.logger, "review_verdict", {
     owner,
@@ -153,7 +156,7 @@ export async function approvePR(
   prNumber: number,
   expectedHeadSha: string,
   body?: string,
-): Promise<void> {
+): Promise<number> {
   assertRepoWritable(ctx.allowedRepos, owner, repo);
   const pr = await getPullRequest(ctx.client, owner, repo, prNumber);
   if (pr.head.sha !== expectedHeadSha) {
@@ -170,6 +173,7 @@ export async function approvePR(
     body,
   );
   auditWrite(ctx.logger, "approve", { owner, repo, prNumber, reviewId, headSha: expectedHeadSha });
+  return reviewId;
 }
 
 // インラインレビューコメントを投稿する（allowlist ガード + 監査ログ付き）。

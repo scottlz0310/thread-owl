@@ -7,8 +7,11 @@ import type { InternalSurfaceConfig } from "./config.js";
 import { createInternalEndpoint } from "./internal-endpoint.js";
 import { ReviewCycleLedger } from "./ledger.js";
 import { createOriginChecker } from "./origin.js";
+import { ResultBinder } from "./result-binder.js";
 
 export interface InternalSurface {
+  /** 公開の投稿 tool の candidateId 束縛に渡す。 */
+  binder: ResultBinder;
   /** 内部面のパスなら処理して true を返す。公開面の HTTP server の fallbackHandler から呼ぶ。 */
   handle(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
   close(): Promise<void>;
@@ -22,6 +25,7 @@ export function restoreQueue(
   ledger: ReviewCycleLedger,
   queue: ReviewQueue,
   reviewStatus?: ReviewStatusStore,
+  binder?: ResultBinder,
 ): number {
   const queued = ledger.listQueued();
   for (const candidate of queued) {
@@ -40,6 +44,7 @@ export function restoreQueue(
       },
     });
     reviewStatus?.markPending(candidate);
+    binder?.noteStatusRound(candidate.cycleId, candidate);
   }
   return queued.length;
 }
@@ -48,12 +53,25 @@ export function restoreQueue(
 export function startInternalSurface(
   config: InternalSurfaceConfig,
   tools: Pick<ToolDeps, "getClient" | "allowedRepos" | "allowedAuthors" | "resolveInstallationId">,
-  runtime: { queue: ReviewQueue; reviewStatus?: ReviewStatusStore },
+  runtime: {
+    queue: ReviewQueue;
+    reviewStatus?: ReviewStatusStore;
+    /** thread-owl 自身の投稿者（例: `thread-owl[bot]`）。結果の照合で、他者のマーカーを信用しないために使う。 */
+    botLogin: string;
+  },
   logger: Logger,
   version: string,
 ): InternalSurface {
   const ledger = new ReviewCycleLedger({ path: config.ledgerPath });
-  const restored = restoreQueue(ledger, runtime.queue, runtime.reviewStatus);
+  const binder = new ResultBinder({
+    ledger,
+    queue: runtime.queue,
+    reviewStatus: runtime.reviewStatus,
+    getClient: tools.getClient,
+    botLogin: runtime.botLogin,
+    logger,
+  });
+  const restored = restoreQueue(ledger, runtime.queue, runtime.reviewStatus, binder);
   if (restored > 0) {
     logger.info("internal.queue.restored", { event: "internal.queue.restored", count: restored });
   }
@@ -68,6 +86,7 @@ export function startInternalSurface(
       queue: runtime.queue,
       reviewStatus: runtime.reviewStatus,
       resolveInstallationId: tools.resolveInstallationId,
+      binder,
       logger,
     },
     onError: (error) => {
@@ -78,6 +97,7 @@ export function startInternalSurface(
     },
   });
   return {
+    binder,
     handle: (req, res) => endpoint.handle(req, res),
     close: async () => {
       try {

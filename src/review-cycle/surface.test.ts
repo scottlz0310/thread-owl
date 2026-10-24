@@ -102,7 +102,7 @@ describe("startInternalSurface", () => {
     const surface = startInternalSurface(
       config,
       { getClient: vi.fn(), allowedRepos: [], allowedAuthors: [], resolveInstallationId: vi.fn() },
-      { queue },
+      { queue, botLogin: "thread-owl[bot]" },
       logger,
       "0.0.0-test",
     );
