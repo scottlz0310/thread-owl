@@ -11,6 +11,7 @@ import { createOriginChecker } from "./origin.js";
 import { RavenClient } from "./raven-client.js";
 import { ResultBinder } from "./result-binder.js";
 import { runDelivery } from "./result-delivery.js";
+import { purgeSafely, runRetention } from "./retention.js";
 
 export interface InternalSurface {
   /** 公開の投稿 tool の candidateId 束縛に渡す。 */
@@ -76,6 +77,14 @@ export function startInternalSurface(
     botLogin: runtime.botLogin,
     logger,
   });
+  // 期限を過ぎた候補は、queue を復元する前に台帳から削除する（削除済みの候補を配信対象に載せない）。
+  const onPurged = (cycleIds: string[]) => {
+    for (const cycleId of cycleIds) {
+      runtime.queue.removeCycle(cycleId);
+    }
+  };
+  // 一時的な失敗でも起動は止めない（ログに残し、定期削除が次の周期で再試行して queue も同期する）。
+  purgeSafely({ ledger, retentionDays: config.retentionDays, logger, onPurged });
   const restored = restoreQueue(ledger, runtime.queue, runtime.reviewStatus, binder);
   if (restored > 0) {
     logger.info("internal.queue.restored", { event: "internal.queue.restored", count: restored });
@@ -114,6 +123,11 @@ export function startInternalSurface(
           stopDelivery.signal,
         )
       : Promise.resolve();
+  // 保持期限を過ぎた行の削除（起動時と、以後一定間隔）。
+  const retention = runRetention(
+    { ledger, retentionDays: config.retentionDays, logger, onPurged },
+    stopDelivery.signal,
+  );
   if (config.delivery) {
     logger.info("internal.result.delivery.started", {
       event: "internal.result.delivery.started",
@@ -128,7 +142,7 @@ export function startInternalSurface(
     close: async () => {
       stopDelivery.abort();
       try {
-        await worker;
+        await Promise.all([worker, retention]);
         await endpoint.close();
       } finally {
         ledger.close();

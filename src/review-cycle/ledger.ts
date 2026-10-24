@@ -112,6 +112,17 @@ export interface DueIngestMessage {
   attempts: number;
 }
 
+/** 保持期限で削除した行数。 */
+export interface PurgeReport {
+  /** 削除した候補の cycleId。in-memory の queue から外すために使う。 */
+  purgedCycleIds: string[];
+  candidates: number;
+  results: number;
+  cancellations: number;
+  resultOutbox: number;
+  ingestOutbox: number;
+}
+
 export interface LedgerOptions {
   /** SQLite のファイルパス。":memory:" で永続化なし（テスト用）。 */
   path: string;
@@ -138,6 +149,7 @@ CREATE TABLE IF NOT EXISTS candidates (
   write_state  TEXT NOT NULL DEFAULT 'idle' CHECK (write_state IN ('idle', 'in-progress')),
   write_id     TEXT,
   write_kind   TEXT,
+  last_result_version INTEGER NOT NULL DEFAULT 0,
   accepted_at  TEXT NOT NULL,
   started_at   TEXT
 );
@@ -224,6 +236,7 @@ interface CandidateRow {
   write_state: "idle" | "in-progress";
   write_id: string | null;
   write_kind: ResultKind | null;
+  last_result_version: number;
 }
 
 interface OutboxRow {
@@ -281,6 +294,7 @@ export class ReviewCycleLedger {
     this.db = new DatabaseSync(options.path);
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec(SCHEMA);
+    this.migrate();
     this.now = options.now ?? (() => new Date());
     this.maxQueued = options.maxQueued ?? DEFAULT_MAX_QUEUED_CANDIDATES;
     this.newWriteId = options.newWriteId ?? (() => randomBytes(8).toString("hex"));
@@ -289,6 +303,41 @@ export class ReviewCycleLedger {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * 以前の版で作られた台帳（候補の表に列が足りない）を開いたときに、列を足す。
+   * CREATE TABLE IF NOT EXISTS は、既存の表に列を足さないため。
+   * - installation_id: 以前の候補は不明（0）。復元した queue の項目の installationId が 0 になるだけで、他では使わない。
+   * - write_id / write_kind: 進行中の書込みの識別。以前の版は、投稿の束縛をまだ使っていなかったため、進行中の行は無い。
+   * - last_result_version: 結果の版の採番。既存の結果（索引と通知）の最大版から始め、既存の版と衝突させない。
+   */
+  private migrate(): void {
+    const columns = new Set(
+      (this.db.prepare("PRAGMA table_info(candidates)").all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
+    );
+    this.transaction(() => {
+      const add = (name: string, definition: string): boolean => {
+        if (columns.has(name)) {
+          return false;
+        }
+        this.db.exec(`ALTER TABLE candidates ADD COLUMN ${definition}`);
+        return true;
+      };
+      add("installation_id", "installation_id INTEGER NOT NULL DEFAULT 0");
+      add("write_id", "write_id TEXT");
+      add("write_kind", "write_kind TEXT");
+      if (add("last_result_version", "last_result_version INTEGER NOT NULL DEFAULT 0")) {
+        this.db.exec(
+          `UPDATE candidates SET last_result_version = MAX(
+             COALESCE((SELECT MAX(result_version) FROM results r WHERE r.cycle_id = candidates.cycle_id), 0),
+             COALESCE((SELECT MAX(result_version) FROM result_outbox o WHERE o.cycle_id = candidates.cycle_id), 0)
+           )`,
+        );
+      }
+    });
   }
 
   /** 候補を受け付ける。同じ cycle の同一内容の再送は同じ candidateId を返す（duplicate）。 */
@@ -403,13 +452,12 @@ export class ReviewCycleLedger {
       if (same) {
         return resultOf(same);
       }
-      const current =
-        (
-          this.db
-            .prepare("SELECT MAX(result_version) AS v FROM results WHERE cycle_id = ?")
-            .get(row.cycle_id) as { v: number | null }
-        ).v ?? 0;
-      const version = current + 1;
+      // 版は候補ごとの単調増加の採番で、結果索引の保持期限による削除後も戻らない
+      // （索引だけが消えても、残っている通知の版や raven が持つ版と衝突させない）。
+      const version = row.last_result_version + 1;
+      this.db
+        .prepare("UPDATE candidates SET last_result_version = ? WHERE candidate_id = ?")
+        .run(version, candidateId);
       this.db
         .prepare(
           `INSERT INTO results
@@ -744,6 +792,56 @@ export class ReviewCycleLedger {
          WHERE source_id = ? AND state = 'pending'`,
       )
       .run(state, error, this.now().toISOString(), sourceId);
+  }
+
+  /**
+   * 保持期限（日）を過ぎた行を削除する。各表は自分の時計で数え、互いに独立:
+   * - 取消記録は、確定（confirmed）した時刻から数える。要求中（requested）の取消は削除しない
+   *   （旧候補の起動・投稿を拒否し続けるため）。
+   * - 結果索引は、投稿の時刻から数える。
+   * - outbox は、送信を終えた（delivered・rejected・failed）時刻から数える。送信待ち（pending）は削除しない。
+   * - 候補は、受付から期限を過ぎ、書込みが進行中でなく、結果・取消記録・送信待ちの通知がどれも残っていないものだけ削除する。
+   */
+  purgeExpired(retentionDays: number): PurgeReport {
+    const cutoff = new Date(this.now().getTime() - retentionDays * 86_400_000).toISOString();
+    return this.transaction(() => {
+      const run = (sql: string): number => Number(this.db.prepare(sql).run(cutoff).changes);
+      const resultOutbox = run(
+        "DELETE FROM result_outbox WHERE state != 'pending' AND julianday(finished_at) < julianday(?)",
+      );
+      const ingestOutbox = run(
+        "DELETE FROM ingest_outbox WHERE state != 'pending' AND julianday(finished_at) < julianday(?)",
+      );
+      const cancellations = run(
+        "DELETE FROM cancellations WHERE state = 'confirmed' AND julianday(confirmed_at) < julianday(?)",
+      );
+      const results = run("DELETE FROM results WHERE julianday(posted_at) < julianday(?)");
+      const expired = this.db
+        .prepare(
+          `SELECT cycle_id FROM candidates
+           WHERE julianday(accepted_at) < julianday(?)
+             AND write_state = 'idle'
+             AND NOT EXISTS (SELECT 1 FROM results r WHERE r.cycle_id = candidates.cycle_id)
+             AND NOT EXISTS (SELECT 1 FROM cancellations c WHERE c.cycle_id = candidates.cycle_id)
+             AND NOT EXISTS (
+               SELECT 1 FROM result_outbox o
+               WHERE o.cycle_id = candidates.cycle_id AND o.state = 'pending'
+             )`,
+        )
+        .all(cutoff) as Array<{ cycle_id: string }>;
+      const remove = this.db.prepare("DELETE FROM candidates WHERE cycle_id = ?");
+      for (const { cycle_id } of expired) {
+        remove.run(cycle_id);
+      }
+      return {
+        purgedCycleIds: expired.map((c) => c.cycle_id),
+        candidates: expired.length,
+        results,
+        cancellations,
+        resultOutbox,
+        ingestOutbox,
+      };
+    });
   }
 
   /** 候補の同一性を、状態を変えずに読む。 */

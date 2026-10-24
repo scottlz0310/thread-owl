@@ -109,3 +109,28 @@ describe("結果の配送の設定", () => {
     expect(loadInternalSurfaceConfig(delivery, "/mcp")).toBeUndefined();
   });
 });
+
+describe("保持期間の設定", () => {
+  test("既定は契約の下限の 30 日", () => {
+    expect(loadInternalSurfaceConfig(full, "/mcp")?.retentionDays).toBe(30);
+  });
+
+  test("30 日以上で指定できる", () => {
+    expect(
+      loadInternalSurfaceConfig({ ...full, THREAD_OWL_RETENTION_DAYS: "90" }, "/mcp")
+        ?.retentionDays,
+    ).toBe(90);
+  });
+
+  test.each([
+    ["下限未満 (29)", "29"],
+    ["上限超過 (3651)", "3651"],
+    ["整数でない", "30.5"],
+    ["数値でない", "long"],
+    ["負", "-30"],
+  ])("契約の下限・上限に反する設定は起動を止める（%s）", (_name, value) => {
+    expect(() =>
+      loadInternalSurfaceConfig({ ...full, THREAD_OWL_RETENTION_DAYS: value }, "/mcp"),
+    ).toThrow(/THREAD_OWL_RETENTION_DAYS/);
+  });
+});
