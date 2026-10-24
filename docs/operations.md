@@ -15,6 +15,10 @@
 | `PORT` | 任意（デフォルト: 3000） | HTTP サーバーポート |
 | `HOST` | 任意（デフォルト: 127.0.0.1） | HTTP サーバー bind アドレス |
 | `MCP_HTTP_PATH` | 任意（デフォルト: `/mcp`） | Streamable HTTP MCP endpoint のパス |
+| `THREAD_OWL_LEDGER_PATH` | 内部面を使うとき、次の 2 つと同時に必須 | review-raven との内部面（`--mcp-http` / `--webhook-mcp-http` のみ）の永続台帳（SQLite）のファイルパス。コンテナでは volume を割り当てる（再起動後も受付・取消記録・結果索引を保持するため）。3 つのうち一部だけの設定は起動を止める |
+| `THREAD_OWL_INTERNAL_PROXY_SECRET` | 内部面を使うとき必須 | 内部面の Bearer として検証する、gateway と共有する proxy secret（16 文字以上）。`X-Authenticated-User`（gateway が検証した identity）と併せて、サービス主体を決める。ログには出さない |
+| `THREAD_OWL_SERVICE_ACL` | 内部面を使うとき必須 | サービス別のアクセスリスト（JSON）。例: `{"services":{"svc-raven":{"actions":["accept","cancel","get_result"],"repos":["your-org/*"]}}}`。操作（`accept` / `cancel` / `get_result`）と対象 repo（`owner/repo` または `owner/*`）をサービスごとに許可する。取消と結果参照は入力に repo が無いため、受付済みの cycle は対象 repo も認可し、未受理の cycle は操作の認可だけで受け付ける。不正・空の設定は起動を止める |
+| `THREAD_OWL_INTERNAL_MCP_PATH` | 任意（デフォルト: `/internal/mcp`） | 内部面の MCP endpoint のパス。公開の `MCP_HTTP_PATH` とは別の MCP server で、`accept_review_candidate` などは公開面の `tools/list` に出ない。公開パスと同じ値は起動を止める |
 | `LOG_LEVEL` | 任意（デフォルト: `info`） | ログレベル: `trace` / `debug` / `info` / `warn` / `error` |
 
 秘密鍵は `*_FILE` > `*_B64` > `*`（raw）の優先順位で解決する。詳細は [github-app-setup.md](./github-app-setup.md) を参照。

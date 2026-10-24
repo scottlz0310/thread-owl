@@ -3,7 +3,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
-import { type ContractSchemaName, contractSchemaNames, validateContract } from "./validate.js";
+import {
+  type ContractSchemaName,
+  contractJsonSchema,
+  contractSchemaNames,
+  validateContract,
+} from "./validate.js";
 
 const root = fileURLToPath(new URL("./v1", import.meta.url));
 
@@ -97,4 +102,19 @@ describe("契約 fixture", () => {
     expect(validateContract(name, baseValue)).toEqual({ ok: true });
     expect(validateContract(name, applyPatch(baseValue, patch)).ok).toBe(false);
   });
+});
+
+describe("自己完結の schema（tools/list で通知する入力 schema）", () => {
+  test.each(names.filter((name) => name.endsWith(".input")))(
+    "%s は $ref を含まず、valid fixture をすべて受理する",
+    async (name) => {
+      const standalone = contractJsonSchema(name);
+      expect(JSON.stringify(standalone)).not.toContain("$ref");
+      const { Ajv2020 } = await import("ajv/dist/2020.js");
+      const validate = new Ajv2020({ strict: true, strictTypes: false }).compile(standalone);
+      for (const file of readdirSync(join(root, "fixtures", name, "valid"))) {
+        expect(validate(readJson(join(root, "fixtures", name, "valid", file)))).toBe(true);
+      }
+    },
+  );
 });

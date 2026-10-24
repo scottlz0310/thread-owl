@@ -375,6 +375,12 @@ export class ReviewCycleLedger {
     });
   }
 
+  /** cycle の受付済み候補。repo が入力に無い操作（取消・結果参照）で、対象 repo の認可に使う。 */
+  findByCycle(cycleId: string): CandidateBinding | undefined {
+    const row = this.candidateByCycle(cycleId);
+    return row ? bindingOf(row) : undefined;
+  }
+
   /** 結果の参照を返す。まだ無ければ null。cycle と candidateId の組が受付済みでなければ REQUEST_NOT_FOUND。 */
   getResult(cycleId: string, candidateId: string): ReviewResult | null {
     const row = this.candidateById(candidateId);

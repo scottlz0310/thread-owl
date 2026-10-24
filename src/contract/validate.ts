@@ -103,3 +103,52 @@ export function validateContract(name: ContractSchemaName, value: unknown): Cont
 export function contractSchemaNames(): ContractSchemaName[] {
   return Object.keys(schemas) as ContractSchemaName[];
 }
+
+type JsonObject = Record<string, unknown>;
+
+function isObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function resolvePointer(doc: JsonObject, pointer: string): unknown {
+  return pointer
+    .split("/")
+    .slice(1)
+    .reduce<unknown>((node, key) => (isObject(node) ? node[key] : undefined), doc);
+}
+
+function inlineRefs(node: unknown, doc: JsonObject, depth: number): unknown {
+  if (depth > 20) {
+    throw new Error("契約 schema の $ref が深すぎる（循環の疑い）");
+  }
+  if (Array.isArray(node)) {
+    return node.map((item) => inlineRefs(item, doc, depth));
+  }
+  if (!isObject(node)) {
+    return node;
+  }
+  const ref = node.$ref;
+  if (typeof ref === "string") {
+    const [file, pointer = ""] = ref.split("#");
+    const target = file === "common.schema.json" ? (common as JsonObject) : doc;
+    const resolved = resolvePointer(target, pointer);
+    if (resolved === undefined) {
+      throw new Error(`契約 schema の $ref を解決できない: ${ref}`);
+    }
+    return inlineRefs(resolved, target, depth + 1);
+  }
+  return Object.fromEntries(
+    Object.entries(node)
+      .filter(([key]) => key !== "$id" && key !== "$defs")
+      .map(([key, value]) => [key, inlineRefs(value, doc, depth)]),
+  );
+}
+
+/**
+ * $ref を展開した自己完結の schema。tools/list で通知する入力 schema に使う
+ * （相対 $ref は、受け取った側で解決できないため）。検証には validateContract を使う。
+ */
+export function contractJsonSchema(name: ContractSchemaName): JsonObject {
+  const schema = schemas[name] as JsonObject;
+  return inlineRefs(schema, schema, 0) as JsonObject;
+}
