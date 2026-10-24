@@ -1,3 +1,4 @@
+import { validateRavenEndpoint } from "./raven-client.js";
 import { parseServiceAcl, type ServiceAcl } from "./service-acl.js";
 
 export interface InternalSurfaceConfig {
@@ -8,6 +9,8 @@ export interface InternalSurfaceConfig {
   serviceAcl: ServiceAcl;
   /** 公開の MCP パスとは別の、内部面専用のパス。 */
   path: string;
+  /** 結果を review-raven へ送る配送。未設定なら送らない（raven は get_review_result で引ける）。 */
+  delivery?: { endpoint: string; token: string; intervalMs: number };
 }
 
 const DEFAULT_INTERNAL_PATH = "/internal/mcp";
@@ -49,5 +52,38 @@ export function loadInternalSurfaceConfig(
   if (normalize(path) === normalize(publicMcpPath)) {
     throw new Error("THREAD_OWL_INTERNAL_MCP_PATH must differ from MCP_HTTP_PATH");
   }
-  return { ledgerPath, proxySecret, serviceAcl: parseServiceAcl(rawAcl), path: normalize(path) };
+  return {
+    ledgerPath,
+    proxySecret,
+    serviceAcl: parseServiceAcl(rawAcl),
+    path: normalize(path),
+    delivery: loadDeliveryConfig(env),
+  };
+}
+
+const DEFAULT_DELIVERY_INTERVAL_SEC = 5;
+
+/**
+ * 結果を review-raven へ送る配送の設定。URL と資格情報は同時に設定するか、どちらも設定しない
+ * （片方だけは起動を止める）。URL は https、または loopback 上の http のみ。
+ */
+function loadDeliveryConfig(
+  env: Record<string, string | undefined>,
+): InternalSurfaceConfig["delivery"] {
+  const url = env.THREAD_OWL_RAVEN_INTERNAL_URL?.trim() || undefined;
+  const token = env.THREAD_OWL_RAVEN_INTERNAL_TOKEN?.trim() || undefined;
+  if (url === undefined && token === undefined) {
+    return undefined;
+  }
+  if (url === undefined || token === undefined) {
+    throw new Error(
+      "THREAD_OWL_RAVEN_INTERNAL_URL and THREAD_OWL_RAVEN_INTERNAL_TOKEN must be set together",
+    );
+  }
+  const rawInterval = env.THREAD_OWL_DELIVERY_INTERVAL_SEC?.trim();
+  const seconds = rawInterval ? Number(rawInterval) : DEFAULT_DELIVERY_INTERVAL_SEC;
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600) {
+    throw new Error("THREAD_OWL_DELIVERY_INTERVAL_SEC must be an integer within 1..3600");
+  }
+  return { endpoint: validateRavenEndpoint(url), token, intervalMs: seconds * 1000 };
 }

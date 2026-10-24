@@ -76,6 +76,23 @@ export interface PendingWrite extends CandidateBinding {
   kind: ResultKind;
 }
 
+/** review-raven へ送る結果の通知（publish_review_result の入力と同じ項目）。 */
+export interface ResultMessage {
+  cycleId: string;
+  candidateId: string;
+  headSha: string;
+  resultVersion: number;
+  kind: ResultKind;
+  post: { commentId: number; url: string };
+  postedAt: string;
+}
+
+export interface DueResultMessage {
+  message: ResultMessage;
+  /** これまでの送信の試行回数。 */
+  attempts: number;
+}
+
 export interface LedgerOptions {
   /** SQLite のファイルパス。":memory:" で永続化なし（テスト用）。 */
   path: string;
@@ -126,6 +143,23 @@ CREATE TABLE IF NOT EXISTS results (
   PRIMARY KEY (cycle_id, result_version),
   UNIQUE (cycle_id, comment_id)
 );
+CREATE TABLE IF NOT EXISTS result_outbox (
+  cycle_id        TEXT NOT NULL,
+  result_version  INTEGER NOT NULL,
+  candidate_id    TEXT NOT NULL,
+  kind            TEXT NOT NULL,
+  head_sha        TEXT NOT NULL,
+  comment_id      INTEGER NOT NULL,
+  url             TEXT NOT NULL,
+  posted_at       TEXT NOT NULL,
+  state           TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (state IN ('pending', 'delivered', 'rejected', 'failed')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TEXT NOT NULL,
+  last_error      TEXT,
+  finished_at     TEXT,
+  PRIMARY KEY (cycle_id, result_version)
+);
 `;
 
 const ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -156,6 +190,18 @@ interface CandidateRow {
   write_state: "idle" | "in-progress";
   write_id: string | null;
   write_kind: ResultKind | null;
+}
+
+interface OutboxRow {
+  cycle_id: string;
+  result_version: number;
+  candidate_id: string;
+  kind: ResultKind;
+  head_sha: string;
+  comment_id: number;
+  url: string;
+  posted_at: string;
+  attempts: number;
 }
 
 interface CancellationRow {
@@ -341,6 +387,25 @@ export class ReviewCycleLedger {
            WHERE candidate_id = ? AND (? IS NULL OR write_id = ?)`,
         )
         .run(candidateId, posted.writeId ?? null, posted.writeId ?? null);
+      // 結果の記録と同じトランザクションで outbox に積む（記録したのに通知が積まれない状態を作らない）。
+      this.db
+        .prepare(
+          `INSERT INTO result_outbox
+             (cycle_id, result_version, candidate_id, kind, head_sha, comment_id, url, posted_at,
+              next_attempt_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          row.cycle_id,
+          version,
+          candidateId,
+          posted.kind,
+          posted.headSha,
+          posted.post.commentId,
+          posted.post.url,
+          posted.postedAt,
+          this.now().toISOString(),
+        );
       return {
         source: "thread-owl",
         kind: posted.kind,
@@ -470,6 +535,79 @@ export class ReviewCycleLedger {
       reason: row.reason as CandidateReason,
       acceptedAt: row.accepted_at,
     }));
+  }
+
+  /** 送信の期限が来た結果の通知を、古い順に返す。 */
+  dueResultMessages(limit = 50): DueResultMessage[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM result_outbox
+         WHERE state = 'pending' AND next_attempt_at <= ?
+         ORDER BY next_attempt_at, rowid LIMIT ?`,
+      )
+      .all(this.now().toISOString(), limit) as unknown as OutboxRow[];
+    return rows.map((row) => ({
+      attempts: row.attempts,
+      message: {
+        cycleId: row.cycle_id,
+        candidateId: row.candidate_id,
+        headSha: row.head_sha,
+        resultVersion: row.result_version,
+        kind: row.kind,
+        post: { commentId: row.comment_id, url: row.url },
+        postedAt: row.posted_at,
+      },
+    }));
+  }
+
+  /** 送信に成功した（raven が受理した、または重複として受理した）。 */
+  markResultDelivered(cycleId: string, resultVersion: number): void {
+    this.finishResult(cycleId, resultVersion, "delivered", null);
+  }
+
+  /** raven が再送しても通らない理由で拒否した（取消済み・期限切れ・権限など）。再送しない。 */
+  markResultRejected(cycleId: string, resultVersion: number, code: string): void {
+    this.finishResult(cycleId, resultVersion, "rejected", code);
+  }
+
+  /**
+   * 送信に失敗した（ACK 未受信など）。次の試行の時刻を渡すと再送に回し、null なら試行上限として諦める
+   * （failed。自動で別の経路へ切り替えない）。
+   */
+  recordResultDeliveryFailure(
+    cycleId: string,
+    resultVersion: number,
+    failure: { code: string; nextAttemptAt: Date | null },
+  ): void {
+    if (failure.nextAttemptAt === null) {
+      this.db
+        .prepare(
+          `UPDATE result_outbox SET attempts = attempts + 1, last_error = ?, state = 'failed', finished_at = ?
+           WHERE cycle_id = ? AND result_version = ? AND state = 'pending'`,
+        )
+        .run(failure.code, this.now().toISOString(), cycleId, resultVersion);
+      return;
+    }
+    this.db
+      .prepare(
+        `UPDATE result_outbox SET attempts = attempts + 1, last_error = ?, next_attempt_at = ?
+         WHERE cycle_id = ? AND result_version = ? AND state = 'pending'`,
+      )
+      .run(failure.code, failure.nextAttemptAt.toISOString(), cycleId, resultVersion);
+  }
+
+  private finishResult(
+    cycleId: string,
+    resultVersion: number,
+    state: "delivered" | "rejected",
+    error: string | null,
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE result_outbox SET state = ?, last_error = ?, attempts = attempts + 1, finished_at = ?
+         WHERE cycle_id = ? AND result_version = ? AND state = 'pending'`,
+      )
+      .run(state, error, this.now().toISOString(), cycleId, resultVersion);
   }
 
   /** 候補の同一性を、状態を変えずに読む。 */

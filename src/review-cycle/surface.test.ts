@@ -1,4 +1,6 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -156,6 +158,66 @@ describe("容量", () => {
       expect(queue.list().filter((c) => c.cycle === undefined)).toHaveLength(100);
     } finally {
       ledger.close();
+    }
+  });
+});
+
+describe("結果の配送 worker", () => {
+  test("設定すると、記録された結果を review-raven へ送り、停止で止まる", async () => {
+    const received: string[] = [];
+    const fake = createServer((req, res) => {
+      received.push(req.headers.authorization ?? "");
+      res.writeHead(503).end(); // 届かない相手でも、停止が止まらないこと・資格情報が出ないことを確認する
+    });
+    await new Promise<void>((resolve) => fake.listen(0, "127.0.0.1", resolve));
+    try {
+      const ledgerPath = join(dir, "ledger.sqlite");
+      const config = loadInternalSurfaceConfig(
+        {
+          THREAD_OWL_LEDGER_PATH: ledgerPath,
+          THREAD_OWL_INTERNAL_PROXY_SECRET: "proxy-secret-0123456789",
+          THREAD_OWL_SERVICE_ACL: JSON.stringify({
+            services: { s: { actions: ["accept"], repos: ["org/*"] } },
+          }),
+          THREAD_OWL_RAVEN_INTERNAL_URL: `http://127.0.0.1:${(fake.address() as AddressInfo).port}/internal/mcp`,
+          THREAD_OWL_RAVEN_INTERNAL_TOKEN: "service-credential-0123456789",
+          THREAD_OWL_DELIVERY_INTERVAL_SEC: "1",
+        },
+        "/mcp",
+      );
+      if (!config) throw new Error("setup");
+      const seed = new ReviewCycleLedger({ path: ledgerPath });
+      const { candidateId } = seed.accept(acceptOf(1));
+      seed.recordResultPosted(candidateId, {
+        kind: "reviewed",
+        headSha: HEAD,
+        post: { commentId: 1, url: "https://github.com/org/repo/pull/101#issuecomment-1" },
+        postedAt: "2026-10-25T00:00:00Z",
+      });
+      seed.close();
+
+      const surface = startInternalSurface(
+        config,
+        {
+          getClient: vi.fn(),
+          allowedRepos: [],
+          allowedAuthors: [],
+          resolveInstallationId: vi.fn(),
+        },
+        { queue: createReviewQueue(), botLogin: "thread-owl[bot]" },
+        logger,
+        "0.0.0-test",
+      );
+      await vi.waitFor(() => expect(received.length).toBeGreaterThan(0), { timeout: 5000 });
+      expect(received[0]).toBe("Bearer service-credential-0123456789");
+      expect(logger.info).toHaveBeenCalledWith(
+        "internal.result.delivery.started",
+        expect.objectContaining({ intervalMs: 1000 }),
+      );
+      await surface.close();
+    } finally {
+      fake.closeAllConnections();
+      await new Promise<void>((resolve) => fake.close(() => resolve()));
     }
   });
 });

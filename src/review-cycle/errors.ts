@@ -9,6 +9,8 @@ export type ContractErrorCode =
   | "CANDIDATE_CANCELLED"
   | "ORIGIN_REJECTED"
   | "RESULT_HEAD_MISMATCH"
+  | "RESULT_VERSION_STALE"
+  | "DELIVERY_EXPIRED"
   | "UNAVAILABLE";
 
 /** 再送してよいのは、同じ取消 ID で再試行できる CANCEL_UNCONFIRMED と一時的な障害だけ。 */
