@@ -112,6 +112,15 @@ export interface DueIngestMessage {
   attempts: number;
 }
 
+/** 保持期限で削除した行数。 */
+export interface PurgeReport {
+  candidates: number;
+  results: number;
+  cancellations: number;
+  resultOutbox: number;
+  ingestOutbox: number;
+}
+
 export interface LedgerOptions {
   /** SQLite のファイルパス。":memory:" で永続化なし（テスト用）。 */
   path: string;
@@ -744,6 +753,43 @@ export class ReviewCycleLedger {
          WHERE source_id = ? AND state = 'pending'`,
       )
       .run(state, error, this.now().toISOString(), sourceId);
+  }
+
+  /**
+   * 保持期限（日）を過ぎた行を削除する。各表は自分の時計で数え、互いに独立:
+   * - 取消記録は、確定（confirmed）した時刻から数える。要求中（requested）の取消は削除しない
+   *   （旧候補の起動・投稿を拒否し続けるため）。
+   * - 結果索引は、投稿の時刻から数える。
+   * - outbox は、送信を終えた（delivered・rejected・failed）時刻から数える。送信待ち（pending）は削除しない。
+   * - 候補は、受付から期限を過ぎ、書込みが進行中でなく、結果・取消記録・送信待ちの通知がどれも残っていないものだけ削除する。
+   */
+  purgeExpired(retentionDays: number): PurgeReport {
+    const cutoff = new Date(this.now().getTime() - retentionDays * 86_400_000).toISOString();
+    return this.transaction(() => {
+      const run = (sql: string): number => Number(this.db.prepare(sql).run(cutoff).changes);
+      const resultOutbox = run(
+        "DELETE FROM result_outbox WHERE state != 'pending' AND julianday(finished_at) < julianday(?)",
+      );
+      const ingestOutbox = run(
+        "DELETE FROM ingest_outbox WHERE state != 'pending' AND julianday(finished_at) < julianday(?)",
+      );
+      const cancellations = run(
+        "DELETE FROM cancellations WHERE state = 'confirmed' AND julianday(confirmed_at) < julianday(?)",
+      );
+      const results = run("DELETE FROM results WHERE julianday(posted_at) < julianday(?)");
+      const candidates = run(
+        `DELETE FROM candidates
+         WHERE julianday(accepted_at) < julianday(?)
+           AND write_state = 'idle'
+           AND NOT EXISTS (SELECT 1 FROM results r WHERE r.cycle_id = candidates.cycle_id)
+           AND NOT EXISTS (SELECT 1 FROM cancellations c WHERE c.cycle_id = candidates.cycle_id)
+           AND NOT EXISTS (
+             SELECT 1 FROM result_outbox o
+             WHERE o.cycle_id = candidates.cycle_id AND o.state = 'pending'
+           )`,
+      );
+      return { candidates, results, cancellations, resultOutbox, ingestOutbox };
+    });
   }
 
   /** 候補の同一性を、状態を変えずに読む。 */

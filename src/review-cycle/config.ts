@@ -9,6 +9,8 @@ export interface InternalSurfaceConfig {
   serviceAcl: ServiceAcl;
   /** 公開の MCP パスとは別の、内部面専用のパス。 */
   path: string;
+  /** 台帳の保持期間（日）。契約の下限（30 日）以上。取消記録は確定時刻から、要求中の取消は削除しない。 */
+  retentionDays: number;
   /** 結果を review-raven へ送る配送。未設定なら送らない（raven は get_review_result で引ける）。 */
   delivery?: { endpoint: string; token: string; intervalMs: number };
 }
@@ -57,6 +59,7 @@ export function loadInternalSurfaceConfig(
     proxySecret,
     serviceAcl: parseServiceAcl(rawAcl),
     path: normalize(path),
+    retentionDays: loadRetentionDays(env),
     delivery: loadDeliveryConfig(env),
   };
 }
@@ -86,4 +89,22 @@ function loadDeliveryConfig(
     throw new Error("THREAD_OWL_DELIVERY_INTERVAL_SEC must be an integer within 1..3600");
   }
   return { endpoint: validateRavenEndpoint(url), token, intervalMs: seconds * 1000 };
+}
+
+/** 契約の設定（settings.schema.json）の下限。取消記録は旧受付の再送可能期間以上でなければならない。 */
+const MIN_RETENTION_DAYS = 30;
+const MAX_RETENTION_DAYS = 3650;
+
+function loadRetentionDays(env: Record<string, string | undefined>): number {
+  const raw = env.THREAD_OWL_RETENTION_DAYS?.trim();
+  if (!raw) {
+    return MIN_RETENTION_DAYS;
+  }
+  const days = Number(raw);
+  if (!Number.isInteger(days) || days < MIN_RETENTION_DAYS || days > MAX_RETENTION_DAYS) {
+    throw new Error(
+      `THREAD_OWL_RETENTION_DAYS must be an integer within ${MIN_RETENTION_DAYS}..${MAX_RETENTION_DAYS}`,
+    );
+  }
+  return days;
 }

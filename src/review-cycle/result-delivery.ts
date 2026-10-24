@@ -1,4 +1,5 @@
 import type { Logger } from "../config/logging.js";
+import { abortableSleep } from "./abortable-sleep.js";
 import { ContractError } from "./errors.js";
 import type { IngestMessage, ResultMessage, ReviewCycleLedger } from "./ledger.js";
 
@@ -185,21 +186,6 @@ export async function runDelivery(
     if (signal.aborted) {
       return;
     }
-    await sleep(intervalMs, signal);
+    await abortableSleep(intervalMs, signal);
   }
-}
-
-/** ms 待つ。signal が中断されたら即座に戻る。満了・中断のどちらでも listener とタイマーを残さない。 */
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
 }

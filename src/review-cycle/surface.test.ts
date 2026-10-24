@@ -295,3 +295,46 @@ describe("webhook・コメント由来の候補の記録（ingest）", () => {
     }
   });
 });
+
+describe("保持期限の削除", () => {
+  test("起動時に、期限を過ぎた行を台帳から削除する", async () => {
+    const ledgerPath = join(dir, "ledger.sqlite");
+    const old = new Date(Date.now() - 40 * 86_400_000);
+    const seed = new ReviewCycleLedger({ path: ledgerPath, now: () => old });
+    const { candidateId } = seed.accept(acceptOf(1));
+    seed.recordResultPosted(candidateId, {
+      kind: "reviewed",
+      headSha: HEAD,
+      post: { commentId: 1, url: "https://github.com/org/repo/pull/101#issuecomment-1" },
+      postedAt: old.toISOString(),
+    });
+    seed.markResultDelivered(acceptOf(1).cycleId, 1);
+    seed.close();
+
+    const config = loadInternalSurfaceConfig(
+      {
+        THREAD_OWL_LEDGER_PATH: ledgerPath,
+        THREAD_OWL_INTERNAL_PROXY_SECRET: "proxy-secret-0123456789",
+        THREAD_OWL_SERVICE_ACL: JSON.stringify({
+          services: { s: { actions: ["accept"], repos: ["org/*"] } },
+        }),
+      },
+      "/mcp",
+    );
+    if (!config) throw new Error("setup");
+    const surface = startInternalSurface(
+      config,
+      { getClient: vi.fn(), allowedRepos: [], allowedAuthors: [], resolveInstallationId: vi.fn() },
+      { queue: createReviewQueue(), botLogin: "thread-owl[bot]" },
+      logger,
+      "0.0.0-test",
+    );
+    await vi.waitFor(() =>
+      expect(logger.info).toHaveBeenCalledWith(
+        "internal.retention.purged",
+        expect.objectContaining({ results: 1, candidates: 1 }),
+      ),
+    );
+    await surface.close();
+  });
+});

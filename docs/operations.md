@@ -21,6 +21,7 @@
 | `THREAD_OWL_RAVEN_INTERNAL_URL` | 任意（`THREAD_OWL_RAVEN_INTERNAL_TOKEN` と同時） | 結果の記録を送る、review-raven の内部面の MCP endpoint（通常は gateway のルート）。設定すると、記録した結果を `publish_review_result` で review-raven へ送る worker が動く。https、または loopback 上の http のみ。内部面の設定（上の 3 つ）が前提 |
 | `THREAD_OWL_RAVEN_INTERNAL_TOKEN` | 任意（URL と同時） | review-raven へ Bearer で提示するサービス資格情報（gateway がサービス主体へ対応付ける）。ログには出さない |
 | `THREAD_OWL_DELIVERY_INTERVAL_SEC` | 任意（デフォルト: `5`） | 配送 worker が期限の来た通知を探す間隔（1〜3600 秒）。再送は最大 8 回・指数バックオフ（1 秒〜60 秒・ジッタ 0.2）で、上限に達したら諦める |
+| `THREAD_OWL_RETENTION_DAYS` | 任意（デフォルト: `30`） | 内部面の台帳（候補・結果索引・取消記録・outbox）の保持期間（日）。契約の下限 30 日以上、3650 日以下。取消記録は確定した時刻から数え、要求中（未確定）の取消と送信待ちの通知は削除しない。起動時と 1 時間ごとに削除する |
 | `THREAD_OWL_INTERNAL_MCP_PATH` | 任意（デフォルト: `/internal/mcp`） | 内部面の MCP endpoint のパス。公開の `MCP_HTTP_PATH` とは別の MCP server で、`accept_review_candidate` などは公開面の `tools/list` に出ない。公開パスと同じ値は起動を止める |
 | `LOG_LEVEL` | 任意（デフォルト: `info`） | ログレベル: `trace` / `debug` / `info` / `warn` / `error` |
 
