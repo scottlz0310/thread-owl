@@ -415,3 +415,31 @@ describe("起動時の初回削除の失敗", () => {
     purge.mockRestore();
   });
 });
+
+describe("配送の平文 http の opt-in の配線", () => {
+  test("opt-in を設定した構成（サービス名の http）で、surface を起動できる", async () => {
+    const config = loadInternalSurfaceConfig(
+      {
+        THREAD_OWL_LEDGER_PATH: join(dir, "ledger.sqlite"),
+        THREAD_OWL_INTERNAL_PROXY_SECRET: "proxy-secret-0123456789",
+        THREAD_OWL_SERVICE_ACL: JSON.stringify({
+          services: { s: { actions: ["accept"], repos: ["org/*"] } },
+        }),
+        THREAD_OWL_RAVEN_INTERNAL_URL: "http://mcp-gateway:8080/mcp/raven-internal",
+        THREAD_OWL_RAVEN_INTERNAL_TOKEN: "service-credential-0123456789",
+        THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP: "true",
+      },
+      "/mcp",
+    );
+    if (!config) throw new Error("setup");
+    // opt-in が RavenClient まで渡らないと、ここで「https が必要」と投げる
+    const surface = startInternalSurface(
+      config,
+      { getClient: vi.fn(), allowedRepos: [], allowedAuthors: [], resolveInstallationId: vi.fn() },
+      { queue: createReviewQueue(), botLogin: "thread-owl[bot]" },
+      logger,
+      "0.0.0-test",
+    );
+    await surface.close();
+  });
+});

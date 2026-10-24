@@ -9,15 +9,21 @@ export interface RavenClientConfig {
   endpoint: string;
   /** サービス資格情報。Bearer として送り、gateway がサービス主体へ対応付ける。ログには出さない。 */
   token: string;
+  /**
+   * loopback 以外のホストの平文 http を許可する。gateway をサービス名で引くコンテナの private network 向けの
+   * 明示的な opt-in で、資格情報はそのネットワーク上を平文で流れる。既定（false）は https または loopback の http のみ。
+   */
+  allowPlainHttp?: boolean;
   /** テスト用。省略時は fetch。 */
   fetch?: typeof fetch;
 }
 
 /**
  * https、または loopback 上の http だけを受け付ける（資格情報を平文で外部に送らない）。
- * URL に資格情報・query・fragment を含めない。正規化した URL を返す。
+ * allowPlainHttp は、別ホストの http を許す明示的な opt-in で、緩めるのはその規則だけ
+ * （URL の資格情報・query・fragment と、他のスキームは常に拒否する）。正規化した URL を返す。
  */
-export function validateRavenEndpoint(raw: string): string {
+export function validateRavenEndpoint(raw: string, allowPlainHttp: boolean): string {
   let url: URL;
   try {
     url = new URL(raw.trim());
@@ -28,7 +34,7 @@ export function validateRavenEndpoint(raw: string): string {
     throw new Error("the review-raven endpoint must not carry credentials, a query or a fragment");
   }
   const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  if (url.protocol === "https:" || (url.protocol === "http:" && loopback)) {
+  if (url.protocol === "https:" || (url.protocol === "http:" && (loopback || allowPlainHttp))) {
     return url.toString();
   }
   throw new Error("the review-raven endpoint must be https (http only on a loopback host)");
@@ -57,7 +63,7 @@ export class RavenClient implements ResultPublisher, IngestPublisher {
   private readonly fetchImpl: typeof fetch;
 
   constructor(config: RavenClientConfig) {
-    this.endpoint = validateRavenEndpoint(config.endpoint);
+    this.endpoint = validateRavenEndpoint(config.endpoint, config.allowPlainHttp ?? false);
     if (config.token.trim() === "") {
       throw new Error("a review-raven service credential is required");
     }

@@ -12,7 +12,7 @@ export interface InternalSurfaceConfig {
   /** 台帳の保持期間（日）。契約の下限（30 日）以上。取消記録は確定時刻から、要求中の取消は削除しない。 */
   retentionDays: number;
   /** 結果を review-raven へ送る配送。未設定なら送らない（raven は get_review_result で引ける）。 */
-  delivery?: { endpoint: string; token: string; intervalMs: number };
+  delivery?: { endpoint: string; token: string; intervalMs: number; allowPlainHttp: boolean };
 }
 
 const DEFAULT_INTERNAL_PATH = "/internal/mcp";
@@ -68,7 +68,8 @@ const DEFAULT_DELIVERY_INTERVAL_SEC = 5;
 
 /**
  * 結果を review-raven へ送る配送の設定。URL と資格情報は同時に設定するか、どちらも設定しない
- * （片方だけは起動を止める）。URL は https、または loopback 上の http のみ。
+ * （片方だけは起動を止める）。URL は https、または loopback 上の http のみ
+ * （THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP で、別ホストの http を明示的に許可できる）。
  */
 function loadDeliveryConfig(
   env: Record<string, string | undefined>,
@@ -88,7 +89,33 @@ function loadDeliveryConfig(
   if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600) {
     throw new Error("THREAD_OWL_DELIVERY_INTERVAL_SEC must be an integer within 1..3600");
   }
-  return { endpoint: validateRavenEndpoint(url), token, intervalMs: seconds * 1000 };
+  const allowPlainHttp = parseFlag(
+    "THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP",
+    env.THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP,
+  );
+  return {
+    endpoint: validateRavenEndpoint(url, allowPlainHttp),
+    token,
+    intervalMs: seconds * 1000,
+    allowPlainHttp,
+  };
+}
+
+/** 任意の真偽値の設定。空は off。認識できない値は、黙って off にせず起動を止める。 */
+function parseFlag(name: string, raw: string | undefined): boolean {
+  switch (raw?.trim().toLowerCase() ?? "") {
+    case "":
+    case "false":
+    case "0":
+    case "off":
+      return false;
+    case "true":
+    case "1":
+    case "on":
+      return true;
+    default:
+      throw new Error(`${name} must be true or false, got '${raw}'`);
+  }
 }
 
 /** 契約の設定（settings.schema.json）の下限。取消記録は旧受付の再送可能期間以上でなければならない。 */
