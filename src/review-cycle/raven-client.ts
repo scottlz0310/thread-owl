@@ -1,0 +1,137 @@
+import { Client, SdkHttpError, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { validateContract } from "../contract/validate.js";
+import { ContractError, type ContractErrorCode } from "./errors.js";
+import type { ResultMessage } from "./ledger.js";
+import type { ResultPublisher } from "./result-delivery.js";
+
+export interface RavenClientConfig {
+  /** review-raven の内部面の MCP endpoint（通常は gateway のルート）。 */
+  endpoint: string;
+  /** サービス資格情報。Bearer として送り、gateway がサービス主体へ対応付ける。ログには出さない。 */
+  token: string;
+  /** テスト用。省略時は fetch。 */
+  fetch?: typeof fetch;
+}
+
+/**
+ * https、または loopback 上の http だけを受け付ける（資格情報を平文で外部に送らない）。
+ * URL に資格情報・query・fragment を含めない。正規化した URL を返す。
+ */
+export function validateRavenEndpoint(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new Error(`invalid review-raven endpoint: ${raw}`);
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("the review-raven endpoint must not carry credentials, a query or a fragment");
+  }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.protocol === "https:" || (url.protocol === "http:" && loopback)) {
+    return url.toString();
+  }
+  throw new Error("the review-raven endpoint must be https (http only on a loopback host)");
+}
+
+// 契約のうち、受け取っても再送できないエラーは最終にする。再送できるのは UNAVAILABLE だけ。
+const PEER_CODES: ReadonlySet<string> = new Set<ContractErrorCode>([
+  "INVALID_ARGUMENT",
+  "PERMISSION_DENIED",
+  "REQUEST_NOT_FOUND",
+  "HEAD_CONFLICT",
+  "CANDIDATE_CANCELLED",
+  "RESULT_HEAD_MISMATCH",
+  "RESULT_VERSION_STALE",
+  "DELIVERY_EXPIRED",
+  "UNAVAILABLE",
+]);
+
+/** review-raven の publish_review_result を呼ぶ。失敗は、再送の可否が分かる ContractError にして投げる。 */
+export class RavenClient implements ResultPublisher {
+  private readonly endpoint: string;
+  private readonly token: string;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(config: RavenClientConfig) {
+    this.endpoint = validateRavenEndpoint(config.endpoint);
+    if (config.token.trim() === "") {
+      throw new Error("a review-raven service credential is required");
+    }
+    this.token = config.token.trim();
+    this.fetchImpl = config.fetch ?? fetch;
+  }
+
+  async publish(message: ResultMessage): Promise<void> {
+    const input = { schemaVersion: 1, ...message };
+    const valid = validateContract("publish_review_result.input", input);
+    if (!valid.ok) {
+      // 送る前の自己検査。通らない入力は、送っても同じなので再送しない。
+      throw new ContractError("INVALID_ARGUMENT", `結果の通知が契約に適合しない: ${valid.errors}`);
+    }
+    const client = new Client(
+      { name: "thread-owl-delivery", version: "1.0.0" },
+      // 相手（review-raven、go-sdk）が旧世代のプロトコルでも接続できるよう、自動で折衝する。
+      { versionNegotiation: { mode: "auto" } },
+    );
+    const transport = new StreamableHTTPClientTransport(new URL(this.endpoint), {
+      fetch: this.fetchImpl,
+      // リダイレクトは追われない（転送先に資格情報を送らない）。SDK の挙動なので、テストで固定している。
+      requestInit: { headers: { authorization: `Bearer ${this.token}` } },
+    });
+    try {
+      await client.connect(transport);
+      const result = await client.callTool({ name: "publish_review_result", arguments: input });
+      this.interpret(result);
+    } catch (error) {
+      throw this.classify(error);
+    } finally {
+      await client.close().catch(() => {});
+    }
+  }
+
+  /** 結果を読む。契約のエラー envelope は、その code を保つ。想定外の形は、ACK 未受信と同じ再送可能な失敗。 */
+  private interpret(result: { isError?: boolean; structuredContent?: unknown }): void {
+    if (result.isError) {
+      const envelope = result.structuredContent;
+      if (validateContract("error", envelope).ok) {
+        const { code, message } = (envelope as { error: { code: string; message: string } }).error;
+        if (PEER_CODES.has(code)) {
+          throw new ContractError(code as ContractErrorCode, message);
+        }
+      }
+      throw new ContractError("UNAVAILABLE", "review-raven が契約のエラーでない応答を返した");
+    }
+    const output = validateContract("publish_review_result.output", result.structuredContent);
+    if (!output.ok) {
+      throw new ContractError("UNAVAILABLE", "review-raven の応答が契約に適合しない");
+    }
+  }
+
+  private classify(error: unknown): ContractError {
+    if (error instanceof ContractError) {
+      return error;
+    }
+    if (error instanceof SdkHttpError) {
+      // 資格情報の拒否・権限なしは、再送しても通らない。迂回もしない。
+      if (error.status === 401 || error.status === 403) {
+        return new ContractError(
+          "PERMISSION_DENIED",
+          `review-raven が資格情報を拒否した (HTTP ${error.status})`,
+        );
+      }
+      if (error.status === 429 || error.status >= 500) {
+        return new ContractError(
+          "UNAVAILABLE",
+          `review-raven に届かなかった (HTTP ${error.status})`,
+        );
+      }
+      return new ContractError(
+        "INVALID_ARGUMENT",
+        `review-raven が要求を拒否した (HTTP ${error.status})`,
+      );
+    }
+    // 接続断・タイムアウトなど（ACK 未受信）。メッセージには資格情報を含めない。
+    return new ContractError("UNAVAILABLE", "review-raven に接続できなかった");
+  }
+}
