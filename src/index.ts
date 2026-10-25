@@ -1,5 +1,6 @@
 // Thread Owl - application entry point
 
+import { createRequire } from "node:module";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -33,7 +34,9 @@ import { createSharedRuntime } from "./runtime/shared.js";
 import { resolveAppMode } from "./startup/mode.js";
 import { createWebhookReceiver } from "./webhook/receiver.js";
 
-const VERSION = "0.8.0";
+const { version: VERSION } = createRequire(import.meta.url)("../package.json") as {
+  version: string;
+};
 
 const mode = resolveAppMode(process.argv.slice(2));
 const config = loadEnv();

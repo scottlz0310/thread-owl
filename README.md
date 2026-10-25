@@ -101,10 +101,10 @@ docker pull ghcr.io/scottlz0310/thread-owl:main
 
 `v` プレフィックス付きの semver タグを push すると、`release.yml` がテスト・イメージ発行（`:latest` + version タグ）・GitHub Release 作成まで行う。
 
-**タグを push する前に `package.json` と `src/index.ts` の VERSION を揃える。** `release.yml` はタグ・`package.json`・`src/index.ts` の 3 者が一致しない場合にビルドを失敗させる。
+**タグを push する前に `package.json` の version を更新する。** アプリケーションはこの値を読み、`release.yml` はタグと `package.json` が一致しない場合にビルドを失敗させる。
 
 ```bash
-# 1. package.json と src/index.ts の version / VERSION を同じ値に更新してコミット
+# 1. package.json の version を更新してコミット
 #    （例: 0.2.0 → 0.3.0）
 # 2. タグを付けて push
 git tag vX.Y.Z

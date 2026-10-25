@@ -45,18 +45,13 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Verify version consistency
-        # git tag（vX.Y.Z）の数値部分と package.json / src/index.ts の VERSION が一致することを確認する。
+        # 実行時の版は package.json から読み、タグとの一致を確認する。
         # ずれたまま publish するとイメージタグとアプリ自己申告バージョンが乖離する。
         run: |
           TAG_VER="${GITHUB_REF_NAME#v}"
           PKG_VER=$(node -p "require('./package.json').version")
-          SRC_VER=$(grep -oP '(?<=const VERSION = ")[^"]+' src/index.ts)
           if [ "$TAG_VER" != "$PKG_VER" ]; then
             echo "ERROR: git tag ($TAG_VER) != package.json version ($PKG_VER)"
-            exit 1
-          fi
-          if [ "$TAG_VER" != "$SRC_VER" ]; then
-            echo "ERROR: git tag ($TAG_VER) != src/index.ts VERSION ($SRC_VER)"
             exit 1
           fi
           echo "Version OK: $TAG_VER"
