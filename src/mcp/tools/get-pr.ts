@@ -24,5 +24,7 @@ export async function getPrTool(deps: ToolDeps, input: GetPrInput) {
   // enqueue_review と同じ判定の結果を返す。reviewer が、ローカル検証の前に、許可外の作成者・fork の PR を止められるようにする。
   // 許可リストの内容は返さない。get_pr 自体は拒否しない（拒否するかどうかは、呼び出し側が決める）。
   const origin = evaluatePullRequestOrigin(deps.allowedAuthors, pullRequestOrigin(pr));
-  return { pr, files, origin };
+  // origin は files の前に置く。files[].patch は大きく、クライアントは大きな応答の中間を省略する。
+  // origin が末尾にあると省略に巻き込まれ、reviewer は origin.allowed を確認できずに止まる（fail-closed のため）。
+  return { pr, origin, files };
 }

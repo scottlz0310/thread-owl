@@ -15,6 +15,7 @@
 - `get_pr` の返却に、PR の作成元の判定 `origin`（`allowed`、拒否のときは `reason`）を追加した。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗せず、`pr` と `files` は従来どおり返す。reviewer が、queue を経由しない CLI からの直接起動でも、ローカル検証の前に、許可外の作成者・fork の PR を止められるようにする（#252）。
 
 ### Changed
+- `get_pr` の返却の順を `{ pr, origin, files }` にした（これまでは `origin` が末尾）。`files[].patch` が大きい PR では、クライアントが大きなツール出力の中間を省略し、末尾の `origin` が失われた。reviewer は `origin.allowed` を確認できず、許可された PR でも `BLOCKED_PR_ORIGIN` で止まった（review-raven#158 の事例。fail-closed の規定は緩めていない）。`origin` と `pr` が応答の先頭側に残ることを、テストで固定した。`files[].patch` を省く・上限を設けるオプションは thread-owl#291 で検討する。
 - `enqueue_review`・webhook の `issue_comment`・`get_pr` が、PR から作成者・fork を取り出す処理を `pullRequestOrigin` に共通化した（挙動は変えない）。
 
 ## [0.7.0] - 2026-10-01
