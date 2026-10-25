@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.review-raven.example/contracts/v1/reader/read_pr_comments.output.schema.json",
+  "title": "ReadPRCommentsOutput",
+  "description": "投稿者検証を通過した PR のコメント本文。メタデータ全ページ→canonical allowlist 照合→本文取得をツール側で強制した結果だけを返し、検証後に追加・編集されたコメントを含む snapshot は返さない。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "snapshotId",
+    "headSha",
+    "baseSha",
+    "allowlist",
+    "threads",
+    "reviews",
+    "issueComments",
+    "summary",
+    "pagination"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "snapshotId": {
+      "description": "検証した snapshot の識別子（SHA-256 の 16 進）。後の再読で値が変われば、コメント・投稿者・編集・head のいずれかが変わっている。",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "headSha": { "$ref": "#/$defs/sha" },
+    "baseSha": { "$ref": "#/$defs/sha" },
+    "allowlist": {
+      "description": "適用した allowlist の件数。login 自体は含めない。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serverLogins", "projectFile", "projectLogins"],
+      "properties": {
+        "serverLogins": { "type": "integer", "minimum": 1 },
+        "projectFile": { "type": "boolean" },
+        "projectLogins": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "threads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path", "line", "isResolved", "isOutdated", "comments"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "path": { "type": "string" },
+          "line": { "type": ["integer", "null"] },
+          "isResolved": { "type": "boolean" },
+          "isOutdated": { "type": "boolean" },
+          "comments": { "type": "array", "items": { "$ref": "#/$defs/comment" } }
+        }
+      }
+    },
+    "reviews": { "type": "array", "items": { "$ref": "#/$defs/comment" } },
+    "issueComments": { "type": "array", "items": { "$ref": "#/$defs/comment" } },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["threads", "unresolvedThreads", "reviews", "issueComments"],
+      "properties": {
+        "threads": { "type": "integer", "minimum": 0 },
+        "unresolvedThreads": { "type": "integer", "minimum": 0 },
+        "reviews": { "type": "integer", "minimum": 0 },
+        "issueComments": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["complete"],
+      "properties": { "complete": { "const": true } }
+    }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "comment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "author", "authorType", "url", "createdAt", "editedAt", "body"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[0-9]+$" },
+        "author": { "type": "string", "minLength": 1 },
+        "authorType": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "editedAt": { "type": ["string", "null"] },
+        "state": { "type": "string", "minLength": 1 },
+        "body": { "type": "string" }
+      }
+    }
+  }
+}

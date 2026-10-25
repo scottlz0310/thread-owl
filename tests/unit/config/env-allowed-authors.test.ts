@@ -28,3 +28,40 @@ describe("loadEnv: ALLOWED_AUTHORS", () => {
     );
   });
 });
+
+describe("loadEnv: TRUSTED_COMMENT_AUTHORS", () => {
+  it.each([
+    {
+      name: "未設定は空配列（read_pr_comments が本文を一切読まない）",
+      value: undefined,
+      expected: [],
+    },
+    { name: "空文字は未設定と同じ", value: "", expected: [] },
+    {
+      name: "複数の login を正規化する",
+      value: " Thread-Owl[bot] ,codecov,thread-owl",
+      expected: ["thread-owl", "codecov"],
+    },
+  ])("$name", ({ value, expected }) => {
+    const config = loadEnv({ ...VALID_ENV, TRUSTED_COMMENT_AUTHORS: value });
+
+    expect(config.policy.trustedCommentAuthors).toEqual(expected);
+  });
+
+  it("形式不正は、設定名つきで起動時に fail-fast で throw する", () => {
+    expect(() => loadEnv({ ...VALID_ENV, TRUSTED_COMMENT_AUTHORS: "thread-owl,*" })).toThrow(
+      "TRUSTED_COMMENT_AUTHORS entry must be a GitHub login",
+    );
+  });
+
+  it("ALLOWED_AUTHORS とは別の設定として扱う", () => {
+    const config = loadEnv({
+      ...VALID_ENV,
+      ALLOWED_AUTHORS: "alice",
+      TRUSTED_COMMENT_AUTHORS: "thread-owl",
+    });
+
+    expect(config.policy.allowedAuthors).toEqual(["alice"]);
+    expect(config.policy.trustedCommentAuthors).toEqual(["thread-owl"]);
+  });
+});

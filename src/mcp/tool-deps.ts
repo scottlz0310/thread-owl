@@ -13,6 +13,8 @@ export interface ToolDeps {
   allowedRepos: readonly string[];
   // PR の作成者 allowlist（正規化済みの login）。空の間は、すべて拒否する（fail-closed）。
   allowedAuthors: readonly string[];
+  // PR のコメントの本文を読んでよい投稿者（正規化済みの login）。空の間は、read_pr_comments が止まる（fail-closed）。
+  trustedCommentAuthors: readonly string[];
   logger: Logger;
   resolveInstallationId: (owner: string, repo: string) => Promise<number>;
   // 内部面（review-raven との連携）を有効にしたときだけ渡る。投稿 tool の candidateId の束縛に使う。
@@ -41,6 +43,7 @@ export function buildToolDeps(deps: IssueTokenDeps): ToolDeps {
     }),
     allowedRepos: deps.config.policy.allowedRepos,
     allowedAuthors: deps.config.policy.allowedAuthors,
+    trustedCommentAuthors: deps.config.policy.trustedCommentAuthors,
     logger: deps.logger,
     resolveInstallationId: async (owner: string, repo: string): Promise<number> => {
       const jwt = await deps.generateAppJwt({

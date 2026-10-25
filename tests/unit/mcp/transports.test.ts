@@ -87,6 +87,7 @@ describe("startMcpHttpServer", () => {
     expect(result.tools.map((tool) => tool.name)).toEqual([
       "get_pr",
       "list_review_threads",
+      "read_pr_comments",
       "post_summary_comment",
       "post_review_verdict",
       "post_inline_comment",

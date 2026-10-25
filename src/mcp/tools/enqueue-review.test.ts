@@ -30,6 +30,7 @@ function makeDeps(overrides: Partial<EnqueueReviewToolDeps> = {}): EnqueueReview
     },
     allowedRepos: ["org/repo"],
     allowedAuthors: ["alice"],
+    trustedCommentAuthors: [],
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     resolveInstallationId: async (): Promise<number> => 123,
     queue: createReviewQueue(),

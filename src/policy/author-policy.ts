@@ -15,22 +15,32 @@ export function normalizeLogin(login: string): string {
   return lower.endsWith("[bot]") ? lower.slice(0, -"[bot]".length) : lower;
 }
 
-// ALLOWED_AUTHORS（カンマ区切りの login）を正規化する。
+// 正規化後の login が GitHub の login の形式か（wildcard・空白・`[bot]` の二重付与は不可）。
+export function isNormalizedLogin(normalized: string): boolean {
+  return LOGIN_PATTERN.test(normalized);
+}
+
+// カンマ区切りの login の一覧を正規化する。name は、エラーメッセージに出す設定名。
 // トリム・空エントリ除外・正規化・重複除去を行い、形式不正（wildcard を含む）は fail-fast で throw する。
-export function parseAuthorAllowlist(raw: string): string[] {
+export function parseLoginList(raw: string, name: string): string[] {
   const logins = new Set<string>();
   for (const part of raw.split(",")) {
     const entry = part.trim();
     if (entry.length === 0) continue;
     const normalized = normalizeLogin(entry);
-    if (!LOGIN_PATTERN.test(normalized)) {
+    if (!isNormalizedLogin(normalized)) {
       throw new Error(
-        `ALLOWED_AUTHORS entry must be a GitHub login (wildcards are not allowed): '${entry}'`,
+        `${name} entry must be a GitHub login (wildcards are not allowed): '${entry}'`,
       );
     }
     logins.add(normalized);
   }
   return [...logins];
+}
+
+// ALLOWED_AUTHORS（PR の作成者として信頼する login）を正規化する。
+export function parseAuthorAllowlist(raw: string): string[] {
+  return parseLoginList(raw, "ALLOWED_AUTHORS");
 }
 
 export function isAuthorAllowed(allowedAuthors: readonly string[], login: string): boolean {
