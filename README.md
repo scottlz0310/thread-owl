@@ -99,19 +99,11 @@ docker pull ghcr.io/scottlz0310/thread-owl:main
 
 ### リリース手順
 
-`v` プレフィックス付きの semver タグを push すると、`release.yml` がテスト・イメージ発行（`:latest` + version タグ）・GitHub Release 作成まで行う。
-
-**タグを push する前に `package.json` の version を更新する。** アプリケーションはこの値を読み、`release.yml` はタグと `package.json` が一致しない場合にビルドを失敗させる。
-
-```bash
-# 1. package.json の version を更新してコミット
-#    （例: 0.2.0 → 0.3.0）
-# 2. タグを付けて push
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
-
-RC 等のプレリリース版（タグに `-` を含む場合、例: `vX.Y.Z-rc.1`）は GitHub Release が prerelease として作成され、Docker イメージに `:latest` は付与されない。
+`Prepare Release` が package.json の版と CHANGELOG を更新する PR を作成する。
+独立レビュー・CI・公開許可後に `chore(release): vX.Y.Z` の件名でマージすると、
+同じ SHA の draft、イメージ生成・再取得検証、共通 finalize の順で公開する。
+RC は prerelease とし、Docker の latest を更新しない。開発版の main 配布は従来どおり。
+詳しくは [リリース手順](docs/release-automation.md) を参照する。
 
 ## GitHub App 権限
 

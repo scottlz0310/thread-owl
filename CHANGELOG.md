@@ -4,6 +4,8 @@
 
 ### Changed
 
+- prepare・draft・イメージ生成/再取得検証・finalize を release-automate の固定 SHA へ統一した。package.json だけを版の正本とし、CHANGELOG 由来の本文へ Docker・検証証跡を追記する。RC の prerelease/latest 規約と開発版 main 配布を維持し、タグ起点の旧公開と自動生成ノートの併記を廃止する。
+
 - アプリケーションが公開する版を `package.json` から読み、`src/index.ts` での版の二重管理を解消した。ビルド後も同じ原稿を参照し、リリース時はタグと package の版を照合する。
 
 ## [0.8.0] - 2026-10-25
