@@ -2,108 +2,121 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+
+concurrency:
+  group: stable-release-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
-  test:
+  draft:
+    if: startsWith(github.event.head_commit.message, 'chore(release):')
+    uses: scottlz0310/release-automate/.github/workflows/reusable-publish-release.yml@7f53bc1716dc7da1740be166e55b5d94b33041e6 # v3.2.0
+    permissions:
+      contents: write
+    with:
+      draft: true
+
+  build:
+    needs: draft
+    if: needs.draft.outputs.release_state == 'draft'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      image_tag: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v7
-
+        with:
+          ref: ${{ needs.draft.outputs.target_sha }}
       - uses: actions/setup-node@v7
         with:
-          node-version-file: ".node-version"
-
+          node-version-file: .node-version
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version-file: ".bun-version"
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Check (biome)
-        run: bun run check
-
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Test
-        run: bun run test
-
-      - name: Build
-        run: bun run build
-
-  release:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Verify version consistency
-        # 実行時の版は package.json から読み、タグとの一致を確認する。
-        # ずれたまま publish するとイメージタグとアプリ自己申告バージョンが乖離する。
+          bun-version-file: .bun-version
+      - name: 対象コミットと版を検証
+        env:
+          TAG: ${{ needs.draft.outputs.tag_name }}
         run: |
-          TAG_VER="${GITHUB_REF_NAME#v}"
-          PKG_VER=$(node -p "require('./package.json').version")
-          if [ "$TAG_VER" != "$PKG_VER" ]; then
-            echo "ERROR: git tag ($TAG_VER) != package.json version ($PKG_VER)"
-            exit 1
-          fi
-          echo "Version OK: $TAG_VER"
-
+          set -euo pipefail
+          test "$(node -p "require('./package.json').version")" = "${TAG#v}"
+          bun install --frozen-lockfile
+          bun run check
+          bun run typecheck
+          bun run test
+          bun run build
       - uses: docker/setup-qemu-action@v4
-
       - uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 安定リリース用タグを発行する（vX.Y.Z push → :X.Y.Z / :X.Y）。
-      # :latest は flavor latest=auto（デフォルト）により非 prerelease の
-      # semver タグにのみ自動付与される。開発ビルド（:main）は docker.yml が担う。
-      - name: Extract metadata
+      - uses: docker/metadata-action@v6
         id: meta
-        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push
+            type=semver,pattern={{version}},value=${{ needs.draft.outputs.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.draft.outputs.tag_name }}
+      - name: 安定版イメージを公開
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
+          file: Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Check prerelease
-        id: prerelease_check
-        # semver prerelease 判定: vX.Y.Z の直後に "-" が続くかどうかで判定する。
-        # contains(ref_name, '-') では vX.Y.Z+build-1 のような build metadata 識別子内の
-        # "-" を誤検知するため、正規表現で semver prerelease 部分のみを判定する。
-        run: |
-          if echo "${{ github.ref_name }}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-'; then
-            echo "value=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+  verify-image:
+    needs: [draft, build]
+    if: needs.draft.outputs.release_state == 'draft'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
-          generate_release_notes: true
-          prerelease: ${{ steps.prerelease_check.outputs.value }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 公開イメージの digest と対象アーキテクチャを検証
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          tagged_digest=$(timeout 60 docker buildx imagetools inspect "$IMAGE:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
+          if [[ "$tagged_digest" != "$DIGEST" ]]; then
+            printf '::error::版タグの digest が build 結果と不一致です: expected=%s actual=%s\n' "$DIGEST" "$tagged_digest" >&2
+            exit 1
+          fi
+          timeout 60 docker buildx imagetools inspect "$IMAGE@$DIGEST" --raw > manifest.json
+          jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] |
+            (index("amd64") != null and index("arm64") != null)' manifest.json
+
+  finalize:
+    needs: [draft, build, verify-image]
+    if: needs.draft.outputs.release_state == 'draft'
+    uses: scottlz0310/release-automate/.github/workflows/reusable-finalize-release.yml@7f53bc1716dc7da1740be166e55b5d94b33041e6 # v3.2.0
+    permissions:
+      contents: write
+    with:
+      tag_name: ${{ needs.draft.outputs.tag_name }}
+      target_sha: ${{ needs.draft.outputs.target_sha }}
+      append_release_evidence: true
+      docker_image: ghcr.io/${{ github.repository }}
+      docker_digest: ${{ needs.build.outputs.digest }}
+      verification_results: ${{ toJSON(needs) }}

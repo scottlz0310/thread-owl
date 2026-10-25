@@ -1,0 +1,37 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: 'リリースする SemVer（先頭の v は不要。npm 戦略のため metadata 不可）'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 実行元と版を確認
+        env:
+          TARGET_VERSION: ${{ inputs.target_version }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ||
+                ! "$TARGET_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error::既定ブランチからSemVer MAJOR.MINOR.PATCH（RC・build metadata 可） を指定してください'
+            exit 1
+          fi
+
+  prepare:
+    needs: validate
+    uses: scottlz0310/release-automate/.github/workflows/reusable-prepare-release.yml@7f53bc1716dc7da1740be166e55b5d94b33041e6 # v3.2.0
+    secrets:
+      RELEASE_BOT_CLIENT_ID: ${{ secrets.RELEASE_BOT_CLIENT_ID }}
+      RELEASE_BOT_PRIVATE_KEY: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+    with:
+      target_version: ${{ inputs.target_version }}
+      bump_strategy: npm
