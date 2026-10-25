@@ -2,7 +2,7 @@
   "source": {
     "repository": "scottlz0310/review-raven",
     "path": "docs/design/contracts",
-    "commit": "a4ff1161e2eb9342c56acec3780825d4c53df7e5"
+    "commit": "fee4e65f442ff32ea1ed3325dfe4545905e818de"
   },
   "files": {
     "README.md": "7b3d39677d7465b51c277dc4ac59d6e6fc7cba9093e14d822cd00218bd78a897",
@@ -118,6 +118,10 @@
     "fixtures/snapshot/valid/superseded-with-late-result.json": "4a26f12905a3c55a75bebb30a1d0098ea013325a42faf9406a99264b4e411b68",
     "fixtures/snapshot/valid/superseded.json": "ebdeed565074b45c344bc3bc5101f6fd819c918fc76c163c7f3d97914e28fa8d",
     "fixtures/snapshot/valid/waiting-ci-pending.json": "b422bd71a03ec548439b67279faf1b57882f3afb235908b963c3e887fcad8f9c",
+    "reader/README.md": "9dbfcac7e24d7ca3abf3b6ac70e0a5a677d31967331799b6fc307b9148065265",
+    "reader/read_pr_comments.error.schema.json": "a8b6d3d684e1e645773f3546441827350eba9e29ab642a1c6b4618e71973f590",
+    "reader/read_pr_comments.output.schema.json": "f1f7e134aa64a6cdca6c6717125b9b01889a56fc06c6a202b43183116073c388",
+    "reader/scenarios.json": "bfb3a60ddd0c0ca8498677f7052b7084bf29ce5dcc53ef8d18b779f880c4a426",
     "scenarios/scenarios.json": "d60bdfda5fbaa7c7bc01002894b98a3f31680531dcde7e1a91d8f83b710abadc",
     "schemas/accept_review_candidate.input.schema.json": "37a63ed44cc460c12e3d4353ee25bc045b2370c847e05d801e69246a66e9d7b8",
     "schemas/accept_review_candidate.output.schema.json": "21a14a8d74da733a22aebdbf8d43c04e6f7d54e852340f0e550880593016fffa",

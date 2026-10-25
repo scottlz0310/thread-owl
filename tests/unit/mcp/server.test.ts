@@ -27,6 +27,7 @@ function makeDeps(): ToolDeps {
     getWriteContext: vi.fn(),
     allowedRepos: [],
     allowedAuthors: [],
+    trustedCommentAuthors: [],
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     resolveInstallationId: vi.fn(),
   };
@@ -94,7 +95,7 @@ describe("createMcpServer", () => {
     expect(typeof server.connect).toBe("function");
   });
 
-  it("6 つの review tool を登録する", () => {
+  it("7 つの review tool を登録する", () => {
     const spy = vi.spyOn(McpServer.prototype, "registerTool");
 
     createMcpServer(makeDeps(), { name: "thread-owl", version: "0.1.0" });
@@ -103,6 +104,7 @@ describe("createMcpServer", () => {
     expect(registeredNames).toEqual([
       "get_pr",
       "list_review_threads",
+      "read_pr_comments",
       "post_summary_comment",
       "post_review_verdict",
       "post_inline_comment",

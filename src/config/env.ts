@@ -1,5 +1,5 @@
 import { parseAllowlist } from "../policy/allowlist.js";
-import { parseAuthorAllowlist } from "../policy/author-policy.js";
+import { parseAuthorAllowlist, parseLoginList } from "../policy/author-policy.js";
 import { loadInternalSurfaceConfig } from "../review-cycle/config.js";
 import { loadGitHubAppPrivateKey } from "./private-key.js";
 import type { AppConfig } from "./schema.js";
@@ -21,6 +21,11 @@ export function loadEnv(env: Record<string, string | undefined> = process.env): 
       allowedRepos: parseAllowlist(env.ALLOWED_REPOS ?? "").repos,
       // ALLOWED_AUTHORS の正規化・形式検証は parseAuthorAllowlist に集約する（policy/author-policy.ts 参照）
       allowedAuthors: parseAuthorAllowlist(env.ALLOWED_AUTHORS ?? ""),
+      // PR のコメントの本文を読んでよい投稿者（review-raven の TRUSTED_COMMENT_AUTHORS と同じ意味）。
+      trustedCommentAuthors: parseLoginList(
+        env.TRUSTED_COMMENT_AUTHORS ?? "",
+        "TRUSTED_COMMENT_AUTHORS",
+      ),
     },
     server: {
       port: env.PORT !== undefined ? Number(env.PORT) : 3000,

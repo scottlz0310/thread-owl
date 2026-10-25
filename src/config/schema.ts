@@ -19,6 +19,9 @@ export const appConfigSchema = z.object({
     // 形式検証・正規化は parseAuthorAllowlist（policy/author-policy.ts）に一元化している。
     // 空は「未設定」で、その間は PR の作成者・fork を検証できないため、すべて拒否する（fail-closed）。
     allowedAuthors: z.array(z.string()).default([]),
+    // 形式検証・正規化は parseLoginList（policy/author-policy.ts）に一元化している。
+    // 空は「未設定」で、その間は read_pr_comments がコメント本文を一切読まない（fail-closed）。
+    trustedCommentAuthors: z.array(z.string()).default([]),
   }),
   server: z.object({
     port: z.number().int().min(1).max(65535),

@@ -11,6 +11,7 @@
 | `GITHUB_WEBHOOK_SECRET` | `--webhook` モードで必須 | Webhook 署名検証用 HMAC シークレット |
 | `ALLOWED_REPOS` | 必須 | `owner/repo` 形式をカンマ区切りで列挙（空なら全 write 拒否） |
 | `ALLOWED_AUTHORS` | **必須**（未設定だと、すべて拒否する） | PR の作成者として信頼する GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せ、fork は常に拒否する。**未設定（空）の間は、すべての PR・再レビュー依頼を拒否する**（fail-closed。`ALLOWED_REPOS` が空のときと同じ流儀で、起動は止めず、実行時に拒否する。起動のたびにエラーを記録する） |
+| `TRUSTED_COMMENT_AUTHORS` | `read_pr_comments` を使うとき必須（未設定だと、本文を一切読まない） | PR のコメントの本文を読んでよい GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。review-raven の `TRUSTED_COMMENT_AUTHORS` と同じ意味で、`ALLOWED_AUTHORS`（PR の作成者）とは別の問い。PR の base ref の `.review-raven/trusted-comment-authors.json` で、repo 固有の login を加えられる。**未設定（空）の間は、`read_pr_comments` が GitHub へ問い合わせずに `TRUSTED_AUTHORS_NOT_CONFIGURED` で止まる**（fail-closed） |
 | `APP_SLUG` | 任意（デフォルト: `thread-owl`） | GitHub App の slug。自 App bot イベントのループ防止に使用。App 名を変えた場合は必ず設定する |
 | `PORT` | 任意（デフォルト: 3000） | HTTP サーバーポート |
 | `HOST` | 任意（デフォルト: 127.0.0.1） | HTTP サーバー bind アドレス |
@@ -150,7 +151,8 @@ node dist/index.js --mcp
 | tool | 説明 |
 |------|------|
 | `get_pr` | PR 基本情報と変更ファイル一覧。作成者（`author`: `login` と `type`。取得できなければ null）と、head の repository（`head.repo`: `fullName` と、base と別の repository からの PR かを示す `fork`。削除された fork は null）を含む。作成元の判定（`origin`: `allowed` と、拒否のときの `reason`）も返す。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗しない（拒否するかどうかは呼び出し側が決める） |
-| `list_review_threads` | レビュースレッド一覧（resolved/outdated・コメント含む） |
+| `list_review_threads` | レビュースレッド一覧（resolved/outdated・コメント含む）。**投稿者を検証せずに本文を返す**。他者が書き得るコメントの本文を読むときは `read_pr_comments` を使う |
+| `read_pr_comments` | review thread のコメント・review body・issue comment の本文を、投稿者を検証した上で返す reader。メタデータ（全ページ・resolved を含む）→ `TRUSTED_COMMENT_AUTHORS` と base ref のプロジェクト allowlist による投稿者検証 → 本文の順をツール側で強制する。許可外または特定できない投稿者のコメントが 1 件でもあれば、本文を一切取得せず `UNTRUSTED_COMMENT` / `AUTHOR_CHECK_FAILED` で止まり、検証後に追加・編集されたコメントを含む snapshot は返さない（取り直し、変わり続ければ `SNAPSHOT_CHANGED`）。失敗の応答に本文は含まない。成功の `snapshotId` は、後の再取得との比較に使う。応答は `structuredContent` と text（JSON）の両方。契約は [review-raven の reader 契約](https://github.com/scottlz0310/review-raven/blob/main/docs/design/contracts/reader/README.md)（`src/contract/v1/reader` に固定して取り込み、共有シナリオ 20 件を実行する） |
 | `post_summary_comment` | PR サマリーコメント投稿（Verdict らしい本文は拒否。Verdict には `post_review_verdict` を使用） |
 | `post_review_verdict` | current HEAD と同一 SHA の required status checks 成功を確認してから、APPROVED の Verdict コメントを固定書式で投稿（見出し・Reviewed HEAD SHA 行・Status 行はサーバー側が生成） |
 | `post_inline_comment` | インラインレビューコメント投稿 |

@@ -37,6 +37,12 @@ import {
   postSummaryTool,
 } from "./tools/post-summary.js";
 import {
+  READ_PR_COMMENTS_DESCRIPTION,
+  READ_PR_COMMENTS_TOOL_NAME,
+  readPrCommentsInputSchema,
+  readPrCommentsTool,
+} from "./tools/read-pr-comments.js";
+import {
   REPLY_THREAD_TOOL_NAME,
   replyThreadInputSchema,
   replyThreadTool,
@@ -120,6 +126,24 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
       inputSchema: listReviewThreadsInputSchema,
     },
     (args) => runTool(() => listReviewThreadsTool(deps, args)),
+  );
+
+  // 投稿者の検証を強制して本文を返す reader。ゲートが止めたときは、契約の envelope を structuredContent と text の両方に返す。
+  server.registerTool(
+    READ_PR_COMMENTS_TOOL_NAME,
+    { description: READ_PR_COMMENTS_DESCRIPTION, inputSchema: readPrCommentsInputSchema },
+    async (args) => {
+      try {
+        const { isError, payload } = await readPrCommentsTool(deps, args);
+        return {
+          ...(isError ? { isError: true } : {}),
+          content: [{ type: "text" as const, text: JSON.stringify(payload) }],
+          structuredContent: payload as unknown as Record<string, unknown>,
+        };
+      } catch (error) {
+        return runTool(() => Promise.reject(error));
+      }
+    },
   );
 
   server.registerTool(
