@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-25
+
 ### Added
 - `read_pr_comments` tool を追加した（review-raven#144 の B1、thread-owl#280）。PR の review thread のコメント・review body・issue comment の本文を、「全ページのメタデータ → 投稿者検証 → 本文」の順をツール側で強制して返す reviewer 側の reader。`TRUSTED_COMMENT_AUTHORS`（新設。review-raven と同じ意味で、`ALLOWED_AUTHORS` とは別。未設定の間は GitHub へ問い合わせずに止まる）と、PR の base ref のプロジェクト allowlist ファイルを適用し、許可外または特定できない投稿者のコメントが 1 件でもあれば本文を一切取得せず、検証後に追加・編集されたコメントの snapshot は返さず取り直す（変わり続ければ `SNAPSHOT_CHANGED`）。失敗の応答に本文は含まない。本文は GraphQL の `@include(if: $withBody)` で選択し、thread のコメントは続きのページまで全件読む。review-raven の reader 契約（`docs/design/contracts/reader`、fee4e65）を `src/contract/v1/reader` に固定して取り込み、共有シナリオ 20 件と、`snapshotId` が review-raven の Go 実装と同じ値になることをテストで固定した。既存の `list_review_threads` は変更しない（投稿者を検証せずに本文を返すままで、skill の新ツールへの移行は Mcp-Docker の作業）。
 - review-raven への配送で、loopback 以外のホストの平文 http を明示的に許可する opt-in `THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP`（既定 `false`）を追加した。gateway をサービス名（`http://mcp-gateway:8080/...`）で引くコンテナの private network では、https でも loopback でもないため、配送の URL 検証が起動時に拒否していた（Mcp-Docker#392 の配備のブロッカー）。既定は https または loopback の http のままで、opt-in が緩めるのは「別ホストへの http」の規則だけ（URL の資格情報・query・fragment と、他のスキームは引き続き拒否する）。`true`/`false`（`1`/`0`、`on`/`off`）以外の値は、黙って off にせず起動を止める。資格情報はそのネットワーク上を平文で流れる。`validateRavenEndpoint` は opt-in を引数に取り、`RavenClient` に `allowPlainHttp` を渡す。
