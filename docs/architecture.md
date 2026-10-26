@@ -66,22 +66,22 @@ Thread Owl は MCP **`2026-07-28`** のみを受け付ける（v0.4.0 以降、#
 `@modelcontextprotocol/{server,node,client,core}` v2 を使用し、HTTP は `createMcpHandler`、
 stdio は `serveStdio` をいずれも `legacy: "reject"` で構成する。
 
-| 項目 | 挙動 |
-|---|---|
-| protocol version | `2026-07-28` のみ。2025-era の `initialize`（`2025-06-18` / `2025-11-25`）は `-32022` で拒否する |
-| handshake | `server/discover`（`_meta` に protocol version / client info を載せる） |
-| session | 持たない。`Mcp-Session-Id` は mint しない |
-| 通知の購読 | `subscriptions/listen`。`resources/subscribe` / `resources/unsubscribe` は実装しない |
-| standalone GET SSE | 提供しない。`GET /mcp` / `DELETE /mcp` は `405` を返す |
-| 通知の配信 | `ServerNotifier.resourceUpdated(uri)` が listen 中の全 stream へ配信する |
+| 項目               | 挙動                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| protocol version   | `2026-07-28` のみ。2025-era の `initialize`（`2025-06-18` / `2025-11-25`）は `-32022` で拒否する |
+| handshake          | `server/discover`（`_meta` に protocol version / client info を載せる）                          |
+| session            | 持たない。`Mcp-Session-Id` は mint しない                                                        |
+| 通知の購読         | `subscriptions/listen`。`resources/subscribe` / `resources/unsubscribe` は実装しない             |
+| standalone GET SSE | 提供しない。`GET /mcp` / `DELETE /mcp` は `405` を返す                                           |
+| 通知の配信         | `ServerNotifier.resourceUpdated(uri)` が listen 中の全 stream へ配信する                         |
 
 `legacy: "reject"` はフォールバックを持たない。2025-era の client は接続段階で弾かれるため、
 **client 側も `2026-07-28` へ移行済みである必要がある**。
 
-| client | 必要バージョン |
-|---|---|
-| `mcp-gateway` | v0.10.0 以降 |
-| `mcp-resource-subscriber` | v0.6.0 以降 |
+| client                    | 必要バージョン                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `mcp-gateway`             | v0.10.0 以降                                                                             |
+| `mcp-resource-subscriber` | v0.6.0 以降                                                                              |
 | MCP SDK を直接使う client | TypeScript `@modelcontextprotocol/client` v2 / C# `ModelContextProtocol.Core` 2.2.0 以降 |
 
 client 側の protocol version は `auto` ではなく `2026-07-28` に pin することを推奨する。
@@ -94,11 +94,11 @@ Thread Owl は **review する側 / subscribe される側** のコンポーネ�
 
 ### コンポーネント一覧
 
-| コンポーネント | 立場 | 責務 |
-|---|---|---|
-| **Thread Owl**（本 repo） | review する側 / subscribe **される**側 | GitHub App 認証・webhook 受信・review candidate 判定・queue 管理・MCP tools/resources 提供 |
+| コンポーネント                                                       | 立場                                         | 責務                                                                                                                                         |
+| -------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Thread Owl**（本 repo）                                            | review する側 / subscribe **される**側       | GitHub App 認証・webhook 受信・review candidate 判定・queue 管理・MCP tools/resources 提供                                                   |
 | **mcp-resource-subscriber**（`scottlz0310/mcp-resource-subscriber`） | subscribe **する**側 / agent workflow bridge | MCP server に接続し `subscriptions/listen` → ack 検証 → `notifications/resources/updated` 待機 → `resources/read` → structured output を返す |
-| **review-response 系 repo**（旧 `copilot-review-mcp` の汎用化構想） | review を受けて直す側 | review thread 読み取り・返信・resolve / unresolve・再レビュー依頼 |
+| **review-response 系 repo**（旧 `copilot-review-mcp` の汎用化構想）  | review を受けて直す側                        | review thread 読み取り・返信・resolve / unresolve・再レビュー依頼                                                                            |
 
 Thread Owl は「通知を出す側」であり、「自分自身の resource を購読して待つ側」ではない。
 subscription client / watcher CLI / agent wait loop は Thread Owl に内蔵しない。
@@ -136,10 +136,10 @@ Claude Code / agent workflow
 
 ### MCP リソース一覧
 
-| URI | 通知トリガー | 用途 |
-|-----|-------------|------|
-| `queue://review/queue` | `opened` / `synchronized` / `re-review-requested` | 通常レビューの subscriber 起動 |
-| `queue://review/re-review-requests` | `re-review-requested` のみ | re-review handoff subscriber 起動（push-first 経路での early termination を防ぐ） |
+| URI                                         | 通知トリガー                                                                                                                                                 | 用途                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `queue://review/queue`                      | `opened` / `synchronized` / `re-review-requested`                                                                                                            | 通常レビューの subscriber 起動                                                                                   |
+| `queue://review/re-review-requests`         | `re-review-requested` のみ                                                                                                                                   | re-review handoff subscriber 起動（push-first 経路での early termination を防ぐ）                                |
 | `review://status/{owner}/{repo}/{prNumber}` | `post_summary_comment` / `post_review_verdict`（`reviewed`）/ `approve_pull_request`（`approved`）。`enqueue_review` では `pending` に初期化するが通知しない | 実装側エージェントが対象 PR のレビュー完了を待機（[#214](https://github.com/scottlz0310/thread-owl/issues/214)） |
 
 `--mcp-http`（webhook 受信なし）も同じ resources を expose するが、GitHub イベントからの自動 enqueue は行わない。enqueue は `enqueue_review` tool 呼び出し経由に限られる（[#122](https://github.com/scottlz0310/thread-owl/issues/122)）。

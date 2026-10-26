@@ -2,30 +2,30 @@
 
 ## 環境変数
 
-| 変数名 | 必須 | 説明 |
-|--------|------|------|
-| `GITHUB_APP_ID` | 必須 | GitHub App の数値 ID |
-| `GITHUB_APP_PRIVATE_KEY_FILE` | 秘密鍵のいずれか1つ | `.pem` のファイルパス（ローカル開発推奨） |
-| `GITHUB_APP_PRIVATE_KEY_B64` | 秘密鍵のいずれか1つ | `.pem` を base64 化した1行（Bitwarden / dsx 注入推奨） |
-| `GITHUB_APP_PRIVATE_KEY` | 秘密鍵のいずれか1つ | PEM の改行を `\n` でエスケープした1行（後方互換・脆弱） |
-| `GITHUB_WEBHOOK_SECRET` | `--webhook` モードで必須 | Webhook 署名検証用 HMAC シークレット |
-| `ALLOWED_REPOS` | 必須 | `owner/repo` 形式をカンマ区切りで列挙（空なら全 write 拒否） |
-| `ALLOWED_AUTHORS` | **必須**（未設定だと、すべて拒否する） | PR の作成者として信頼する GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せ、fork は常に拒否する。**未設定（空）の間は、すべての PR・再レビュー依頼を拒否する**（fail-closed。`ALLOWED_REPOS` が空のときと同じ流儀で、起動は止めず、実行時に拒否する。起動のたびにエラーを記録する） |
-| `TRUSTED_COMMENT_AUTHORS` | `read_pr_comments` を使うとき必須（未設定だと、本文を一切読まない） | PR のコメントの本文を読んでよい GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。review-raven の `TRUSTED_COMMENT_AUTHORS` と同じ意味で、`ALLOWED_AUTHORS`（PR の作成者）とは別の問い。PR の base ref の `.review-raven/trusted-comment-authors.json` で、repo 固有の login を加えられる。**未設定（空）の間は、`read_pr_comments` が GitHub へ問い合わせずに `TRUSTED_AUTHORS_NOT_CONFIGURED` で止まる**（fail-closed） |
-| `APP_SLUG` | 任意（デフォルト: `thread-owl`） | GitHub App の slug。自 App bot イベントのループ防止に使用。App 名を変えた場合は必ず設定する |
-| `PORT` | 任意（デフォルト: 3000） | HTTP サーバーポート |
-| `HOST` | 任意（デフォルト: 127.0.0.1） | HTTP サーバー bind アドレス |
-| `MCP_HTTP_PATH` | 任意（デフォルト: `/mcp`） | Streamable HTTP MCP endpoint のパス |
-| `THREAD_OWL_LEDGER_PATH` | 内部面を使うとき、次の 2 つと同時に必須 | review-raven との内部面（`--mcp-http` / `--webhook-mcp-http` のみ）の永続台帳（SQLite）のファイルパス。コンテナでは volume を割り当てる（再起動後も受付・取消記録・結果索引を保持するため）。3 つのうち一部だけの設定は起動を止める |
-| `THREAD_OWL_INTERNAL_PROXY_SECRET` | 内部面を使うとき必須 | 内部面の Bearer として検証する、gateway と共有する proxy secret（16 文字以上）。`X-Authenticated-User`（gateway が検証した identity）と併せて、サービス主体を決める。ログには出さない |
-| `THREAD_OWL_SERVICE_ACL` | 内部面を使うとき必須 | サービス別のアクセスリスト（JSON）。例: `{"services":{"svc-raven":{"actions":["accept","cancel","get_result"],"repos":["your-org/*"]}}}`。操作（`accept` / `cancel` / `get_result`）と対象 repo（`owner/repo` または `owner/*`）をサービスごとに許可する。取消と結果参照は入力に repo が無いため、受付済みの cycle は対象 repo も認可し、未受理の cycle は操作の認可だけで受け付ける。不正・空の設定は起動を止める |
-| `THREAD_OWL_RAVEN_INTERNAL_URL` | 任意（`THREAD_OWL_RAVEN_INTERNAL_TOKEN` と同時） | 結果の記録を送る、review-raven の内部面の MCP endpoint（通常は gateway のルート）。設定すると、記録した結果を `publish_review_result` で review-raven へ送る worker が動く。https、または loopback 上の http のみ。内部面の設定（上の 3 つ）が前提 |
-| `THREAD_OWL_RAVEN_INTERNAL_TOKEN` | 任意（URL と同時） | review-raven へ Bearer で提示するサービス資格情報（gateway がサービス主体へ対応付ける）。ログには出さない |
-| `THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP` | 任意（デフォルト: `false`） | `true` にすると、`THREAD_OWL_RAVEN_INTERNAL_URL` に loopback 以外のホストの平文 http を使える。gateway をサービス名（例: `http://mcp-gateway:8080/mcp/raven-internal`）で引く**コンテナの private network** 向けの opt-in で、資格情報はそのネットワーク上を平文で流れる。緩めるのは「別ホストへの http」の規則だけで、URL の資格情報・query・fragment と、他のスキームは引き続き拒否する。`true`/`false` 以外の値は起動を止める |
-| `THREAD_OWL_DELIVERY_INTERVAL_SEC` | 任意（デフォルト: `5`） | 配送 worker が期限の来た通知を探す間隔（1〜3600 秒）。再送は最大 8 回・指数バックオフ（1 秒〜60 秒・ジッタ 0.2）で、上限に達したら諦める |
-| `THREAD_OWL_RETENTION_DAYS` | 任意（デフォルト: `30`） | 内部面の台帳（候補・結果索引・取消記録・outbox）の保持期間（日）。契約の下限 30 日以上、3650 日以下。取消記録は確定した時刻から数え、要求中（未確定）の取消と送信待ちの通知は削除しない。起動時と 1 時間ごとに削除する |
-| `THREAD_OWL_INTERNAL_MCP_PATH` | 任意（デフォルト: `/internal/mcp`） | 内部面の MCP endpoint のパス。公開の `MCP_HTTP_PATH` とは別の MCP server で、`accept_review_candidate` などは公開面の `tools/list` に出ない。公開パスと同じ値は起動を止める |
-| `LOG_LEVEL` | 任意（デフォルト: `info`） | ログレベル: `trace` / `debug` / `info` / `warn` / `error` |
+| 変数名                                       | 必須                                                                | 説明                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_APP_ID`                              | 必須                                                                | GitHub App の数値 ID                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `GITHUB_APP_PRIVATE_KEY_FILE`                | 秘密鍵のいずれか1つ                                                 | `.pem` のファイルパス（ローカル開発推奨）                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `GITHUB_APP_PRIVATE_KEY_B64`                 | 秘密鍵のいずれか1つ                                                 | `.pem` を base64 化した1行（Bitwarden / dsx 注入推奨）                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `GITHUB_APP_PRIVATE_KEY`                     | 秘密鍵のいずれか1つ                                                 | PEM の改行を `\n` でエスケープした1行（後方互換・脆弱）                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `GITHUB_WEBHOOK_SECRET`                      | `--webhook` モードで必須                                            | Webhook 署名検証用 HMAC シークレット                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `ALLOWED_REPOS`                              | 必須                                                                | `owner/repo` 形式をカンマ区切りで列挙（空なら全 write 拒否）                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `ALLOWED_AUTHORS`                            | **必須**（未設定だと、すべて拒否する）                              | PR の作成者として信頼する GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せ、fork は常に拒否する。**未設定（空）の間は、すべての PR・再レビュー依頼を拒否する**（fail-closed。`ALLOWED_REPOS` が空のときと同じ流儀で、起動は止めず、実行時に拒否する。起動のたびにエラーを記録する）                                                                |
+| `TRUSTED_COMMENT_AUTHORS`                    | `read_pr_comments` を使うとき必須（未設定だと、本文を一切読まない） | PR のコメントの本文を読んでよい GitHub の login をカンマ区切りで列挙（bot は `name` でも `name[bot]` でもよい。wildcard は不可）。review-raven の `TRUSTED_COMMENT_AUTHORS` と同じ意味で、`ALLOWED_AUTHORS`（PR の作成者）とは別の問い。PR の base ref の `.review-raven/trusted-comment-authors.json` で、repo 固有の login を加えられる。**未設定（空）の間は、`read_pr_comments` が GitHub へ問い合わせずに `TRUSTED_AUTHORS_NOT_CONFIGURED` で止まる**（fail-closed） |
+| `APP_SLUG`                                   | 任意（デフォルト: `thread-owl`）                                    | GitHub App の slug。自 App bot イベントのループ防止に使用。App 名を変えた場合は必ず設定する                                                                                                                                                                                                                                                                                                                                                                               |
+| `PORT`                                       | 任意（デフォルト: 3000）                                            | HTTP サーバーポート                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `HOST`                                       | 任意（デフォルト: 127.0.0.1）                                       | HTTP サーバー bind アドレス                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `MCP_HTTP_PATH`                              | 任意（デフォルト: `/mcp`）                                          | Streamable HTTP MCP endpoint のパス                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `THREAD_OWL_LEDGER_PATH`                     | 内部面を使うとき、次の 2 つと同時に必須                             | review-raven との内部面（`--mcp-http` / `--webhook-mcp-http` のみ）の永続台帳（SQLite）のファイルパス。コンテナでは volume を割り当てる（再起動後も受付・取消記録・結果索引を保持するため）。3 つのうち一部だけの設定は起動を止める                                                                                                                                                                                                                                       |
+| `THREAD_OWL_INTERNAL_PROXY_SECRET`           | 内部面を使うとき必須                                                | 内部面の Bearer として検証する、gateway と共有する proxy secret（16 文字以上）。`X-Authenticated-User`（gateway が検証した identity）と併せて、サービス主体を決める。ログには出さない                                                                                                                                                                                                                                                                                     |
+| `THREAD_OWL_SERVICE_ACL`                     | 内部面を使うとき必須                                                | サービス別のアクセスリスト（JSON）。例: `{"services":{"svc-raven":{"actions":["accept","cancel","get_result"],"repos":["your-org/*"]}}}`。操作（`accept` / `cancel` / `get_result`）と対象 repo（`owner/repo` または `owner/*`）をサービスごとに許可する。取消と結果参照は入力に repo が無いため、受付済みの cycle は対象 repo も認可し、未受理の cycle は操作の認可だけで受け付ける。不正・空の設定は起動を止める                                                        |
+| `THREAD_OWL_RAVEN_INTERNAL_URL`              | 任意（`THREAD_OWL_RAVEN_INTERNAL_TOKEN` と同時）                    | 結果の記録を送る、review-raven の内部面の MCP endpoint（通常は gateway のルート）。設定すると、記録した結果を `publish_review_result` で review-raven へ送る worker が動く。https、または loopback 上の http のみ。内部面の設定（上の 3 つ）が前提                                                                                                                                                                                                                        |
+| `THREAD_OWL_RAVEN_INTERNAL_TOKEN`            | 任意（URL と同時）                                                  | review-raven へ Bearer で提示するサービス資格情報（gateway がサービス主体へ対応付ける）。ログには出さない                                                                                                                                                                                                                                                                                                                                                                 |
+| `THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP` | 任意（デフォルト: `false`）                                         | `true` にすると、`THREAD_OWL_RAVEN_INTERNAL_URL` に loopback 以外のホストの平文 http を使える。gateway をサービス名（例: `http://mcp-gateway:8080/mcp/raven-internal`）で引く**コンテナの private network** 向けの opt-in で、資格情報はそのネットワーク上を平文で流れる。緩めるのは「別ホストへの http」の規則だけで、URL の資格情報・query・fragment と、他のスキームは引き続き拒否する。`true`/`false` 以外の値は起動を止める                                          |
+| `THREAD_OWL_DELIVERY_INTERVAL_SEC`           | 任意（デフォルト: `5`）                                             | 配送 worker が期限の来た通知を探す間隔（1〜3600 秒）。再送は最大 8 回・指数バックオフ（1 秒〜60 秒・ジッタ 0.2）で、上限に達したら諦める                                                                                                                                                                                                                                                                                                                                  |
+| `THREAD_OWL_RETENTION_DAYS`                  | 任意（デフォルト: `30`）                                            | 内部面の台帳（候補・結果索引・取消記録・outbox）の保持期間（日）。契約の下限 30 日以上、3650 日以下。取消記録は確定した時刻から数え、要求中（未確定）の取消と送信待ちの通知は削除しない。起動時と 1 時間ごとに削除する                                                                                                                                                                                                                                                    |
+| `THREAD_OWL_INTERNAL_MCP_PATH`               | 任意（デフォルト: `/internal/mcp`）                                 | 内部面の MCP endpoint のパス。公開の `MCP_HTTP_PATH` とは別の MCP server で、`accept_review_candidate` などは公開面の `tools/list` に出ない。公開パスと同じ値は起動を止める                                                                                                                                                                                                                                                                                               |
+| `LOG_LEVEL`                                  | 任意（デフォルト: `info`）                                          | ログレベル: `trace` / `debug` / `info` / `warn` / `error`                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 秘密鍵は `*_FILE` > `*_B64` > `*`（raw）の優先順位で解決する。詳細は [github-app-setup.md](./github-app-setup.md) を参照。
 
@@ -68,11 +68,11 @@ docker compose up --build
 
 各サービスのデフォルトポート:
 
-| サービス | ポート | 用途 |
-|---------|--------|------|
-| `thread-owl` | 3000 | 内部 API（`/health`・`/status`・`/token`） |
-| `thread-owl-webhook` | 3001 | Webhook 受信のみ（`POST /webhook`） |
-| `thread-owl-combined` | 3002 | **推奨**: Webhook 受信 + MCP HTTP（`POST /webhook`・`/mcp`・`/health`・`/status`） |
+| サービス              | ポート | 用途                                                                               |
+| --------------------- | ------ | ---------------------------------------------------------------------------------- |
+| `thread-owl`          | 3000   | 内部 API（`/health`・`/status`・`/token`）                                         |
+| `thread-owl-webhook`  | 3001   | Webhook 受信のみ（`POST /webhook`）                                                |
+| `thread-owl-combined` | 3002   | **推奨**: Webhook 受信 + MCP HTTP（`POST /webhook`・`/mcp`・`/health`・`/status`） |
 
 ## ヘルスチェック
 
@@ -106,12 +106,12 @@ GET /token?owner=<owner>&repo=<repo>
 
 起動モードは排他的であり、`--mcp` と `--mcp-http` を同時指定すると起動に失敗する。
 
-| 起動方法 | モード | 用途 |
-|----------|--------|------|
-| `node dist/index.js` | internal API | `/health`・`/status`・`/token` |
-| `node dist/index.js --mcp` | stdio MCP | local-only / trusted local client |
-| `node dist/index.js --mcp-http` | Streamable HTTP MCP | mcp-gateway からの内部接続（queue 機能含む） |
-| `node dist/index.js --webhook` | Webhook 受信 | GitHub App Webhook イベントの受信・キュー投入 |
+| 起動方法                        | モード              | 用途                                          |
+| ------------------------------- | ------------------- | --------------------------------------------- |
+| `node dist/index.js`            | internal API        | `/health`・`/status`・`/token`                |
+| `node dist/index.js --mcp`      | stdio MCP           | local-only / trusted local client             |
+| `node dist/index.js --mcp-http` | Streamable HTTP MCP | mcp-gateway からの内部接続（queue 機能含む）  |
+| `node dist/index.js --webhook`  | Webhook 受信        | GitHub App Webhook イベントの受信・キュー投入 |
 
 各モードは排他的であり、複数フラグの同時指定は起動失敗する。
 
@@ -121,19 +121,19 @@ Webhook 受信と MCP HTTP を同一プロセス・同一ポートで提供す�
 
 **エンドポイント:**
 
-| パス | 説明 |
-|------|------|
-| `POST /webhook` | GitHub App Webhook 受信（HMAC-SHA256 署名検証） |
-| `/mcp` | MCP Streamable HTTP（`queue://review/queue` を `subscriptions/listen` で購読可能） |
-| `GET /health` | ヘルスチェック |
-| `GET /status` | バージョン・起動時刻 |
+| パス            | 説明                                                                               |
+| --------------- | ---------------------------------------------------------------------------------- |
+| `POST /webhook` | GitHub App Webhook 受信（HMAC-SHA256 署名検証）                                    |
+| `/mcp`          | MCP Streamable HTTP（`queue://review/queue` を `subscriptions/listen` で購読可能） |
+| `GET /health`   | ヘルスチェック                                                                     |
+| `GET /status`   | バージョン・起動時刻                                                               |
 
 **MCP Resource:**
 
-| URI | mimeType | 内容 |
-|-----|----------|------|
-| `queue://review/queue` | `application/json` | レビュー待ち PR 一覧。`enqueue` 時に `notifications/resources/updated` を push |
-| `queue://review/re-review-requests` | `application/json` | `re-review-requested` の PR のみ。該当 enqueue 時に push |
+| URI                                         | mimeType           | 内容                                                                                                              |
+| ------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `queue://review/queue`                      | `application/json` | レビュー待ち PR 一覧。`enqueue` 時に `notifications/resources/updated` を push                                    |
+| `queue://review/re-review-requests`         | `application/json` | `re-review-requested` の PR のみ。該当 enqueue 時に push                                                          |
 | `review://status/{owner}/{repo}/{prNumber}` | `application/json` | PR 単位のレビュー状態。`reviewed` / `approved` の記録時に push（[レビュー完了の待機](#レビュー完了の待機実装側)） |
 
 **セキュリティ上の注意**: combined モードでは `/mcp` が `POST /webhook` と同じ公開面に乗る。`POST /webhook` は GitHub HMAC-SHA256 署名検証で保護されているが、`/mcp` は保護なし。production では nginx / Caddy 等のリバースプロキシで `/mcp` の公開範囲と認証を制御すること。
@@ -148,16 +148,15 @@ node dist/index.js --mcp
 
 提供する tools:
 
-| tool | 説明 |
-|------|------|
-| `get_pr` | PR 基本情報と変更ファイル一覧。作成者（`author`: `login` と `type`。取得できなければ null）と、head の repository（`head.repo`: `fullName` と、base と別の repository からの PR かを示す `fork`。削除された fork は null）を含む。作成元の判定（`origin`: `allowed` と、拒否のときの `reason`）も返す。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗しない（拒否するかどうかは呼び出し側が決める） |
-| `list_review_threads` | レビュースレッド一覧（resolved/outdated・コメント含む）。**投稿者を検証せずに本文を返す**。他者が書き得るコメントの本文を読むときは `read_pr_comments` を使う |
-| `read_pr_comments` | review thread のコメント・review body・issue comment の本文を、投稿者を検証した上で返す reader。メタデータ（全ページ・resolved を含む）→ `TRUSTED_COMMENT_AUTHORS` と base ref のプロジェクト allowlist による投稿者検証 → 本文の順をツール側で強制する。許可外または特定できない投稿者のコメントが 1 件でもあれば、本文を一切取得せず `UNTRUSTED_COMMENT` / `AUTHOR_CHECK_FAILED` で止まり、検証後に追加・編集されたコメントを含む snapshot は返さない（取り直し、変わり続ければ `SNAPSHOT_CHANGED`）。失敗の応答に本文は含まない。成功の `snapshotId` は、後の再取得との比較に使う。応答は `structuredContent` と text（JSON）の両方。契約は [review-raven の reader 契約](https://github.com/scottlz0310/review-raven/blob/main/docs/design/contracts/reader/README.md)（`src/contract/v1/reader` に固定して取り込み、共有シナリオ 20 件を実行する） |
-| `post_summary_comment` | PR サマリーコメント投稿（Verdict らしい本文は拒否。Verdict には `post_review_verdict` を使用） |
-| `post_review_verdict` | current HEAD と同一 SHA の required status checks 成功を確認してから、APPROVED の Verdict コメントを固定書式で投稿（見出し・Reviewed HEAD SHA 行・Status 行はサーバー側が生成） |
-| `post_inline_comment` | インラインレビューコメント投稿 |
-| `reply_review_thread` | レビュースレッドへ返信 |
-
+| tool                   | 説明                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_pr`               | PR 基本情報と変更ファイル一覧。作成者（`author`: `login` と `type`。取得できなければ null）と、head の repository（`head.repo`: `fullName` と、base と別の repository からの PR かを示す `fork`。削除された fork は null）を含む。作成元の判定（`origin`: `allowed` と、拒否のときの `reason`）も返す。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗しない（拒否するかどうかは呼び出し側が決める）                                                                                                                                                                                                                                                                                                                                                                         |
+| `list_review_threads`  | レビュースレッド一覧（resolved/outdated・コメント含む）。**投稿者を検証せずに本文を返す**。他者が書き得るコメントの本文を読むときは `read_pr_comments` を使う                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `read_pr_comments`     | review thread のコメント・review body・issue comment の本文を、投稿者を検証した上で返す reader。メタデータ（全ページ・resolved を含む）→ `TRUSTED_COMMENT_AUTHORS` と base ref のプロジェクト allowlist による投稿者検証 → 本文の順をツール側で強制する。許可外または特定できない投稿者のコメントが 1 件でもあれば、本文を一切取得せず `UNTRUSTED_COMMENT` / `AUTHOR_CHECK_FAILED` で止まり、検証後に追加・編集されたコメントを含む snapshot は返さない（取り直し、変わり続ければ `SNAPSHOT_CHANGED`）。失敗の応答に本文は含まない。成功の `snapshotId` は、後の再取得との比較に使う。応答は `structuredContent` と text（JSON）の両方。契約は [review-raven の reader 契約](https://github.com/scottlz0310/review-raven/blob/main/docs/design/contracts/reader/README.md)（`src/contract/v1/reader` に固定して取り込み、共有シナリオ 20 件を実行する） |
+| `post_summary_comment` | PR サマリーコメント投稿（Verdict らしい本文は拒否。Verdict には `post_review_verdict` を使用）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `post_review_verdict`  | current HEAD と同一 SHA の required status checks 成功を確認してから、APPROVED の Verdict コメントを固定書式で投稿（見出し・Reviewed HEAD SHA 行・Status 行はサーバー側が生成）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `post_inline_comment`  | インラインレビューコメント投稿                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `reply_review_thread`  | レビュースレッドへ返信                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 - 各 tool は `owner`/`repo` から installation token を都度発行する。read は GitHub App installation の repo scope に委ね、write は token 発行前に allowlist を要求する
 - MCP stdio モードではログを stderr に出力する（stdout は JSON-RPC 専用のため）
 - review thread の resolve は、PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review-mcp`（MCP server 登録名: `copilot-review`）等で行う
@@ -182,11 +181,11 @@ HOST=127.0.0.1 PORT=3000 node dist/index.js --mcp-http
 
 `--mcp-http` は起動時に `ReviewQueue` を生成し MCP server に注入する（#122）。`--webhook-mcp-http` と異なり `POST /webhook` は提供しないため、GitHub イベントからの自動 enqueue は行われない。代わりに以下が利用できる。
 
-| 機能 | 説明 |
-|------|------|
-| `enqueue_review` tool | webhook 以外の正規経路で PR を queue に投入する |
-| `queue://review/queue` resource | `subscriptions/listen` で enqueue 通知を受信 |
-| `queue://review/re-review-requests` resource | `re-review-requested` のみ通知 |
+| 機能                                                 | 説明                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| `enqueue_review` tool                                | webhook 以外の正規経路で PR を queue に投入する             |
+| `queue://review/queue` resource                      | `subscriptions/listen` で enqueue 通知を受信                |
+| `queue://review/re-review-requests` resource         | `re-review-requested` のみ通知                              |
 | `review://status/{owner}/{repo}/{prNumber}` resource | 対象 PR のレビュー投稿完了（`reviewed` / `approved`）を通知 |
 
 mcp-gateway から指定する内部 URL の例:
@@ -252,12 +251,12 @@ Webhook サーバーは GitHub App から送信されるイベントを受信し
 
 ### 処理するイベント
 
-| イベント | 処理する action | 処理内容 |
-|---------|----------------|---------|
-| `pull_request` | `opened` / `synchronize` / `ready_for_review` | レビューキューに投入 |
-| `issue_comment` | `created`（PR コメントのみ） | ログ記録（Phase 6 でキュー投入に変更予定） |
-| `pull_request_review` | `submitted` | ログ記録（Phase 6 でキュー投入に変更予定） |
-| `pull_request_review_comment` | `created` | ログ記録（Phase 6 でキュー投入に変更予定） |
+| イベント                      | 処理する action                               | 処理内容                                   |
+| ----------------------------- | --------------------------------------------- | ------------------------------------------ |
+| `pull_request`                | `opened` / `synchronize` / `ready_for_review` | レビューキューに投入                       |
+| `issue_comment`               | `created`（PR コメントのみ）                  | ログ記録（Phase 6 でキュー投入に変更予定） |
+| `pull_request_review`         | `submitted`                                   | ログ記録（Phase 6 でキュー投入に変更予定） |
+| `pull_request_review_comment` | `created`                                     | ログ記録（Phase 6 でキュー投入に変更予定） |
 
 ### Webhook エンドポイント
 
@@ -267,11 +266,11 @@ POST /webhook
 
 必須ヘッダー:
 
-| ヘッダー | 説明 |
-|---------|------|
+| ヘッダー              | 説明                                               |
+| --------------------- | -------------------------------------------------- |
 | `X-Hub-Signature-256` | HMAC-SHA256 署名（`GITHUB_WEBHOOK_SECRET` で検証） |
-| `X-GitHub-Event` | イベント種別 |
-| `X-GitHub-Delivery` | 配信 ID（重複受信の dedup に使用） |
+| `X-GitHub-Event`      | イベント種別                                       |
+| `X-GitHub-Delivery`   | 配信 ID（重複受信の dedup に使用）                 |
 
 ### セキュリティ
 
@@ -284,14 +283,13 @@ Webhook の設定手順・疎通確認は [webhook-operations.md](./webhook-oper
 
 ## 周辺ツール・MCP servers との責務整理
 
-| コンポーネント | 立場 | 役割 |
-|---|---|---|
-| **Thread Owl (MCP server)** | review する側 / subscribe **される**側 | レビュアー側 GitHub App 権限での review 操作（PR/スレッド取得・コメント投稿・返信）を MCP tools として提供。`queue://review/queue` を expose し通知を出す。LLM は内蔵しない |
-| **`mcp-resource-subscriber`** | subscribe **する**側 / agent workflow bridge | `queue://review/queue` を `subscriptions/listen` で購読し、`notifications/resources/updated` 受信後に `resources/read` → structured JSON を返す。CLI agent が long-lived subscription を安定保持できない場合に使用する（**v0.6.0 以降が必要**） |
-| **`pr-review-subscribe`（Claude Code skill）** | ワークフロー管理 | PR レビューサイクルの管理（レビュー取得 → スレッド分類 → 修正 → reply → resolve → サマリ）。acquisition provider（`thread-owl` / `copilot-review` / `codex` / `external` / `existing`）を抽象化する |
-| **`github-mcp`** | review を受けて直す側 | 修正側のユーザー権限で review thread への返信・resolve を行う |
-| **`copilot-review-mcp`（MCP server 登録名: `copilot-review`）** | review を受けて直す側 | GitHub Copilot review の取得経路。修正側のユーザー権限で review thread への返信・resolve も行う |
-
+| コンポーネント                                                  | 立場                                         | 役割                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Thread Owl (MCP server)**                                     | review する側 / subscribe **される**側       | レビュアー側 GitHub App 権限での review 操作（PR/スレッド取得・コメント投稿・返信）を MCP tools として提供。`queue://review/queue` を expose し通知を出す。LLM は内蔵しない                                                                     |
+| **`mcp-resource-subscriber`**                                   | subscribe **する**側 / agent workflow bridge | `queue://review/queue` を `subscriptions/listen` で購読し、`notifications/resources/updated` 受信後に `resources/read` → structured JSON を返す。CLI agent が long-lived subscription を安定保持できない場合に使用する（**v0.6.0 以降が必要**） |
+| **`pr-review-subscribe`（Claude Code skill）**                  | ワークフロー管理                             | PR レビューサイクルの管理（レビュー取得 → スレッド分類 → 修正 → reply → resolve → サマリ）。acquisition provider（`thread-owl` / `copilot-review` / `codex` / `external` / `existing`）を抽象化する                                             |
+| **`github-mcp`**                                                | review を受けて直す側                        | 修正側のユーザー権限で review thread への返信・resolve を行う                                                                                                                                                                                   |
+| **`copilot-review-mcp`（MCP server 登録名: `copilot-review`）** | review を受けて直す側                        | GitHub Copilot review の取得経路。修正側のユーザー権限で review thread への返信・resolve も行う                                                                                                                                                 |
 - Thread Owl は「GitHub への安全な read/write」、`pr-review-subscribe` は「いつ・どのレビューを取得し、どう処理するか」のワークフローを担当し、責務が分離している。
 - Thread Owl はレビュアー側としてスレッドを resolve しない。修正完了の判断と resolve は修正側 MCP の責務とする。
 - レビューの判断（指摘内容の生成や合否）は MCP クライアント側の LLM / human が行う。
@@ -303,10 +301,10 @@ Webhook の設定手順・疎通確認は [webhook-operations.md](./webhook-oper
 
 Thread Owl は 2 つの購読可能なリソースを expose する。用途に応じて適切な URI を選択すること。
 
-| URI | 通知タイミング | 用途 |
-|-----|--------------|------|
-| `queue://review/queue` | opened / synchronized / re-review-requested | 通常レビューの subscriber 起動 |
-| `queue://review/re-review-requests` | **re-review-requested のみ** | re-review handoff subscriber 起動 |
+| URI                                 | 通知タイミング                              | 用途                              |
+| ----------------------------------- | ------------------------------------------- | --------------------------------- |
+| `queue://review/queue`              | opened / synchronized / re-review-requested | 通常レビューの subscriber 起動    |
+| `queue://review/re-review-requests` | **re-review-requested のみ**                | re-review handoff subscriber 起動 |
 
 **re-review handoff subscriber は必ず `queue://review/re-review-requests` を購読すること。**  
 `queue://review/queue` を購読すると、commit push による `synchronized` 通知で subscriber が先に終端し、
@@ -318,10 +316,10 @@ v0.4.0 以降の Thread Owl は MCP `2026-07-28` のみを受け付け、2025-er
 （`legacy: "reject"`、#176）。`resources/subscribe` / `resources/unsubscribe` は**存在しない**ため、
 購読は `subscriptions/listen` で行う。2025-era の client は `initialize` の時点で `-32022` により拒否される。
 
-| client | 必要バージョン |
-|---|---|
-| `mcp-gateway` | v0.10.0 以降 |
-| `mcp-resource-subscriber` | v0.6.0 以降 |
+| client                    | 必要バージョン                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `mcp-gateway`             | v0.10.0 以降                                                                             |
+| `mcp-resource-subscriber` | v0.6.0 以降                                                                              |
 | MCP SDK を直接使う client | TypeScript `@modelcontextprotocol/client` v2 / C# `ModelContextProtocol.Core` 2.2.0 以降 |
 
 client 側の protocol version は `auto` ではなく `2026-07-28` に pin すること。`auto` は legacy への
@@ -414,33 +412,33 @@ bunx mcp-resource-subscriber \
 }
 ```
 
-| フィールド | 説明 |
-|---|---|
-| `route` | `"subscription"`: 通知受信成功 / `"pre-completion"`: listen 確立前に更新済みだったことを読み直しで検知 / `"timeout"`: タイムアウト / `"failed"`: 接続・購読失敗 |
-| `serverUrl` | 接続した MCP サーバー URL（接続失敗時は `null`） |
-| `resourceUri` | 購読した resource URI |
-| `listenAcknowledged` | `subscriptions/listen` の ack をサーバーから受信したか |
-| `honoredUris` | ack でサーバーが実際に購読を受け入れた URI 一覧。要求した URI が含まれない場合は `SUBSCRIPTION_NOT_HONORED` |
-| `notificationReceived` | 通知受信フラグ |
-| `notificationCount` | 受信した `notifications/resources/updated` の件数 |
-| `closeReason` | stream の終了理由（`"local"`: 自分で閉じた / `"graceful"`: サーバーが正常終了 / `"remote"`: 異常切断） |
-| `errorCode` | エラーコード（下表） |
-| `initialText` | listen 確立前に読んだ resource content の raw JSON 文字列 |
-| `finalText` | 更新後に読んだ resource content の raw JSON 文字列（未取得時は `null`） |
-| `recommendedNextAction` | `finalText` 内の `recommended_next_action` を抽出した値。Thread Owl の queue resource は含めないため常に `null` |
+| フィールド              | 説明                                                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `route`                 | `"subscription"`: 通知受信成功 / `"pre-completion"`: listen 確立前に更新済みだったことを読み直しで検知 / `"timeout"`: タイムアウト / `"failed"`: 接続・購読失敗 |
+| `serverUrl`             | 接続した MCP サーバー URL（接続失敗時は `null`）                                                                                                                |
+| `resourceUri`           | 購読した resource URI                                                                                                                                           |
+| `listenAcknowledged`    | `subscriptions/listen` の ack をサーバーから受信したか                                                                                                          |
+| `honoredUris`           | ack でサーバーが実際に購読を受け入れた URI 一覧。要求した URI が含まれない場合は `SUBSCRIPTION_NOT_HONORED`                                                     |
+| `notificationReceived`  | 通知受信フラグ                                                                                                                                                  |
+| `notificationCount`     | 受信した `notifications/resources/updated` の件数                                                                                                               |
+| `closeReason`           | stream の終了理由（`"local"`: 自分で閉じた / `"graceful"`: サーバーが正常終了 / `"remote"`: 異常切断）                                                          |
+| `errorCode`             | エラーコード（下表）                                                                                                                                            |
+| `initialText`           | listen 確立前に読んだ resource content の raw JSON 文字列                                                                                                       |
+| `finalText`             | 更新後に読んだ resource content の raw JSON 文字列（未取得時は `null`）                                                                                         |
+| `recommendedNextAction` | `finalText` 内の `recommended_next_action` を抽出した値。Thread Owl の queue resource は含めないため常に `null`                                                 |
 
 主な `errorCode`:
 
-| errorCode | 意味 |
-|---|---|
-| `NOTIFICATION_TIMEOUT` | `--timeout-ms` 内に通知が来なかった |
-| `SUBSCRIPTION_NOT_HONORED` | ack に要求した URI が含まれなかった |
-| `SUBSCRIPTION_DISCONNECTED` | listen stream が応答なしに切断された |
-| `SUBSCRIPTION_CLOSED` | サーバーが listen stream を正常終了した |
-| `PROTOCOL_UNSUPPORTED` | サーバーが `2026-07-28` を提供しなかった（未移行）。到達不能は下記の専用コードへ振り分けられるため、このコードには含まれない |
-| `DNS_LOOKUP_FAILED` / `CONNECTION_REFUSED` / `TLS_CERT_UNTRUSTED` | `--url` のホストに到達できなかった（DNS 解決失敗 / 接続拒否 / TLS 証明書が信頼されない） |
-| `AUTH_LOGIN_REQUIRED` / `AUTH_TIMEOUT` / `AUTH_REFRESH_FAILED` | mcp-gateway の token 解決に失敗した（再ログインが必要 / 応答なし / refresh 失敗） |
-| `SERVER_URL_UNKNOWN` | `--url` / `MCP_PROBE_URL` が解決できなかった |
+| errorCode                                                         | 意味                                                                                                                         |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `NOTIFICATION_TIMEOUT`                                            | `--timeout-ms` 内に通知が来なかった                                                                                          |
+| `SUBSCRIPTION_NOT_HONORED`                                        | ack に要求した URI が含まれなかった                                                                                          |
+| `SUBSCRIPTION_DISCONNECTED`                                       | listen stream が応答なしに切断された                                                                                         |
+| `SUBSCRIPTION_CLOSED`                                             | サーバーが listen stream を正常終了した                                                                                      |
+| `PROTOCOL_UNSUPPORTED`                                            | サーバーが `2026-07-28` を提供しなかった（未移行）。到達不能は下記の専用コードへ振り分けられるため、このコードには含まれない |
+| `DNS_LOOKUP_FAILED` / `CONNECTION_REFUSED` / `TLS_CERT_UNTRUSTED` | `--url` のホストに到達できなかった（DNS 解決失敗 / 接続拒否 / TLS 証明書が信頼されない）                                     |
+| `AUTH_LOGIN_REQUIRED` / `AUTH_TIMEOUT` / `AUTH_REFRESH_FAILED`    | mcp-gateway の token 解決に失敗した（再ログインが必要 / 応答なし / refresh 失敗）                                            |
+| `SERVER_URL_UNKNOWN`                                              | `--url` / `MCP_PROBE_URL` が解決できなかった                                                                                 |
 
 `PROTOCOL_UNSUPPORTED` は「サーバー側が未移行」を意味する。subscriber は接続失敗を negotiation 失敗として
 包む SDK の挙動を打ち消し、到達不能・認証失敗を上記の専用コードへ振り分けてから残りを
@@ -509,13 +507,12 @@ bunx mcp-resource-subscriber   --url http://localhost:3000/mcp   --uri review://
 }
 ```
 
-| 呼び出し | `status` | `headSha` | 通知 |
-|---|---|---|---|
-| `enqueue_review` | `pending`（`summaryCommentId` も `null` にリセット） | `null` | しない |
-| `post_summary_comment` | `reviewed` | 入力の `headSha`（省略時 `null`） | する |
-| `post_review_verdict` | `reviewed` | 照合済みの `headSha` | する |
-| `approve_pull_request` | `approved`（直前の `summaryCommentId` を引き継ぐ） | 照合済みの `expectedHeadSha` | する |
-
+| 呼び出し               | `status`                                             | `headSha`                         | 通知   |
+| ---------------------- | ---------------------------------------------------- | --------------------------------- | ------ |
+| `enqueue_review`       | `pending`（`summaryCommentId` も `null` にリセット） | `null`                            | しない |
+| `post_summary_comment` | `reviewed`                                           | 入力の `headSha`（省略時 `null`） | する   |
+| `post_review_verdict`  | `reviewed`                                           | 照合済みの `headSha`              | する   |
+| `approve_pull_request` | `approved`（直前の `summaryCommentId` を引き継ぐ）   | 照合済みの `expectedHeadSha`      | する   |
 - **`enqueue_review` の直後に subscriber を起動する**。`resources/list` には状態を保持している PR だけが載るため、
   enqueue 前に起動すると `RESOURCE_NOT_FOUND` になる。`pending` 初期化は過去ラウンドの `reviewed` / `approved` による誤検知を防ぐ
 - `post_summary_comment` / `post_review_verdict` / `approve_pull_request` の GitHub への書き込みが終わる前に `enqueue_review` で次ラウンドが始まった場合、その完了は古いラウンドのものとして**記録も通知もしない**（新ラウンドの `pending` を上書きして誤検知させないため）

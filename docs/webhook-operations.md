@@ -66,7 +66,14 @@ docker compose up thread-owl-webhook --build
 対象リポジトリで PR を作成・更新するか、コメントを投稿する。Webhook サーバーのログに以下のようなエントリが出力されれば疎通成功:
 
 ```json
-{"event":"webhook.pull_request.queued","owner":"org","repo":"repo","prNumber":1,"action":"opened","reason":"opened"}
+{
+  "event": "webhook.pull_request.queued",
+  "owner": "org",
+  "repo": "repo",
+  "prNumber": 1,
+  "action": "opened",
+  "reason": "opened"
+}
 ```
 
 ---
@@ -178,17 +185,17 @@ GET /health → {"status":"ok"}
 
 Webhook サーバーは構造化 JSON ログを出力する。主要なログイベント:
 
-| event | 意味 |
-|-------|------|
-| `webhook.pull_request.queued` | PR がレビューキューに投入された |
-| `webhook.pull_request.draft.skipped` | draft PR のため処理をスキップ |
-| `webhook.pull_request.allowlist.rejected` | allowlist 外リポジトリのため無視 |
-| `webhook.issue_comment.received` | PR コメントを受信（Phase 6 でキュー投入予定） |
-| `webhook.pull_request_review.received` | PR レビューを受信（Phase 6 でキュー投入予定） |
+| event                                          | 意味                                                  |
+| ---------------------------------------------- | ----------------------------------------------------- |
+| `webhook.pull_request.queued`                  | PR がレビューキューに投入された                       |
+| `webhook.pull_request.draft.skipped`           | draft PR のため処理をスキップ                         |
+| `webhook.pull_request.allowlist.rejected`      | allowlist 外リポジトリのため無視                      |
+| `webhook.issue_comment.received`               | PR コメントを受信（Phase 6 でキュー投入予定）         |
+| `webhook.pull_request_review.received`         | PR レビューを受信（Phase 6 でキュー投入予定）         |
 | `webhook.pull_request_review_comment.received` | PR レビューコメントを受信（Phase 6 でキュー投入予定） |
-| `webhook.signature.invalid` | 署名検証失敗（`GITHUB_WEBHOOK_SECRET` の不一致） |
-| `webhook.normalize.error` | ペイロード正規化失敗（不正なペイロード） |
-| `webhook.handler.error` | ハンドラ内部エラー |
+| `webhook.signature.invalid`                    | 署名検証失敗（`GITHUB_WEBHOOK_SECRET` の不一致）      |
+| `webhook.normalize.error`                      | ペイロード正規化失敗（不正なペイロード）              |
+| `webhook.handler.error`                        | ハンドラ内部エラー                                    |
 
 Docker Compose でのログ確認:
 

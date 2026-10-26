@@ -4,20 +4,20 @@
 
 ### 現在の実装に必要な権限
 
-| スコープ | レベル | 理由 |
-|---------|--------|------|
-| Metadata | 読み取り | すべての API アクセスに必要。有効 ruleset（`rules/branches/{branch}`）の required status checks 参照 |
-| Contents | 読み取り | PR diff とファイル内容の参照。classic branch protection の required status checks 参照（`branches/{branch}` の `protection` の要約） |
-| Pull requests | 読み取り・書き込み | レビューコメント投稿・スレッド返信 |
-| Issues | 読み取り・書き込み | summary コメント投稿（issue comment エンドポイント使用） |
-| Checks | 読み取り | 同一 SHA の check-runs 検証 |
-| Commit statuses | 読み取り | 同一 SHA の commit statuses 検証 |
+| スコープ        | レベル             | 理由                                                                                                                                 |
+| --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Metadata        | 読み取り           | すべての API アクセスに必要。有効 ruleset（`rules/branches/{branch}`）の required status checks 参照                                 |
+| Contents        | 読み取り           | PR diff とファイル内容の参照。classic branch protection の required status checks 参照（`branches/{branch}` の `protection` の要約） |
+| Pull requests   | 読み取り・書き込み | レビューコメント投稿・スレッド返信                                                                                                   |
+| Issues          | 読み取り・書き込み | summary コメント投稿（issue comment エンドポイント使用）                                                                             |
+| Checks          | 読み取り           | 同一 SHA の check-runs 検証                                                                                                          |
+| Commit statuses | 読み取り           | 同一 SHA の commit statuses 検証                                                                                                     |
 
 ### 将来機能で追加を検討する権限
 
-| スコープ | レベル | 理由 |
-|---------|--------|------|
-| Actions | 読み取り | ワークフロー実行状況の確認 |
+| スコープ | レベル   | 理由                       |
+| -------- | -------- | -------------------------- |
+| Actions  | 読み取り | ワークフロー実行状況の確認 |
 
 ### 付与しない権限
 
