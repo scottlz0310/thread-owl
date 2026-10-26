@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_version:
-        description: 'リリースする SemVer（先頭の v は不要。npm 戦略のため metadata 不可）'
+        description: "リリースする SemVer（先頭の v は不要。npm 戦略のため metadata 不可）"
         required: true
         type: string
 

@@ -17,12 +17,12 @@ Thread Owl は、初期段階では LLM API による完全自動レビューを
 
 しかし、個人アカウントベースの運用には以下の課題がある。
 
-* レビュー用別アカウントを organization member / collaborator として維持するとシート料が発生する
-* PAT や gh login の管理が煩雑になる
-* メインアカウントとレビュー用アカウントの権限境界が曖昧になる
-* ChatGPT / Claude / Codex など複数エージェント間で投稿主体が揺れる
-* 再レビュー、返信、summary 投稿などの操作を統一しづらい
-* 将来の Webhook / subscribe / 自動化に拡張しにくい
+- レビュー用別アカウントを organization member / collaborator として維持するとシート料が発生する
+- PAT や gh login の管理が煩雑になる
+- メインアカウントとレビュー用アカウントの権限境界が曖昧になる
+- ChatGPT / Claude / Codex など複数エージェント間で投稿主体が揺れる
+- 再レビュー、返信、summary 投稿などの操作を統一しづらい
+- 将来の Webhook / subscribe / 自動化に拡張しにくい
 
 Thread Owl は、これらを GitHub App を中心とした設計に置き換える。
 
@@ -36,12 +36,12 @@ Thread Owl は GitHub App として対象 repository に install される。
 
 対象操作の例:
 
-* PR review comment 投稿
-* PR summary comment 投稿
-* 既存 review thread への reply
-* review 状態の取得
-* PR diff / files / commits / checks の参照
-* 再レビュー依頼用コメントの投稿
+- PR review comment 投稿
+- PR summary comment 投稿
+- 既存 review thread への reply
+- review 状態の取得
+- PR diff / files / commits / checks の参照
+- 再レビュー依頼用コメントの投稿
 
 review thread の resolve は Thread Owl の責務に含めない。PR author または repository write access を持つ修正側が `github-mcp` / `copilot-review-mcp`（MCP server 登録名: `copilot-review`）等で行う。
 
@@ -53,11 +53,11 @@ Thread Owl は LLM そのものを内蔵しない。
 
 初期段階では、以下のような既存の LLM 実行環境から利用されることを想定する。
 
-* ChatGPT Project
-* Claude Desktop / Claude Code
-* Codex CLI / Desktop
-* MCP client
-* 将来の API LLM worker
+- ChatGPT Project
+- Claude Desktop / Claude Code
+- Codex CLI / Desktop
+- MCP client
+- 将来の API LLM worker
 
 Thread Owl は、LLM の推論処理ではなく、GitHub App としての認証・権限・投稿・通知を担当する。
 
@@ -67,11 +67,11 @@ Thread Owl は、LLM の推論処理ではなく、GitHub App としての認証
 
 まずは以下を優先する。
 
-* GitHub App 権限による投稿安定化
-* 別個人アカウントの廃止
-* MCP tool / subscribe からの利用
-* 人間承認付きレビュー投稿
-* review thread の再取得・返信の安定化
+- GitHub App 権限による投稿安定化
+- 別個人アカウントの廃止
+- MCP tool / subscribe からの利用
+- 人間承認付きレビュー投稿
+- review thread の再取得・返信の安定化
 
 完全自動レビューは、後続フェーズで opt-in 機能として検討する。
 
@@ -81,11 +81,11 @@ Webhook は最初から自動レビュー生成に直結させない。
 
 初期用途は以下に限定する。
 
-* PR 作成・更新の検知
-* review comment / issue comment / review event の検知
-* subscribe 通知への変換
-* review candidate queue への投入
-* force-push や outdated thread の検知
+- PR 作成・更新の検知
+- review comment / issue comment / review event の検知
+- subscribe 通知への変換
+- review candidate queue への投入
+- force-push や outdated thread の検知
 
 Webhook はトリガーであり、信頼境界ではない。
 署名検証、重複排除、allowlist、bot 自身への反応抑止を必須とする。
@@ -149,43 +149,43 @@ MCP Clients / LLM Frontends
 
 初期スコープは以下とする。
 
-* GitHub App 認証
-* installation token 発行
-* owner/repo から installation_id を解決
-* repo allowlist
-* GitHub App 権限で PR 情報を取得
-* GitHub App 権限で review comment / summary を投稿
-* MCP または internal API から利用可能な tokenSource
-* 既存レビュー運用からの移行
-* 最小限のログと監査情報
+- GitHub App 認証
+- installation token 発行
+- owner/repo から installation_id を解決
+- repo allowlist
+- GitHub App 権限で PR 情報を取得
+- GitHub App 権限で review comment / summary を投稿
+- MCP または internal API から利用可能な tokenSource
+- 既存レビュー運用からの移行
+- 最小限のログと監査情報
 
 ### 5.2 後続スコープ
 
 後続フェーズで扱う。
 
-* Webhook 受信
-* subscribe 通知
-* review candidate queue
-* review thread 状態管理
-* re-review request の検出
-* stale review thread の検出
-* 完全自動レビュー
-* API LLM worker
-* dashboard
-* 複数 organization 対応
-* 複数 GitHub App 対応
+- Webhook 受信
+- subscribe 通知
+- review candidate queue
+- review thread 状態管理
+- re-review request の検出
+- stale review thread の検出
+- 完全自動レビュー
+- API LLM worker
+- dashboard
+- 複数 organization 対応
+- 複数 GitHub App 対応
 
 ### 5.3 初期段階でやらないこと
 
 初期段階では以下をやらない。
 
-* 完全無人レビュー
-* LLM API worker の内蔵
-* 複雑な UI dashboard
-* SaaS 化
-* Marketplace 公開
-* GitHub 以外の forge 対応
-* 汎用 GitHub bot framework 化
+- 完全無人レビュー
+- LLM API worker の内蔵
+- 複雑な UI dashboard
+- SaaS 化
+- Marketplace 公開
+- GitHub 以外の forge 対応
+- 汎用 GitHub bot framework 化
 
 ## 6. Repository 名
 
@@ -289,17 +289,17 @@ thread-owl/
 
 初期技術スタックは以下を推奨する。
 
-* TypeScript
-* Node.js
-* pnpm
-* Biome
-* tsc
-* lefthook
-* Vitest
-* GitHub REST API
-* GitHub GraphQL API
-* Docker
-* Renovate
+- TypeScript
+- Node.js
+- pnpm
+- Biome
+- tsc
+- lefthook
+- Vitest
+- GitHub REST API
+- GitHub GraphQL API
+- Docker
+- Renovate
 
 GitHub App 認証・Webhook・MCP 周辺の実装は TypeScript との相性が良く、既存 MCP 系列との統一性も高い。
 
@@ -333,17 +333,17 @@ Thread Owl は GitHub App の秘密鍵と installation token を扱うため、�
 
 必須方針:
 
-* GitHub App private key は環境変数または secret store で管理する
-* private key を repository に含めない
-* installation token は短寿命として扱う
-* token cache は期限を厳密に管理する
-* repo allowlist を必須にする
-* Webhook secret による署名検証を必須にする
-* Webhook delivery id による重複排除を行う
-* Bot 自身のコメントに反応して無限ループしない
-* force-push 後の古い review thread 操作に注意する
-* 投稿操作は監査ログに残す
-* destructive operation は初期段階では実装しない
+- GitHub App private key は環境変数または secret store で管理する
+- private key を repository に含めない
+- installation token は短寿命として扱う
+- token cache は期限を厳密に管理する
+- repo allowlist を必須にする
+- Webhook secret による署名検証を必須にする
+- Webhook delivery id による重複排除を行う
+- Bot 自身のコメントに反応して無限ループしない
+- force-push 後の古い review thread 操作に注意する
+- 投稿操作は監査ログに残す
+- destructive operation は初期段階では実装しない
 
 ## 11. MCP / subscribe との関係
 
@@ -380,98 +380,97 @@ review_stale
 
 目的: 開発基盤を作る。
 
-* `thread-owl` repository 作成
-* README 作成
-* docs 初期化
-* pnpm / TypeScript / Biome / tsc / lefthook 導入
-* Vitest 導入
-* Renovate 設定
-* Dockerfile / docker-compose 雛形作成
-* GitHub Actions CI 作成
+- `thread-owl` repository 作成
+- README 作成
+- docs 初期化
+- pnpm / TypeScript / Biome / tsc / lefthook 導入
+- Vitest 導入
+- Renovate 設定
+- Dockerfile / docker-compose 雛形作成
+- GitHub Actions CI 作成
 
 完了条件:
 
-* `pnpm install --frozen-lockfile`
-* `pnpm run check`
-* `pnpm test`
-* `pnpm run build`
-* CI 成功
+- `pnpm install --frozen-lockfile`
+- `pnpm run check`
+- `pnpm test`
+- `pnpm run build`
+- CI 成功
 
 ### Phase 1: GitHub App 認証 MVP
 
 目的: GitHub App として installation token を発行できるようにする。
 
-* GitHub App JWT 生成
-* installation_id 指定による token 発行
-* owner/repo から installation_id 解決
-* token cache
-* env schema validation
-* health endpoint
-* minimal CLI または internal API
+- GitHub App JWT 生成
+- installation_id 指定による token 発行
+- owner/repo から installation_id 解決
+- token cache
+- env schema validation
+- health endpoint
+- minimal CLI または internal API
 
 完了条件:
 
-* private key から App JWT を生成できる
-* installation token を取得できる
-* 対象 repo の基本情報を App 権限で読める
-* token expiry を考慮して再取得できる
+- private key から App JWT を生成できる
+- installation token を取得できる
+- 対象 repo の基本情報を App 権限で読める
+- token expiry を考慮して再取得できる
 
 ### Phase 2: Review Operations MVP
 
 目的: GitHub App 権限でレビュー操作を行えるようにする。
 
-* PR 情報取得
-* changed files 取得
-* review threads 取得
-* summary comment 投稿
-* inline review comment 投稿
-* review thread reply
-* permission / allowlist check
+- PR 情報取得
+- changed files 取得
+- review threads 取得
+- summary comment 投稿
+- inline review comment 投稿
+- review thread reply
+- permission / allowlist check
 
 完了条件:
 
-* 別個人アカウントを使わずに App 権限で PR review 操作ができる
-* 既存の review workflow から呼び出せる
-* 操作ログが残る
+- 別個人アカウントを使わずに App 権限で PR review 操作ができる
+- 既存の review workflow から呼び出せる
+- 操作ログが残る
 
 ### Phase 3: MCP Integration
 
 目的: ChatGPT / Claude / Codex などの MCP client から利用できるようにする。
 
-* MCP server 実装
-* review 操作用 tools 実装
-* tokenSource としての利用
-* 既存 `copilot-review-mcp` との責務整理
-* 既存 review skill との接続手順作成
+- MCP server 実装
+- review 操作用 tools 実装
+- tokenSource としての利用
+- 既存 `copilot-review-mcp` との責務整理
+- 既存 review skill との接続手順作成
 
 完了条件:
 
-* MCP client から PR 情報を取得できる
-* MCP client から App 権限でコメント投稿できる
-* ChatGPT Project / Claude Desktop から半自動レビュー運用できる
+- MCP client から PR 情報を取得できる
+- MCP client から App 権限でコメント投稿できる
+- ChatGPT Project / Claude Desktop から半自動レビュー運用できる
 
 ### Phase 4: MCP Streamable HTTP / mcp-gateway 連携
 
 目的: stdio MCP（Phase 3）を拡張し、リバースプロキシ `mcp-gateway` 配下の remote MCP server として利用できるようにする。
 
 > 以下は策定当時の計画である。session ID ごとの server/transport 生成は v0.4.0（#176）の MCP `2026-07-28` 移行で stateless 化により撤去された。現行仕様は [architecture.md の「MCP プロトコル」](./architecture.md#mcp-プロトコル)を参照。
-
-* StreamableHTTPServerTransport 実装
-* `createMcpServer(deps, options)` を transport 非依存のまま再利用
-* 起動部を `startMcpStdioServer(server)` / `startMcpHttpServer(createServer, options)` に分離
-* Streamable HTTP は session ID ごとに `McpServer` / transport を生成・管理
-* 起動フラグで stdio / streamable-http / internal-api を切替
-* stdio（`--mcp`）は local-only / trusted local client 用に維持
-* mcp-gateway への登録・routing（`/mcp/thread-owl`）
-* caller 認証は mcp-gateway の責務（thread-owl は gateway 背後の internal MCP server）
-* thread-owl は default localhost / container internal bind、Streamable HTTP endpoint を直接 public exposure しない
-* gateway 経由の rate limit / 監査境界を明示
+- StreamableHTTPServerTransport 実装
+- `createMcpServer(deps, options)` を transport 非依存のまま再利用
+- 起動部を `startMcpStdioServer(server)` / `startMcpHttpServer(createServer, options)` に分離
+- Streamable HTTP は session ID ごとに `McpServer` / transport を生成・管理
+- 起動フラグで stdio / streamable-http / internal-api を切替
+- stdio（`--mcp`）は local-only / trusted local client 用に維持
+- mcp-gateway への登録・routing（`/mcp/thread-owl`）
+- caller 認証は mcp-gateway の責務（thread-owl は gateway 背後の internal MCP server）
+- thread-owl は default localhost / container internal bind、Streamable HTTP endpoint を直接 public exposure しない
+- gateway 経由の rate limit / 監査境界を明示
 
 完了条件:
 
-* mcp-gateway 経由で remote MCP client から review tools を呼び出せる
-* stdio 経路も従来どおり動作する
-* Streamable HTTP endpoint を直接 public exposure しない運用が明記される
+- mcp-gateway 経由で remote MCP client から review tools を呼び出せる
+- stdio 経路も従来どおり動作する
+- Streamable HTTP endpoint を直接 public exposure しない運用が明記される
 
 注: gateway bypass に耐える thread-owl 側 Bearer 検証は follow-up hardening として別途扱う。
 
@@ -479,73 +478,73 @@ review_stale
 
 目的: GitHub イベントを受信し、レビュー候補を管理できるようにする。
 
-* Webhook endpoint
-* signature verification
-* delivery id dedup
-* pull_request / issue_comment / pull_request_review / pull_request_review_comment event handling
-* bot loop prevention
-* review candidate queue
+- Webhook endpoint
+- signature verification
+- delivery id dedup
+- pull_request / issue_comment / pull_request_review / pull_request_review_comment event handling
+- bot loop prevention
+- review candidate queue
 
 完了条件:
 
-* PR 作成・更新を検知できる
-* review comment / reply を検知できる
-* 重複イベントを除外できる
-* bot 自身の投稿でループしない
+- PR 作成・更新を検知できる
+- review comment / reply を検知できる
+- 重複イベントを除外できる
+- bot 自身の投稿でループしない
 
 ### Phase 6: subscribe 通知
 
 目的: Webhook で検知した review candidate を MCP subscribe で通知する。
 
-* subscription endpoint
-* review candidate notification
-* stale thread notification
-* re-review request notification
-* queue status notification
+- subscription endpoint
+- review candidate notification
+- stale thread notification
+- re-review request notification
+- queue status notification
 
 完了条件:
 
-* MCP client がレビュー待ち PR を通知として受け取れる
-* 人間がレビュー開始を判断できる
-* LLM API なしで半自動レビュー運用が成立する
+- MCP client がレビュー待ち PR を通知として受け取れる
+- 人間がレビュー開始を判断できる
+- LLM API なしで半自動レビュー運用が成立する
 
 ### Phase 7: Controlled Automation
 
 目的: repo 単位 opt-in の限定自動化を導入する。
 
-* repo config
-* label-based trigger
-* draft PR skip
-* skip label
-* review mode config
-* dry-run mode
-* require-human-approval mode
-* summary-only mode
+- repo config
+- label-based trigger
+- draft PR skip
+- skip label
+- review mode config
+- dry-run mode
+- require-human-approval mode
+- summary-only mode
 
 完了条件:
 
-* repository ごとに自動化レベルを制御できる
-* 完全自動投稿せずに dry-run / approval mode を運用できる
-* 誤爆時に安全に停止できる
+- repository ごとに自動化レベルを制御できる
+- 完全自動投稿せずに dry-run / approval mode を運用できる
+- 誤爆時に安全に停止できる
 
 ### Phase 8: API LLM Worker
 
 目的: 必要になった場合のみ、完全自動レビュー生成を追加する。
 
-* LLM provider abstraction
-* OpenAI / Anthropic などの provider 実装
-* prompt policy
-* diff chunking
-* review severity classification
-* posting policy
-* retry / budget control
-* audit log
+- LLM provider abstraction
+- OpenAI / Anthropic などの provider 実装
+- prompt policy
+- diff chunking
+- review severity classification
+- posting policy
+- retry / budget control
+- audit log
 
 完了条件:
 
-* opt-in repo で API LLM によるレビュー生成ができる
-* 投稿前承認または summary-only から開始できる
-* 誤投稿を抑制する policy がある
+- opt-in repo で API LLM によるレビュー生成ができる
+- 投稿前承認または summary-only から開始できる
+- 誤投稿を抑制する policy がある
 
 ## 13. 初期 MVP のゴール
 
@@ -562,24 +561,24 @@ GitHub App 権限で PR review thread 操作ができ、
 
 Thread Owl は初期段階では以下を目指さない。
 
-* GitHub Copilot Review の完全代替
-* CodeRabbit などの SaaS レビューサービスの完全代替
-* 汎用 CI bot
-* 汎用 GitHub automation framework
-* LLM prompt 管理サービス
-* Web dashboard 中心のサービス
-* Marketplace 向け商用 GitHub App
+- GitHub Copilot Review の完全代替
+- CodeRabbit などの SaaS レビューサービスの完全代替
+- 汎用 CI bot
+- 汎用 GitHub automation framework
+- LLM prompt 管理サービス
+- Web dashboard 中心のサービス
+- Marketplace 向け商用 GitHub App
 
 ## 15. 成功条件
 
 初期成功条件は以下。
 
-* GitHub App の installation token でレビュー操作できる
-* 別個人アカウントなしで review comment / reply / summary 投稿ができる
-* MCP client から半自動レビューできる
-* repo allowlist により対象 repo を制御できる
-* private key / token / webhook secret の管理が安全である
-* 既存 review skill / github-thread-reviewer 運用に自然に接続できる
+- GitHub App の installation token でレビュー操作できる
+- 別個人アカウントなしで review comment / reply / summary 投稿ができる
+- MCP client から半自動レビューできる
+- repo allowlist により対象 repo を制御できる
+- private key / token / webhook secret の管理が安全である
+- 既存 review skill / github-thread-reviewer 運用に自然に接続できる
 
 ## 16. 目指すイメージ
 

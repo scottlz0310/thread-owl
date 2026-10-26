@@ -7,5 +7,9 @@ pre-commit:
 
 pre-push:
   commands:
+    check:
+      run: bun run check
+    typecheck:
+      run: bun run typecheck
     test:
       run: bun run test

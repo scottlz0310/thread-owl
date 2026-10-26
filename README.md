@@ -37,17 +37,17 @@ GitHub
 
 ## ロードマップ
 
-| フェーズ | 内容 |
-|---------|------|
-| 0 | リポジトリ初期化（完了） |
-| 1 | GitHub App 認証 MVP |
-| 2 | レビュー操作 MVP |
-| 3 | MCP 統合 |
-| 4 | MCP Streamable HTTP / mcp-gateway 連携 |
-| 5 | Webhook 受信 |
-| 6 | subscribe 通知 |
-| 7 | 制御付き自動化 |
-| 8 | API LLM ワーカー（opt-in） |
+| フェーズ | 内容                                   |
+| -------- | -------------------------------------- |
+| 0        | リポジトリ初期化（完了）               |
+| 1        | GitHub App 認証 MVP                    |
+| 2        | レビュー操作 MVP                       |
+| 3        | MCP 統合                               |
+| 4        | MCP Streamable HTTP / mcp-gateway 連携 |
+| 5        | Webhook 受信                           |
+| 6        | subscribe 通知                         |
+| 7        | 制御付き自動化                         |
+| 8        | API LLM ワーカー（opt-in）             |
 
 詳細は [docs/roadmap.md](docs/roadmap.md) を参照。
 
@@ -83,11 +83,11 @@ bun run build      # dist/ へコンパイル
 
 `ghcr.io/scottlz0310/thread-owl` として公開している。タグ運用は姉妹リポジトリ（mcp-gateway / review-raven）と同じモデルに揃えている。
 
-| タグ | 内容 | 発行タイミング |
-|------|------|----------------|
-| `:latest` | 安定リリース（最新の `vX.Y.Z` と同一） | git tag `vX.Y.Z` push 時 |
-| `:X.Y.Z` / `:X.Y` | 特定バージョンの固定参照 | git tag `vX.Y.Z` push 時 |
-| `:main` | 開発ビルド（main 追従） | main への push ごと |
+| タグ              | 内容                                   | 発行タイミング           |
+| ----------------- | -------------------------------------- | ------------------------ |
+| `:latest`         | 安定リリース（最新の `vX.Y.Z` と同一） | git tag `vX.Y.Z` push 時 |
+| `:X.Y.Z` / `:X.Y` | 特定バージョンの固定参照               | git tag `vX.Y.Z` push 時 |
+| `:main`           | 開発ビルド（main 追従）                | main への push ごと      |
 
 ```bash
 # 安定版（推奨）
@@ -109,14 +109,14 @@ RC は prerelease とし、Docker の latest を更新しない。開発版の m
 
 最小限必要な権限:
 
-| 権限 | レベル |
-|------|--------|
-| Metadata | 読み取り |
-| Contents | 読み取り |
-| Pull requests | 読み取り・書き込み |
-| Issues | 読み取り・書き込み |
-| Checks | 読み取り |
-| Commit statuses | 読み取り |
+| 権限            | レベル             |
+| --------------- | ------------------ |
+| Metadata        | 読み取り           |
+| Contents        | 読み取り           |
+| Pull requests   | 読み取り・書き込み |
+| Issues          | 読み取り・書き込み |
+| Checks          | 読み取り           |
+| Commit statuses | 読み取り           |
 
 詳細は [docs/permissions.md](docs/permissions.md) を参照。
 

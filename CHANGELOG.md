@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Biome を 2.6.3 へ更新し、設定を移行した。Markdown・YAML を新しい整形に合わせ、pre-push でも全体の lint・型検査を実行して、依存更新による未変更ファイルの違反を検出する。
+
 - prepare・draft・イメージ生成/再取得検証・finalize を release-automate の固定 SHA へ統一した。package.json だけを版の正本とし、CHANGELOG 由来の本文へ Docker・検証証跡を追記する。RC の prerelease/latest 規約と開発版 main 配布を維持し、タグ起点の旧公開と自動生成ノートの併記を廃止する。
 
 - アプリケーションが公開する版を `package.json` から読み、`src/index.ts` での版の二重管理を解消した。ビルド後も同じ原稿を参照し、リリース時はタグと package の版を照合する。
@@ -11,6 +13,7 @@
 ## [0.8.0] - 2026-10-25
 
 ### Added
+
 - `read_pr_comments` tool を追加した（review-raven#144 の B1、thread-owl#280）。PR の review thread のコメント・review body・issue comment の本文を、「全ページのメタデータ → 投稿者検証 → 本文」の順をツール側で強制して返す reviewer 側の reader。`TRUSTED_COMMENT_AUTHORS`（新設。review-raven と同じ意味で、`ALLOWED_AUTHORS` とは別。未設定の間は GitHub へ問い合わせずに止まる）と、PR の base ref のプロジェクト allowlist ファイルを適用し、許可外または特定できない投稿者のコメントが 1 件でもあれば本文を一切取得せず、検証後に追加・編集されたコメントの snapshot は返さず取り直す（変わり続ければ `SNAPSHOT_CHANGED`）。失敗の応答に本文は含まない。本文は GraphQL の `@include(if: $withBody)` で選択し、thread のコメントは続きのページまで全件読む。review-raven の reader 契約（`docs/design/contracts/reader`、fee4e65）を `src/contract/v1/reader` に固定して取り込み、共有シナリオ 20 件と、`snapshotId` が review-raven の Go 実装と同じ値になることをテストで固定した。既存の `list_review_threads` は変更しない（投稿者を検証せずに本文を返すままで、skill の新ツールへの移行は Mcp-Docker の作業）。
 - review-raven への配送で、loopback 以外のホストの平文 http を明示的に許可する opt-in `THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP`（既定 `false`）を追加した。gateway をサービス名（`http://mcp-gateway:8080/...`）で引くコンテナの private network では、https でも loopback でもないため、配送の URL 検証が起動時に拒否していた（Mcp-Docker#392 の配備のブロッカー）。既定は https または loopback の http のままで、opt-in が緩めるのは「別ホストへの http」の規則だけ（URL の資格情報・query・fragment と、他のスキームは引き続き拒否する）。`true`/`false`（`1`/`0`、`on`/`off`）以外の値は、黙って off にせず起動を止める。資格情報はそのネットワーク上を平文で流れる。`validateRavenEndpoint` は opt-in を引数に取り、`RavenClient` に `allowPlainHttp` を渡す。
 - 永続台帳の保持期限による削除を追加した（review-raven#144 の O1、thread-owl#279 の段階 4。内部面を有効にしたときに動く）。起動時と、以後 1 時間ごとに、期限を過ぎた行を削除する。保持期間は `THREAD_OWL_RETENTION_DAYS`（既定 30、契約の下限 30 日以上 3650 日以下。範囲外は起動失敗）。**各表は自分の時計で数え、互いに独立**: 取消記録は**確定した時刻**から数え（要求から確定まで間があっても、要求の時刻では数えない）、**要求中（未確定）の取消は期限を過ぎても削除しない**（旧候補の起動・投稿を拒否し続けるため）。結果索引は投稿の時刻から、outbox は送信を終えた（delivered・rejected・failed）時刻から数え、送信待ち（pending）は削除しない。候補は、受付から期限を過ぎ、書込みが進行中でなく、結果・取消記録・送信待ちの通知が残っていないものだけを削除する（結果・取消記録が期限切れで消えた周期に、同じ候補も削除される）。**結果の版は候補ごとの単調増加の採番**（`candidates.last_result_version`）で、結果索引だけが削除されても戻らない（残っている通知の版や raven が持つ版と衝突させない）。**削除した候補は、in-memory の queue からも外す**: 起動時は queue を復元する前に削除し、定期削除でも削除した cycle を queue から外す（削除済みの候補が配信対象に残ったり、旧経路の通知を抑止したりしない）。**以前の版で作られた台帳も開ける**: 候補の表に足りない列（`installation_id`・`write_id`・`write_kind`・`last_result_version`）を開いたときに足し、版の採番は既存の結果（索引と送信待ちの通知）の最大版から始める（既存の版と衝突させない。以前の候補の `installation_id` は不明の 0）。移行は冪等。**起動時の初回削除が失敗しても起動は止めず**、ログに残し（`internal.retention.error`）、定期削除の最初の周期が続けて削除して queue も同期する。削除の失敗はログに残して止まらず、次の周期で再試行する。停止時は実行中の 1 回を終えてから台帳を閉じる。待機（`abortableSleep`）を結果の配送と共通化した。
@@ -23,80 +26,96 @@
 - `get_pr` の返却に、PR の作成元の判定 `origin`（`allowed`、拒否のときは `reason`）を追加した。`enqueue_review` と同じ `ALLOWED_AUTHORS`・fork の判定の結果で、許可リストの内容は返さない。拒否の判定でも `get_pr` は失敗せず、`pr` と `files` は従来どおり返す。reviewer が、queue を経由しない CLI からの直接起動でも、ローカル検証の前に、許可外の作成者・fork の PR を止められるようにする（#252）。
 
 ### Changed
+
 - `get_pr` の返却の順を `{ pr, origin, files }` にした（これまでは `origin` が末尾）。`files[].patch` が大きい PR では、クライアントが大きなツール出力の中間を省略し、末尾の `origin` が失われた。reviewer は `origin.allowed` を確認できず、許可された PR でも `BLOCKED_PR_ORIGIN` で止まった（review-raven#158 の事例。fail-closed の規定は緩めていない）。`origin` と `pr` が応答の先頭側に残ることを、テストで固定した。`files[].patch` を省く・上限を設けるオプションは thread-owl#291 で検討する。
 - `enqueue_review`・webhook の `issue_comment`・`get_pr` が、PR から作成者・fork を取り出す処理を `pullRequestOrigin` に共通化した（挙動は変えない）。
 
 ## [0.7.0] - 2026-10-01
 
 ### Changed
+
 - **破壊的変更**: `ALLOWED_AUTHORS` が未設定（空）のときは、作成者・投稿者・fork を検証せずに許可するのをやめ、**すべての PR と再レビュー依頼を拒否する**（fail-closed）ようにした（#244。#236 の段階導入の第 2 段）。`ALLOWED_REPOS` が空のときと同じ流儀で、起動は止めず、実行時に拒否する。webhook の `pull_request`・`issue_comment` と `enqueue_review` のすべてが対象で、拒否の理由は `author_allowlist_empty`（`enqueue_review` は PR を取得せずに拒否し、`PullRequestOriginNotAllowedError` を返す）。起動時の警告（`config.allowed_authors.unset`）は、拒否を示すエラーのログに置き換えた。**運用者は、更新の前に `ALLOWED_AUTHORS`（自分の login と、再レビューを依頼する bot 名義。必要なら renovate など）を設定すること**。設定しないまま更新すると、すべてのレビューが止まる。内部の `isAuthorCheckEnabled` は廃止した（検証は常に行う）。
 
 ## [0.6.0] - 2026-10-01
 
 ### Added
+
 - `get_pr` の返却に、PR の作成者（`pr.author`: `login` と `type`。アカウントが削除されていて取得できない場合は null）と、head の repository（`pr.head.repo`: `fullName` と `fork`。head の repository が削除されている場合は null）を加えた（#236）。reviewer が、ローカル検証の前に、他者の PR や fork からの PR を識別するための前提で、既存の項目は変わらない（後方互換な追加）。`fork` は「head の repository が base と別」（`full_name` を大文字小文字を区別せずに比較）を表す。GitHub の `repo.fork`（その repository が fork か）は、base 自体が fork の場合に同一 repository の PR でも true になるため使わない。作成者・fork の検証そのもの（webhook と `enqueue_review`）は、続く変更で行う。
 - 環境変数 `ALLOWED_AUTHORS`（PR の作成者として信頼する GitHub の login のカンマ区切り）を追加し、他者の PR・fork からの PR を既定で queue に載せないようにした（#236）。設定すると、許可された作成者の**同一リポジトリの PR だけ**を受け付け、**fork からの PR は作成者が許可されていても常に拒否**する（head の repository が削除されている場合を含む）。`enqueue_review` は、GitHub API で PR を取得して照合する（`requestedBy` は自己申告のため使わない。取得に失敗したら fail-closed で、queue にも `review://status` にも載せない）。webhook の `pull_request` は `pr.user.login` と `pr.head.repo.full_name` を、`issue_comment`（再レビュー依頼）は、投稿者が許可されている場合に、GitHub API で PR を取得して作成者と fork を照合する（payload に head の repository が無いため。投稿者が許可されていなければ、PR は取得しない。取得に失敗したら fail-closed）。login は、小文字にして末尾の `[bot]` を 1 回だけ取り除いて比較し（Mcp-Docker の skill の `normalize_login` と同じ規則）、形式不正（wildcard を含む）は起動時に拒否する。拒否は監査ログに残す（作成者・投稿者の login は記録し、本文は記録しない）。**暫定（段階導入）**: `ALLOWED_AUTHORS` が未設定の間は検証しない（互換のため）。起動のたびに警告し、次のリリースで未設定を fail-closed に変更する予定なので、先に設定すること（自分の login と、再レビューを依頼する bot 名義など）。`docs/security.md`・`docs/operations.md`・`.env.example` に追記。`ToolDeps` に `allowedAuthors` と `logger` を、`createWebhookReceiver` の deps に `allowedAuthors` と `getPullRequest` を加えた（内部 API の変更）。
 
 ### Changed
+
 - webhook の handler が失敗して `500` を返すとき、その delivery ID の既読（dedup）を取り消すようにした（`DeliveryDedup.forget`）。GitHub の再配信は同じ `X-GitHub-Delivery` で届くため、既読のままだと `duplicate` で弾かれ、一時的な失敗（`issue_comment` の再レビュー依頼での PR の取得失敗など）から復旧できなかった（#236）。処理に成功した delivery は、従来どおり重複として扱う。
 - `post_review_verdict` の required status checks の解決で、classic branch protection を、admin 専用の `branches/{branch}/protection`（`Administration: read` が必要）ではなく、read 権限で読める `branches/{branch}` の `protection`（要約。`enabled` が true のときの `required_status_checks`）から読むようにした（#237）。GitHub App の `Administration: read` は不要になる。`protection` が無効（`enabled: false`）なら classic の required check なしとして扱う。`enabled` が欠落・null・boolean 以外の応答は、保護なしとみなさず（required checks の読み飛ばしを防ぐため）設定エラーとして fail-closed にする。`branches/{branch}` の読み取りは、404（branch が無い）を含め、失敗したら fail-closed にし、診断の operation は `repos.getBranch`、必要権限は `Contents: read` になる。ruleset（`rules/branches/{branch}`）の必要権限の診断は `Metadata: read` に改めた。同じ Unreleased の #227 の項にある 403・404 の扱いは、この変更で置き換わる（admin 専用の endpoint を呼ばなくなるため）。`README.md` と `docs/plan.md` の権限表からも `Administration` を外した。
 
 ### Fixed
+
 - `post_review_verdict` が branch protection 取得時の 403 を必要権限不足として明示し、Verdict を投稿せず fail-closed にするようにした（#227）。404（branch protection 未設定）は従来どおり required check なしとして扱い、API operation・status・error code・必要権限を診断ログへ記録する。
 
 ## [0.5.2] - 2026-09-19
 
 ### Added
+
 - `post_review_verdict` が投稿前に対象 PR の current HEAD と一致する required status checks を検証するようにした（#224）。classic branch protection と有効 ruleset の設定を取得し、同一 SHA の check-runs / commit statuses を全ページ確認する。pending・failure・cancelled・missing・SHA 不一致・設定取得不能・HEAD race は fail-closed で拒否し、required ではない check の失敗は投稿を妨げない。
 
 ## [0.5.1] - 2026-09-17
 
 ### Fixed
+
 - `post_summary_comment` から Verdict を投稿できないようにした（#218）: `Review Verdict` を含む本文、または `Verdict` を含む Markdown 見出しを拒否し、専用の `post_review_verdict` の利用を促す。MCP tool では installation token 発行前に検証する。
 
 ## [0.5.0] - 2026-09-17
 
 ### Added
+
 - Verdict コメントを固定書式でサーバー側から投稿する MCP tool `post_review_verdict` を追加（#218）: 入力は `owner` / `repo` / `prNumber` / `headSha` / `summary` で、見出し `## @thread-owl Review Verdict: APPROVED`・`- Reviewed HEAD SHA: ` + backtick 付き SHA・`- Status: ` + backtick 付き `READY_TO_MERGE` の固定 3 行はサーバー側が組み立てる。reviewed 側（`review-raven-thread-owl-cycle`）は照合規則の正規表現でこの 3 行を判定するため、プロンプト指示だけでは防げなかった書式の揺れ（`VERDICT_FORMAT_MISMATCH` によるサイクル停止）を tool 側で構造的に排除する。`headSha` は 40 桁の小文字 hex を要求し、現在の PR head と一致しない場合は投稿しない。`summary` に固定 3 行のいずれかに一致する行や `Review Verdict` が含まれる場合は、照合規則の「各行ちょうど 1 行」を壊すため拒否する。投稿後は `review://status` を `reviewed` にし、`summaryCommentId` と `headSha` を記録して通知する。戻り値に作成したコメントの ID を含める。検証と正規化は 1 つの関数にまとめ、`summary` を trim した値そのものを検証する（検証対象と本文へ埋め込む値がずれると、前後に空白を付けた予約行が検証を通ってから固定行に変化し、同じ行が 2 行入る）。MCP handler では installation token を発行する write context の取得より前に検証するため、不正入力では GitHub の認証系 API も叩かない
 
 ## [0.4.3] - 2026-09-16
 
 ### Added
+
 - PR 単位のレビュー状態を購読できる MCP Resource `review://status/{owner}/{repo}/{prNumber}` を追加（#214）: 実装側エージェントが `mcp-resource-subscriber` 経由でポーリングなしにレビュー投稿完了を待機できる。`enqueue_review` で `pending` に初期化（過去ラウンドの完了状態による誤検知を防止）し、`post_summary_comment` で `reviewed`、`approve_pull_request` で `approved` を記録して `notifications/resources/updated` を送出する。完了側の tool は GitHub への書き込み開始時にラウンドを捕捉し、完了までに次ラウンドの `enqueue_review` が入っていた場合は古い完了として破棄する。状態は直近 100 PR 分を in-memory で保持し、保持中の PR は `resources/list` に、URI テンプレートは `resources/templates/list` に載せる。`post_summary_comment` にレビュー対象 head を記録する任意入力 `headSha` を追加（`approved` は照合済みの `expectedHeadSha` を記録）。通知 URI は `subscriptions/listen` の完全一致照合に合わせて owner / repo を小文字に正規化する
 
 ## [0.4.2] - 2026-09-10
 
 ### Changed
+
 - allowlist の適用範囲を write 専用に整理（#200）: MCP の `get_pr` / `list_review_threads` は GitHub App installation の repo scope に委ね、コメント投稿・返信・approve・enqueue と内部 `/token` API は allowlist を要求するよう token 発行経路を分離。
 - `thread-owl-pr-reviewer` の二重管理を解消し、Mcp-Docker を唯一の収蔵先とした（#198）。ローカルの skill 本体とエージェント設定を削除し、README と `docs/skills/README.md` に正本へのリンクおよび `mcp-docker skill install/status` による配置・更新・確認手順を追加。
 - Node.js の基準を26.8.1へ更新し、CI・Release が参照する `.node-version`、Docker のビルド／実行環境、`package.json` と README の動作要件を統一。
 
 ### Fixed
+
 - Vitest の対象を `src/**/*.test.ts` と `tests/**/*.test.ts` に明示し、既存テストをすべて維持したまま `dist/` の旧テスト生成物の混入を防止。通常実行と CI のカバレッジ実行で同じ設定を使用する。
 
 ## [0.4.1] - 2026-08-26
 
 ### Changed
+
 - 公開 docs を MCP `2026-07-28`（v0.4.0 / #176）の実装に追従（#176 の後続 docs PR、横断 tracker #165）: `docs/architecture.md` に「MCP プロトコル」節を新設し、`legacy: "reject"`・stateless・`server/discover`・`GET`/`DELETE` の 405・client 側の必要バージョン（mcp-gateway v0.10.0 / mcp-resource-subscriber v0.6.0 / SDK v2）と protocol version の pin 推奨を明記。`docs/operations.md` の `resources/subscribe` 前提の購読手順を `subscriptions/listen`（ack 検証を含む）へ書き換え、Streamable HTTP 節の session 記述を stateless 版へ差し替え、mcp-resource-subscriber の出力例を v0.6.0 スキーマ（`listenAcknowledged` / `honoredUris` / `notificationCount` / `closeReason` / `initialText`、`route` の `pre-completion` と `failed`、新 errorCode）へ更新。`docs/skills/thread-owl-pr-reviewer/SKILL.md` の queue 待機手順も同スキーマへ追従。`recommendedNextAction` は subscriber が `finalText` 内の `recommended_next_action` を抽出して生成するが、Thread Owl の queue resource は `ReviewCandidate[]` でこのフィールドを含めないため常に `null` になる点を明記。`PROTOCOL_UNSUPPORTED` は「サーバーが `2026-07-28` を提供しなかった」に限定し、到達不能（`DNS_LOOKUP_FAILED` / `CONNECTION_REFUSED` / `TLS_CERT_UNTRUSTED`）と認証系（`AUTH_LOGIN_REQUIRED` / `AUTH_TIMEOUT` / `AUTH_REFRESH_FAILED`）を独立した errorCode として記載。削除済みの `src/mcp/subscriptions/{listen,notify}.ts` を参照していた設計判断の記述を実態（SDK の `ServerNotifier` へ委譲）へ修正し、`docs/plan.md` / `docs/roadmap.md` の Phase 4 には当時の計画である旨の注記を追加
 
 ## [0.4.0] - 2026-08-25
 
 ### Changed
+
 - MCP プロトコル `2026-07-28` へ移行し、stateful な Streamable HTTP session 管理を撤去（#176、横断 tracker #165）: `@modelcontextprotocol/sdk` v1 を `@modelcontextprotocol/{server,node,client,core}` v2 へ置き換え、`transports.ts` の `Mcp-Session-Id` セッション map を削除して `createMcpHandler`（HTTP）/ `serveStdio`（stdio）ベースの stateless エントリに書き換えた。`legacy: 'reject'` を明示し、2025-era（`resources/subscribe` / standalone GET SSE stream / protocol-level session）には一切フォールバックしない。queue resource の更新通知は `resources/subscribe` ハンドラと自前の listener 管理（`subscriptions/listen.ts` の `SubscriptionSession`、`subscriptions/notify.ts` の `createQueueNotifier`）を廃止し、`subscriptions/listen` の SDK 標準経路（`handler.notify.resourceUpdated(uri)` → 開いている全 stream へ配信）に一本化した。SSE stream への `X-Accel-Buffering: no` ヘッダー付与を実装（mcp-gateway 経由でのバッファリング抑止）。長時間稼働時の通知配信サイレント停止（#117）の診断ログ（`mcp.session.*` / `mcp.subscription.*`）はセッション概念自体の消滅に伴い併せて削除
 - package manager を pnpm から Bun に移行（#140）: `pnpm-lock.yaml` / `pnpm-workspace.yaml` を廃止し `bun.lock` に一本化。`bunfig.toml` で linker を `isolated` に固定（pnpm 相当の厳格な依存分離を維持）。lifecycle script は `package.json` の `trustedDependencies`（`@biomejs/biome` / `esbuild` / `lefthook`）で明示許可。CI（`ci.yml` / `release.yml`）は `oven-sh/setup-bun` + `.bun-version` を正本にし、`Dockerfile` は `oven/bun` イメージから Bun バイナリのみを取得する方式に変更。`node` runtime・Vitest はそのまま維持し、runtime 側の変更は対象外とした。`renovate.json` に `renovate-config` の `package-managers/bun` プリセットを追加し、`bun.lock` / `.bun-version` の自動更新を有効化
 
 ### Fixed
+
 - `packageManager` の競合を `pnpm@11.13.0` にアップデートすることで解決。一部の `pnpm` バージョン（`11.12.0` など）で発生していた Corepack 実行時の `Cannot use 'in' operator to search for 'integrity' in undefined` エラーを回避し、正常動作することを確認
 - `ci.yml` / `release.yml` の `pnpm/action-setup@v6` が `version: latest` で pnpm を毎回最新版に切り替えていたため、pnpm 側のリグレッション（self-installer が `Cannot use 'in' operator to search for 'integrity' in undefined` でクラッシュ）に巻き込まれ CI が failing になっていた（#133 review）。`package.json` に `packageManager: "pnpm@11.7.0"` を追加して固定バージョンを明示し、両ワークフローの `version: latest` 指定を削除。以後は Renovate の `packageManager` フィールド更新経由で計画的にバージョンを上げる
 
 ## [0.3.1] - 2026-07-05
 
 ### Fixed
+
 - `--mcp-http`（webhook 未使用の Streamable HTTP MCP モード）に `ReviewQueue` が注入されておらず、`queue://review/queue` / `queue://review/re-review-requests` resources・`resources/subscribe`・`enqueue_review` tool がすべて未登録になっていた（#122）。`--mcp-http` にも `ReviewQueue` を生成・注入し、webhook 受信を追加せずに queue 機能のみを有効化できるようにした
 
 ## [0.3.0] - 2026-07-05
 
 ### Added
+
 - 長時間稼働時の queue 購読通知配信サイレント停止（#117）の診断ログを追加: `ReviewQueue.listenerCounts()` で現在の `onEnqueue` / `onReReviewRequested` listener 数を取得可能にし、`mcp.subscription.subscribed` / `mcp.subscription.unsubscribed` / `mcp.subscription.notify.failed`（listener 数・エラー内容付き）と `mcp.session.initialized` / `mcp.session.closed`（HTTP セッション数）をログ出力する。根本原因の修正ではなく、実機再現時に状態推移を追うための計装
 - `enqueue_review` MCP tool（#118）: webhook 以外の正規 enqueue 入口を追加。`owner` / `repo` / `prNumber` / `reason`（`opened` | `synchronized` | `re-review-requested`）/ `requestedBy`（任意）を受け取り、既存の `ReviewQueue.enqueue()` を呼ぶ。`allowedRepos` チェックを webhook ハンドラと同様に適用し、範囲外は installation token 発行前に拒否する。`installationId` は既存の `resolveInstallationId`（GitHub App API lookup）で owner/repo から解決する。`notifications/resources/updated` は既存の `onEnqueue` / `onReReviewRequested` フックで自動発火するため購読側は無変更。`queue` が注入されるモード（`--webhook-mcp-http` combined）でのみ登録される
 - `README.md` に Thread Owl のアバターアイコンを表示
@@ -104,6 +123,7 @@
 - `approvePR` のユニットテスト追加（#90）: allowlist ガード・expectedHeadSha 不一致エラー・正常系（監査ログ記録・body 転送）の 4 ケースを網羅
 
 ### Changed
+
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#114）: `initial-review` / `re-review` で `verdict: approve` と判定した場合に、「指摘がない場合はコメントを作らない」原則の例外として固定フォーマットの Verdict コメント（`## @thread-owl Review Verdict: APPROVED`）を `post_summary_comment` で投稿する運用を追加。reviewed-side workflow がマージ判断時に参照する「レビュー完了の証拠」を GitHub 上に残し、reviewer-side が沈黙する一方 reviewed-side が証拠を待ち続けるデッドロックを解消。`approve_pull_request` の自律実行は行わず、既存の投稿判断ルールをそのまま適用。トリガー条件を Verdict 節の `approve` 判定基準（CI success 等を含む）と統一し、条件の二重定義による内部不整合を解消。`approve` 判定基準に「既存 review thread がすべて resolved（分類を問わない）」を独立条件として明記し、`non-blocking` / `question` の未解決が残ったまま Verdict コメントが投稿されうる抜け穴を解消
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#104）: リモート基準の検証環境ゲート（Repository State Guard、検証後の再確認、CI 検証の SHA 固定、再レビュー依頼の期待 HEAD 照合）を追加し、ローカル未 push 変更の誤レビューを防止。ユーザー報告に `source of truth`, `local verification`, `local verification head`, `CI head` を追記
 - `docs/operations.md` の mcp-resource-subscriber 呼び出し例を `--json` モードに更新（#83）: `--json` フラグを primary に変更し、JSON 出力フィールド（`route` / `errorCode` / `recommendedNextAction` / `finalText` 等）の説明テーブルを追記。line-based 出力例は `<details>` 補足に格下げ。「将来の `--json` mode」注記を削除
@@ -111,26 +131,32 @@
 - `docs/skills/thread-owl-pr-reviewer/SKILL.md` を更新（#94）: 再レビュー・thread follow-up で元 thread の `isResolved` / `isOutdated` 状態を投稿経路の判断材料とする運用を追加。resolved / outdated thread に問題が残る場合は元 thread へ返信せず current diff 上に新規 inline thread を作成し、投稿可能行がない場合は PR-level summary にフォールバックする。新規 inline 投稿前の Snapshot Guard 再実行を明記。ユーザー報告で新規 inline と thread 返信の件数・残存 blocking を区別できるよう更新
 
 ### Fixed
+
 - MCP Streamable HTTP endpoint で設定 path の末尾スラッシュ有無を同一視し、`/mcp` と `/mcp/` の両方を受け付ける（#98）。子 path は従来どおり 404 を返す
 
 ## [0.2.0] - 2026-06-10
 
 ### Changed
+
 - Docker イメージタグを開発/安定リリースに分離（#84）: main push は `:main`（+ `:sha-*`）のみ発行し、`:latest` と version タグ（`:X.Y.Z` / `:X.Y`）は git tag `vX.Y.Z` push 時に新設の `release.yml` が発行する。`release.yml` はテスト通過後に multi-platform（amd64/arm64）イメージを push し GitHub Release を自動作成する。タグ運用方針を README に明記
 
 ### Fixed
+
 - GitHub App JWT の `exp` をクロックドリフト考慮なしで `now + 600` に設定していたため、実行環境の時計が GitHub より数秒進んでいると `'exp' is too far in the future` 401 が発生していた（#77）。`exp = iat + 600`（= `now + 540`）に修正し、`exp - iat <= 600` を単体テストで保証
 
 ### Added (next)
+
 - `issue_comment` webhook で `@<appSlug>` mention + re-review intent（`re-review` / `rereview` / `review again` / `再レビュー`）を検出し、`reason: "re-review-requested"` で review queue に enqueue する（#79）。`ReviewCandidate` に `sourceCommentId` / `requestedBy` を optional フィールドとして追加。`queue://review/queue` の `resources/updated` 通知は既存の `onEnqueue` フックで自動発火
 
 ### Added
+
 - combined モード `--webhook-mcp-http`（#67, #68）: 同一プロセス・同一ポートで Webhook 受信と MCP HTTP を共存。`createSharedRuntime()` で queue/dedup を一元生成し、enqueue イベントが `notifications/resources/updated` として MCP クライアントへ push される。`docker-compose.yml` に `thread-owl-combined` サービス（port 3002）追加
 - MCP resource `queue://review/queue`（#68）: `--webhook-mcp-http` / `--mcp-http` + queue 注入時に有効。`resources/subscribe` で enqueue 通知を受信可能。subscribe → unsubscribe → re-subscribe の listener 重複バグおよび pending 中レース条件を修正済み
 - `ReviewQueue.onEnqueue(listener)` フック（#68）: enqueue 発生時に呼び出す listener を登録し、dispose 関数を返す
 - `McpHttpServerOptions.fallbackHandler`（#68）: MCP パス以外のリクエストを Hono 等の別ハンドラに委譲するオプション。combined モードで `/webhook` / `/health` / `/status` を同一ポートにマウントするために使用
 
 ### Changed
+
 - review thread コメント取得のページネーション対応（#29）: `listReviewThreads` / `getReviewThread` が各 thread の先頭100件に加え、`comments.pageInfo` と cursor を使って101件目以降も順次取得する。100件以下では追加 GraphQL 呼び出しを行わない
 - レビュー責務の修正（#37）: Thread Owl はレビュアー側 GitHub App としてコメント投稿・スレッド返信までを担い、review thread の resolve は PR author / repository write access を持つ修正側の `github-mcp` / `copilot-review-mcp`（MCP server 登録名: `copilot-review`）に委ねる。`resolve_review_thread` MCP tool と関連する GraphQL mutation・テスト・文書を削除
 - ロードマップ改訂: Phase 4 を「MCP Streamable HTTP / mcp-gateway 連携」に差し替え、旧「Webhook 受信」以降を Phase 5-8 に繰り下げ（`docs/roadmap.md` / `docs/plan.md`）。caller 認証は mcp-gateway の責務、thread-owl は gateway 背後の internal MCP server（直接 public exposure しない）、stdio MCP は維持の方針
@@ -140,6 +166,7 @@
 - plan.md をルートから docs/plan.md に移動
 
 ### Added
+
 - Webhook 実運用ドキュメント整備: `docs/webhook-operations.md` 新規作成（smee.io/ngrok ローカルテスト手順・本番 URL 設定・疎通確認チェックリスト・トラブルシューティング）。`docker-compose.yml` に `thread-owl-webhook` サービス追加（`--webhook` モード・ポート 3001）。`operations.md` に `--webhook` 起動方法・`APP_SLUG`/`MCP_HTTP_PATH` 環境変数・Webhook セクション追加。`github-app-setup.md` に Webhook URL 設定ステップ（セクション 5）を追加しセクション番号を更新
 - `issue_comment` / `pull_request_review` / `pull_request_review_comment` webhook イベントハンドラ（#48）: 各ハンドラで対象 action フィルタ・allowlist チェックを実施。`issue_comment` は PR に紐づくコメントのみ処理。`receiver.ts` から `allowedRepos` を各ハンドラに渡すよう更新
 - `APP_SLUG` 環境変数による GitHub App スラッグの外部設定対応（#46 review fix）: `src/index.ts` のハードコード `"thread-owl"` を除去し `config.appSlug` 経由で参照。`APP_SLUG` 未設定時はデフォルト `"thread-owl"` を使用。`.env.example` と `docs/github-app-setup.md` に設定方法・注意事項を追加

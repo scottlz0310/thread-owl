@@ -13,14 +13,14 @@
 
 **Repository permissions** で以下を設定する:
 
-| 権限 | レベル |
-|------|--------|
-| Metadata | 読み取りのみ |
-| Contents | 読み取りのみ |
-| Pull requests | 読み取り・書き込み |
-| Issues | 読み取り・書き込み |
-| Checks | 読み取りのみ |
-| Commit statuses | 読み取りのみ |
+| 権限            | レベル             |
+| --------------- | ------------------ |
+| Metadata        | 読み取りのみ       |
+| Contents        | 読み取りのみ       |
+| Pull requests   | 読み取り・書き込み |
+| Issues          | 読み取り・書き込み |
+| Checks          | 読み取りのみ       |
+| Commit statuses | 読み取りのみ       |
 
 classic branch protection の required status checks は `Contents`、ruleset の required status checks は `Metadata` の読み取りで参照する。`Administration` は付与しない（#237 以前に付与済みの App は、外してよい）。
 `Checks` と `Commit statuses` は `post_review_verdict` が対象 SHA の required CI を検証するために必要です。
@@ -59,11 +59,13 @@ GitHub App の **Webhook** セクションで以下を設定する:
 2. **Webhook secret**: ランダムな文字列を生成して設定し、`.env` の `GITHUB_WEBHOOK_SECRET` にも同じ値を設定する
 
    生成例（PowerShell）:
+
    ```powershell
    [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
    ```
 
    生成例（bash）:
+
    ```bash
    openssl rand -base64 32
    ```
@@ -97,11 +99,11 @@ APP_SLUG=<GitHub App URL の slug>
 
 `.pem` は改行が意味を持つ secret のため、受け取り形式を選べる。解決の優先順位は **FILE > B64 > raw**。いずれか1つを設定する。
 
-| 環境変数 | 用途 | 推奨度 |
-|---|---|---|
-| `GITHUB_APP_PRIVATE_KEY_FILE` | `.pem` のファイルパスを指定 | **ローカル開発の第一推奨** |
-| `GITHUB_APP_PRIVATE_KEY_B64` | `.pem` を base64 化した1行 secret | **Bitwarden / dsx 注入の本命** |
-| `GITHUB_APP_PRIVATE_KEY` | 改行を `\n` でエスケープした1行 | 後方互換（脆弱・非推奨） |
+| 環境変数                      | 用途                              | 推奨度                         |
+| ----------------------------- | --------------------------------- | ------------------------------ |
+| `GITHUB_APP_PRIVATE_KEY_FILE` | `.pem` のファイルパスを指定       | **ローカル開発の第一推奨**     |
+| `GITHUB_APP_PRIVATE_KEY_B64`  | `.pem` を base64 化した1行 secret | **Bitwarden / dsx 注入の本命** |
+| `GITHUB_APP_PRIVATE_KEY`      | 改行を `\n` でエスケープした1行   | 後方互換（脆弱・非推奨）       |
 
 **ローカル開発（FILE）:**
 
