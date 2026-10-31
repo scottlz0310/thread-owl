@@ -4,6 +4,8 @@
 
 ### Changed
 
+- リリース共通workflowをrelease-automate v3.2.1へ更新し、準備時の比較元に対象版以上の旧系列タグを選ばない修正を取り込んだ。
+
 - Biome を 2.6.3 へ更新し、設定を移行した。Markdown・YAML を新しい整形に合わせ、pre-push でも全体の lint・型検査を実行して、依存更新による未変更ファイルの違反を検出する。
 
 - prepare・draft・イメージ生成/再取得検証・finalize を release-automate の固定 SHA へ統一した。package.json だけを版の正本とし、CHANGELOG 由来の本文へ Docker・検証証跡を追記する。RC の prerelease/latest 規約と開発版 main 配布を維持し、タグ起点の旧公開と自動生成ノートの併記を廃止する。
