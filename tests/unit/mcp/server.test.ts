@@ -127,13 +127,17 @@ describe("runTool", () => {
     });
   });
 
-  it("失敗時は isError と error.message を返す", async () => {
+  test.each([
+    { failure: new Error("boom"), expected: "boom" },
+    { failure: "外部ライブラリの失敗", expected: "外部ライブラリの失敗" },
+    { failure: null, expected: "null" },
+  ])("失敗値を正常応答にせずtextで返す: $expected", async ({ failure, expected }) => {
     const result = await runTool(async () => {
-      throw new Error("boom");
+      throw failure;
     });
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toBe("boom");
+    expect(result.content[0]).toEqual({ type: "text", text: expected });
   });
 });
 
