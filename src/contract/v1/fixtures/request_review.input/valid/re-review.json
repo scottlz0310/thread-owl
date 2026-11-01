@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "owner": "scottlz0310",
-  "repo": "mcp-resource-subscriber",
-  "prNumber": 226,
-  "expectedHeadSha": "89abcdef0123456789abcdef0123456789abcdef",
-  "reason": "re-review-requested",
-  "idempotencyKey": "agent-req-0002"
-}

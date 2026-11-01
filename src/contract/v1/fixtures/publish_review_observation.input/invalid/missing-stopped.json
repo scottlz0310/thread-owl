@@ -1,9 +1,0 @@
-{
-  "base": "waiting-ci-pending",
-  "patch": [
-    {
-      "op": "remove",
-      "path": "/stopped"
-    }
-  ]
-}

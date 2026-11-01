@@ -383,3 +383,35 @@ describe("createMcpServer — review status resource", () => {
     await server.close();
   });
 });
+
+describe("撤去したcandidate束縛の拒否", () => {
+  test.each([
+    { name: "post_summary_comment", input: { body: "summary", headSha: "a".repeat(40) } },
+    { name: "post_review_verdict", input: { summary: "summary", headSha: "a".repeat(40) } },
+    { name: "approve_pull_request", input: { expectedHeadSha: "a".repeat(40) } },
+  ])("$nameは旧candidateIdを含む入力で投稿しない", async ({ name, input }) => {
+    const deps = makeDeps();
+    const server = createMcpServer(deps, { name: "test", version: "1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "test-client", version: "1" });
+    await client.connect(clientTransport);
+    try {
+      const result = await client.callTool({
+        name,
+        arguments: {
+          owner: "org",
+          repo: "repo",
+          prNumber: 1,
+          ...input,
+          candidateId: `cand_${"a".repeat(26)}`,
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(deps.getWriteContext).not.toHaveBeenCalled();
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+});

@@ -1,9 +1,9 @@
 // Transport-independent MCP server setup
 
 import { McpServer, ResourceNotFoundError } from "@modelcontextprotocol/server";
+import { z } from "zod";
 import type { ReviewQueue } from "../queue/review-queue.js";
 import type { PullRequestRef, ReviewStatusStore } from "../queue/review-status.js";
-import { ContractError } from "../review-cycle/errors.js";
 import type { ToolDeps } from "./tool-deps.js";
 import {
   APPROVE_PULL_REQUEST_TOOL_NAME,
@@ -92,13 +92,7 @@ export async function runTool(fn: () => Promise<unknown>) {
       content: [
         {
           type: "text" as const,
-          // 契約のエラー（候補の取消・HEAD の不一致など）は、reviewer が区別できるよう code を付ける。
-          text:
-            error instanceof ContractError
-              ? `${error.code}: ${error.message}`
-              : error instanceof Error
-                ? error.message
-                : String(error),
+          text: error instanceof Error ? error.message : String(error),
         },
       ],
     };
@@ -151,7 +145,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
     {
       description:
         "PR 本文へサマリーコメントを投稿する（allowlist 内のみ）。Verdict の投稿には post_review_verdict を使用する",
-      inputSchema: postSummaryInputSchema,
+      inputSchema: z.strictObject(postSummaryInputSchema),
     },
     (args) => runTool(() => postSummaryTool(deps, args)),
   );
@@ -161,7 +155,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
     {
       description:
         "APPROVED の Verdict コメントを固定書式で投稿する（allowlist 内のみ）。見出し・Reviewed HEAD SHA 行・Status 行はサーバー側で生成し、summary には自由記述部分だけを渡す",
-      inputSchema: postReviewVerdictInputSchema,
+      inputSchema: z.strictObject(postReviewVerdictInputSchema),
     },
     (args) => runTool(() => postReviewVerdictTool(deps, args)),
   );
@@ -188,7 +182,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
     APPROVE_PULL_REQUEST_TOOL_NAME,
     {
       description: "PR を APPROVE する（allowlist 内のみ）",
-      inputSchema: approvePullRequestInputSchema,
+      inputSchema: z.strictObject(approvePullRequestInputSchema),
     },
     (args) => runTool(() => approvePullRequestTool(deps, args)),
   );

@@ -1,4 +1,4 @@
-// review-raven のレビュー依頼契約を、固定したコミットから取り込み直す。
+// review-raven の投稿者検証済みreader契約を、固定したコミットから取り込み直す。
 // 使い方: bun scripts/pin-contract.mjs <review-raven の clone> <commit>
 // 取り込み先の各ファイルの sha256 を MANIFEST.json に記録し、手元での改変を contract.test.ts が検出する。
 import { execFileSync } from "node:child_process";
@@ -19,7 +19,7 @@ mkdirSync(target, { recursive: true });
 
 const archive = execFileSync(
   "git",
-  ["-c", "core.autocrlf=false", "-C", source, "archive", commit, "docs/design/contracts"],
+  ["-c", "core.autocrlf=false", "-C", source, "archive", commit, "docs/design/contracts/reader"],
   {
     maxBuffer: 64 * 1024 * 1024,
   },

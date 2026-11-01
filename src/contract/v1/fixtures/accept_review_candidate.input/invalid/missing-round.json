@@ -1,9 +1,0 @@
-{
-  "base": "manual",
-  "patch": [
-    {
-      "op": "remove",
-      "path": "/round"
-    }
-  ]
-}

@@ -29,7 +29,6 @@ import { RepositoryNotAllowedError } from "./policy/allowlist.js";
 import { createDeliveryDedup } from "./queue/delivery-dedup.js";
 import { createReviewQueue } from "./queue/review-queue.js";
 import { createReviewStatusStore } from "./queue/review-status.js";
-import { startInternalSurface } from "./review-cycle/surface.js";
 import { createSharedRuntime } from "./runtime/shared.js";
 import { resolveAppMode } from "./startup/mode.js";
 import { createWebhookReceiver } from "./webhook/receiver.js";
@@ -95,15 +94,6 @@ if (mode === "mcp-stdio") {
   // enqueue_review tool と subscriptions/listen のみで queue 機能を提供する（#122）。
   const reviewQueue = createReviewQueue();
   const reviewStatus = createReviewStatusStore();
-  const internal = config.internal
-    ? startInternalSurface(
-        config.internal,
-        buildToolDeps(issueTokenDeps),
-        { queue: reviewQueue, reviewStatus, botLogin: `${config.appSlug}[bot]` },
-        logger,
-        VERSION,
-      )
-    : undefined;
   const httpServer = await startMcpHttpServer(
     () =>
       createMcpServer(
@@ -111,7 +101,6 @@ if (mode === "mcp-stdio") {
           ...buildToolDeps(issueTokenDeps),
           queue: reviewQueue,
           reviewStatus,
-          resultBinder: internal?.binder,
         },
         { name: "thread-owl", version: VERSION },
       ),
@@ -124,12 +113,6 @@ if (mode === "mcp-stdio") {
           event: "mcp.request.error",
           errorName: error.name,
         });
-      },
-      // 内部面は公開の MCP パスとは別のパスで、別の MCP server として提供する。
-      fallbackHandler: async (req, res) => {
-        if (!(await internal?.handle(req, res))) {
-          res.writeHead(404).end();
-        }
       },
     },
   );
@@ -145,7 +128,7 @@ if (mode === "mcp-stdio") {
   });
 
   const shutdown = () => {
-    void Promise.all([httpServer.close(), internal?.close()]).catch((error) => {
+    void httpServer.close().catch((error) => {
       logger.error("mcp.shutdown.error", {
         event: "mcp.shutdown.error",
         errorName: error instanceof Error ? error.name : "UnknownError",
@@ -248,20 +231,6 @@ if (mode === "mcp-stdio") {
   const runtime = createSharedRuntime(config, logger);
   const startedAt = new Date();
 
-  const internal = config.internal
-    ? startInternalSurface(
-        config.internal,
-        buildToolDeps(runtime.issueTokenDeps),
-        {
-          queue: runtime.reviewQueue,
-          reviewStatus: runtime.reviewStatus,
-          botLogin: `${config.appSlug}[bot]`,
-        },
-        logger,
-        VERSION,
-      )
-    : undefined;
-
   const honoApp = new Hono();
   honoApp.get("/health", (c) => c.json(getHealth()));
   honoApp.get("/status", (c) =>
@@ -278,7 +247,6 @@ if (mode === "mcp-stdio") {
       allowedRepos: config.policy.allowedRepos,
       allowedAuthors: config.policy.allowedAuthors,
       getPullRequest: createPullRequestFetcher(buildToolDeps(runtime.issueTokenDeps).getClient),
-      ingest: internal?.ingest,
     }),
   );
 
@@ -292,7 +260,6 @@ if (mode === "mcp-stdio") {
           ...buildToolDeps(runtime.issueTokenDeps),
           queue: runtime.reviewQueue,
           reviewStatus: runtime.reviewStatus,
-          resultBinder: internal?.binder,
         },
         { name: "thread-owl", version: VERSION },
       ),
@@ -306,11 +273,7 @@ if (mode === "mcp-stdio") {
           errorName: error.name,
         });
       },
-      fallbackHandler: async (req, res) => {
-        if (!(await internal?.handle(req, res))) {
-          await honoHandler(req, res);
-        }
-      },
+      fallbackHandler: honoHandler,
     },
   );
   runtime.reviewQueue.onEnqueue(() => httpServer.notify.resourceUpdated(QUEUE_RESOURCE_URI));
@@ -329,7 +292,7 @@ if (mode === "mcp-stdio") {
   });
 
   const shutdown = () => {
-    void Promise.all([httpServer.close(), internal?.close()]).catch((error) => {
+    void httpServer.close().catch((error) => {
       logger.error("mcp.shutdown.error", {
         event: "mcp.shutdown.error",
         errorName: error instanceof Error ? error.name : "UnknownError",
