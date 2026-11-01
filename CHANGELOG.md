@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-01
+
 ### Fixed
 
 - リリース準備で必要なUnreleased比較リンクを定義し、release-automateによる次版の確定を可能にした。
@@ -208,4 +210,5 @@
 - Internal API module stubs
 - CI workflow, Dockerfile, and configuration files
 
-[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/scottlz0310/thread-owl/compare/v0.8.0...v0.9.0
