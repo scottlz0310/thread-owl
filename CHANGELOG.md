@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- リリース準備で必要なUnreleased比較リンクを定義し、release-automateによる次版の確定を可能にした。
+
 ### Removed
 
 - 廃案となった認証付き内部連携の専用候補受付・SQLite台帳・結果配送・candidate束縛・専用設定と共通契約を撤去した。既存queue/review status・Appによる投稿/固定HEADのVerdictと投稿者検証済みreaderは維持する。
@@ -203,3 +207,5 @@
 - MCP server and tools module stubs
 - Internal API module stubs
 - CI workflow, Dockerfile, and configuration files
+
+[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.8.0...HEAD
