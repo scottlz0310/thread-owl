@@ -1,8 +1,0 @@
-{
-  "schemaVersion": 1,
-  "error": {
-    "code": "HEAD_CONFLICT",
-    "message": "expectedHeadSha does not match the current PR head",
-    "retryable": false
-  }
-}

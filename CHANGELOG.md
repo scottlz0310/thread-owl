@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Removed
+
+- 廃案となった認証付き内部連携の専用候補受付・SQLite台帳・結果配送・candidate束縛・専用設定と共通契約を撤去した。既存queue/review status・Appによる投稿/固定HEADのVerdictと投稿者検証済みreaderは維持する。
+
 ### Changed
 
 - リリース共通workflowをrelease-automate v3.2.1へ更新し、準備時の比較元に対象版以上の旧系列タグを選ばない修正を取り込んだ。

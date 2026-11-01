@@ -1,9 +1,0 @@
-{
-  "base": "basic",
-  "patch": [
-    {
-      "op": "remove",
-      "path": "/candidateId"
-    }
-  ]
-}

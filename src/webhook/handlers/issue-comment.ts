@@ -8,7 +8,6 @@ import {
   pullRequestOrigin,
 } from "../../policy/author-policy.js";
 import type { ReviewQueue } from "../../queue/review-queue.js";
-import type { CandidateIngest } from "../../review-cycle/ingest.js";
 import type { NormalizedEvent } from "../normalize-event.js";
 import { isRecord } from "../utils.js";
 
@@ -22,7 +21,6 @@ export interface IssueCommentHandlerDeps {
   getPullRequest: (owner: string, repo: string, prNumber: number) => Promise<PullRequest>;
   appSlug: string;
   // review-raven の共通受付へ渡す記録（内部面と配送を設定したときだけ）。旧経路の queue への投入はそのまま行う。
-  ingest?: CandidateIngest;
 }
 
 export type CommenterRejection =
@@ -105,10 +103,8 @@ export async function handleIssueCommentEvent(
   const commenterRejection = evaluateCommenter(deps.allowedAuthors, commenterLogin);
   let rejection: CommentOriginRejection | null = commenterRejection;
   let prAuthorLogin: string | null | undefined;
-  let headSha: string | undefined;
   if (commenterRejection === null) {
     const pr = await deps.getPullRequest(owner, repo, prNumber);
-    headSha = pr.head.sha;
     const origin = pullRequestOrigin(pr);
     prAuthorLogin = origin.authorLogin;
     const decision = evaluatePullRequestOrigin(deps.allowedAuthors, origin);
@@ -139,21 +135,6 @@ export async function handleIssueCommentEvent(
     sourceCommentId,
     requestedBy,
   });
-
-  if (deps.ingest && headSha !== undefined) {
-    deps.ingest.record({
-      sourceId:
-        sourceCommentId === undefined
-          ? `delivery:${event.deliveryId}`
-          : `comment:${sourceCommentId}`,
-      owner: owner.toLowerCase(),
-      repo: repo.toLowerCase(),
-      prNumber,
-      headSha,
-      reason: "re-review-requested",
-      delivery: "comment",
-    });
-  }
 
   deps.logger.info("webhook.issue_comment.re_review_queued", {
     event: "webhook.issue_comment.re_review_queued",

@@ -161,10 +161,6 @@ Claude Code / agent workflow
 - **MCP transport 分離**: `createMcpServer` は transport 非依存とし、stdio は `serveStdio`、Streamable HTTP は `createMcpHandler` に渡す factory として再利用する
 - **MCP は stateless**: Streamable HTTP に protocol-level session（`Mcp-Session-Id`）を持たせない。SDK が request/stream 単位でライフサイクルを管理するため、Thread Owl 側に session map は存在しない
 - **Streamable HTTP は internal endpoint**: 既定は `127.0.0.1` bind。remote client からは caller 認証を担う mcp-gateway 経由で接続し、直接公開しない
-- **cycle の台帳は永続化し、結果の本文は持たない**: 候補の受付・取消記録・結果索引は SQLite（`node:sqlite`）に永続する。取消は未受理の cycle にも記録して旧候補の起動と投稿を拒否し、GitHub 書込みが進行中・結果不明の間は取消を確定しない。結果は GitHub 上の投稿への参照（コメント ID と URL）だけを持ち、本文や Verdict は複製しない。契約は review-raven の固定コミットのコピー（`src/contract/v1`、`MANIFEST.json` の sha256 で手元の改変を検出）を正とし、取り込み直しは `scripts/pin-contract.mjs` で行う
-- **内部面は公開面と別の MCP server・別のパスで提供する**: review-raven との service-to-service の tool（`accept_review_candidate` など）は、公開の `/mcp` とは別のパス（既定 `/internal/mcp`）の別の `McpServer` に載せ、agent 向けの `tools/list` に出さない。認証は gateway の identity（`X-Authenticated-User`）と共有 proxy secret の Bearer で行い、サービス主体と操作・対象 repo の認可は `THREAD_OWL_SERVICE_ACL` で決める。入力・失敗は契約 schema（エラー envelope）に従う
-- **raven 由来の候補も既存の review queue に載せる**: 内部面の `accept_review_candidate` は、旧経路と同じ in-memory queue に、`cycle`（candidateId・cycleId・round・HEAD）つきで候補を載せる。reviewer の起動・購読・Squirrel の busy 制御は旧経路と共通。cycle 付きの候補は旧経路の通知で置き換えず、queue の上限（100 件）で押し出さず（上限は旧経路の項目だけ。受付は台帳の未起動の候補数の上限で制限する）、取消で queue から外し、再起動時は永続台帳（受付済みで未起動・未取消）から再構築する
-- **結果の投稿は cycle に束縛し、投稿本文の相関マーカーで回復する**: 投稿 tool の任意の `candidateId` を指定すると、`ResultBinder` が、台帳の「書込み開始 → GitHub 投稿 → 結果の記録」で投稿を挟み、cycle・round・HEAD を候補に固定する（投稿時に現在の round を引き直さない）。本文の末尾に付ける相関マーカー（`cycleId`・`candidateId`・`writeId`・`kind` の HTML コメント）で、停止後に結果不明のまま残った書込みを GitHub 上の自身の投稿から照合して回復し、同じ投稿を再投稿しない。他者のマーカーは信用しない
 - **結果の通知は outbox で少なくとも 1 回届ける**: 結果を台帳に記録するのと同じトランザクションで `result_outbox` に積み、worker が review-raven の `publish_review_result` へ送る。再送するのは ACK 未受信の失敗だけで、上限（既定 8 回・指数バックオフ）で諦める。拒否（取消済み・期限切れ・権限・schema 競合）は再送せず記録し、別の経路へ自動で切り替えない
 - **webhook 由来の候補も raven の共通受付へ渡す（旧経路は維持する）**: webhook の `pull_request`・再レビュー依頼の `issue_comment` は、旧経路の queue へ投入した後に、台帳の `ingest_outbox` へ `sourceId` で冪等に記録し、結果の通知と同じ worker で `ingest_review_candidate` へ送る。raven が cycle を作って候補を送り返し、cycle 付きの項目が旧経路の項目を置き換える。記録の失敗は webhook を失敗させ、再配信に任せる
 - **台帳の保持期限は表ごとに独立した時計で数える**: 取消記録は確定した時刻、結果索引は投稿の時刻、outbox は送信を終えた時刻から数える。要求中の取消と送信待ちの通知、進行中の書込みを持つ候補は、期限を過ぎても削除しない（旧候補の起動・投稿の拒否と、通知の配送を失わないため）
@@ -173,3 +169,9 @@ Claude Code / agent workflow
 - **resolve は修正側の責務とする**: Thread Owl はレビュアー側 GitHub App であり、スレッドの resolve は PR author または repository write access を持つ修正側の MCP が行う
 - **subscription 状態を自前で持たない**: 購読の受け付けと通知の宛先管理は SDK（`subscriptions/listen`）の責務とし、Thread Owl は `ServerNotifier.resourceUpdated(uri)` を呼ぶだけにする。`ReviewQueue` の `onEnqueue` / `onReReviewRequested` と `ReviewStatusStore` の `onUpdated` フックを `src/index.ts` で notifier に接続する
 - **Thread Owl は subscribe される側**: subscription client / watcher CLI を内蔵しない。長期待機と通知受信は `mcp-resource-subscriber` に委譲する
+
+## 内部連携の廃止（2026-11-01）
+
+利用者決定により、review-ravenとの認証付き内部候補受付・台帳・outbox・結果配送・相関マーカーは廃案とし撤去した。App名義のPR投稿とreaderでの投稿者検証、Squirrelの同一PC公開状態、既存queue/review statusによる待機を維持する。gateway向けの既存token-source（internal-api）とwebhook受信は別機能のため残す。新アカウントやサービス用資格情報を要求しない。
+
+共通契約は投稿者検証済みreaderだけをsrc/contract/v1/readerへ固定し、既存のsource commit/hash検証を維持する。旧内部連携契約のschema/fixtureは撤去した。

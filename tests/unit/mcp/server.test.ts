@@ -127,13 +127,17 @@ describe("runTool", () => {
     });
   });
 
-  it("失敗時は isError と error.message を返す", async () => {
+  test.each([
+    { failure: new Error("boom"), expected: "boom" },
+    { failure: "外部ライブラリの失敗", expected: "外部ライブラリの失敗" },
+    { failure: null, expected: "null" },
+  ])("失敗値を正常応答にせずtextで返す: $expected", async ({ failure, expected }) => {
     const result = await runTool(async () => {
-      throw new Error("boom");
+      throw failure;
     });
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toBe("boom");
+    expect(result.content[0]).toEqual({ type: "text", text: expected });
   });
 });
 
@@ -381,5 +385,37 @@ describe("createMcpServer — review status resource", () => {
 
     await client.close();
     await server.close();
+  });
+});
+
+describe("撤去したcandidate束縛の拒否", () => {
+  test.each([
+    { name: "post_summary_comment", input: { body: "summary", headSha: "a".repeat(40) } },
+    { name: "post_review_verdict", input: { summary: "summary", headSha: "a".repeat(40) } },
+    { name: "approve_pull_request", input: { expectedHeadSha: "a".repeat(40) } },
+  ])("$nameは旧candidateIdを含む入力で投稿しない", async ({ name, input }) => {
+    const deps = makeDeps();
+    const server = createMcpServer(deps, { name: "test", version: "1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "test-client", version: "1" });
+    await client.connect(clientTransport);
+    try {
+      const result = await client.callTool({
+        name,
+        arguments: {
+          owner: "org",
+          repo: "repo",
+          prNumber: 1,
+          ...input,
+          candidateId: `cand_${"a".repeat(26)}`,
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(deps.getWriteContext).not.toHaveBeenCalled();
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 });
