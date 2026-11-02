@@ -9,7 +9,7 @@ import * as tokenSource from "../../../src/internal-api/token-source.js";
 import { buildToolDeps } from "../../../src/mcp/tool-deps.js";
 
 const issueTokenDeps = {
-  config: { policy: { allowedRepos: ["o/r"] } },
+  config: { github: { appId: "123" }, policy: { allowedRepos: ["o/r"] } },
   logger: { info: vi.fn() },
 } as unknown as IssueTokenDeps;
 
@@ -41,6 +41,7 @@ describe("buildToolDeps", () => {
       access: "write",
     });
     expect(ctx.client).toBe(fakeClient);
+    expect(ctx.appId).toBe("123");
     expect(ctx.allowedRepos).toEqual(["o/r"]);
     expect(ctx.logger).toBe(issueTokenDeps.logger);
   });

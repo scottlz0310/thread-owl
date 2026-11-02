@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 const MAX_TRACKED_PULL_REQUESTS = 100;
 
 export interface PullRequestRef {
@@ -8,9 +10,19 @@ export interface PullRequestRef {
 
 export interface ReviewStatus extends PullRequestRef {
   headSha: string | null;
-  status: "pending" | "reviewed" | "approved";
+  status: "pending" | "reviewed" | "approved" | "stopped";
+  attemptId: string | null;
+  attemptHeadSha: string | null;
+  stop?: ReviewStop;
   summaryCommentId: number | null;
   updatedAt: Date;
+}
+
+export interface ReviewStop {
+  notificationId: string;
+  commentId: number;
+  code: string;
+  currentHeadSha: string;
 }
 
 /** markPending ごとに払い出すラウンド識別子。一度も pending にしていない PR は undefined。 */
@@ -18,7 +30,11 @@ export type ReviewRound = number | undefined;
 
 export interface ReviewStatusStore {
   /** 過去ラウンドの完了状態で購読側が即時誤検知しないよう、新しいラウンドとして初期化する。listener は呼ばない。 */
-  markPending(pr: PullRequestRef): void;
+  markPending(pr: PullRequestRef, headSha?: string): void;
+  markStopped(
+    pr: PullRequestRef,
+    update: { attemptId: string; headSha: string; stop: ReviewStop },
+  ): boolean;
   /** 完了更新の対象ラウンドを、GitHub への書き込み開始前に捕捉するために使う。 */
   currentRound(pr: PullRequestRef): ReviewRound;
   /** round が現在のラウンドと異なる（途中で markPending された）場合は更新せず false を返す。 */
@@ -30,7 +46,7 @@ export interface ReviewStatusStore {
   markApproved(pr: PullRequestRef, update: { headSha: string; round: ReviewRound }): boolean;
   get(pr: PullRequestRef): ReviewStatus | undefined;
   list(): ReviewStatus[];
-  /** reviewed / approved の記録時に呼ばれる listener を登録する。戻り値は解除関数。 */
+  /** reviewed / approved / stopped の記録時に呼ばれる listener を登録する。戻り値は解除関数。 */
   onUpdated(listener: (status: ReviewStatus) => void): () => void;
 }
 
@@ -69,7 +85,7 @@ export function createReviewStatusStore(): ReviewStatusStore {
   }
 
   return {
-    markPending({ owner, repo, prNumber }) {
+    markPending({ owner, repo, prNumber }, headSha) {
       lastRound += 1;
       save({
         status: {
@@ -78,6 +94,8 @@ export function createReviewStatusStore(): ReviewStatusStore {
           prNumber,
           headSha: null,
           status: "pending",
+          attemptId: randomUUID(),
+          attemptHeadSha: headSha ?? null,
           summaryCommentId: null,
           updatedAt: new Date(),
         },
@@ -87,8 +105,24 @@ export function createReviewStatusStore(): ReviewStatusStore {
     currentRound(pr) {
       return items.get(prKey(pr))?.round;
     },
+    markStopped(pr, { attemptId, headSha, stop }) {
+      const current = items.get(prKey(pr));
+      if (
+        current?.status.status !== "pending" ||
+        current.status.attemptId !== attemptId ||
+        current.status.attemptHeadSha !== headSha
+      )
+        return false;
+      complete({
+        round: current.round,
+        status: { ...current.status, status: "stopped", headSha, stop, updatedAt: new Date() },
+      });
+      return true;
+    },
     markReviewed({ owner, repo, prNumber }, { summaryCommentId, headSha, round }) {
       if (items.get(prKey({ owner, repo, prNumber }))?.round !== round) return false;
+      const current = items.get(prKey({ owner, repo, prNumber }));
+      if (current?.status.status === "stopped") return false;
       complete({
         status: {
           owner,
@@ -96,6 +130,8 @@ export function createReviewStatusStore(): ReviewStatusStore {
           prNumber,
           headSha: headSha ?? null,
           status: "reviewed",
+          attemptId: current?.status.attemptId ?? null,
+          attemptHeadSha: current?.status.attemptHeadSha ?? null,
           summaryCommentId,
           updatedAt: new Date(),
         },
@@ -106,6 +142,7 @@ export function createReviewStatusStore(): ReviewStatusStore {
     markApproved(pr, { headSha, round }) {
       const current = items.get(prKey(pr));
       if (current?.round !== round) return false;
+      if (current?.status.status === "stopped") return false;
       complete({
         status: {
           owner: pr.owner,
@@ -113,6 +150,8 @@ export function createReviewStatusStore(): ReviewStatusStore {
           prNumber: pr.prNumber,
           headSha,
           status: "approved",
+          attemptId: current?.status.attemptId ?? null,
+          attemptHeadSha: current?.status.attemptHeadSha ?? null,
           // 同一ラウンドで投稿済みのサマリーコメントは approve 後も参照できるよう引き継ぐ。
           summaryCommentId: current?.status.summaryCommentId ?? null,
           updatedAt: new Date(),

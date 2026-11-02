@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { GitHubClient } from "../../github/client.js";
 import { getPR, getPRFiles } from "../../github/pull-requests.js";
+import { createReviewStatusStore } from "../../queue/review-status.js";
 import type { ToolDeps } from "../tool-deps.js";
 import { getPrTool } from "./get-pr.js";
 
@@ -43,6 +44,19 @@ function makeDeps(allowedAuthors: readonly string[]): ToolDeps {
 const input = { owner: "org", repo: "repo", prNumber: 1 };
 
 describe("getPrTool", () => {
+  test("開始時のattemptをfilesより前に公開し、read中の次enqueueに置換しない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    reviewStatus.markPending(input, "headsha");
+    const attemptId = reviewStatus.get(input)?.attemptId;
+    vi.mocked(getPR).mockImplementationOnce(async () => {
+      reviewStatus.markPending(input, "headsha");
+      return makePR("alice");
+    });
+    vi.mocked(getPRFiles).mockResolvedValue([]);
+    const result = await getPrTool({ ...makeDeps(["alice"]), reviewStatus }, input);
+    expect(result.reviewAttempt).toEqual({ attemptId, headSha: "headsha", status: "pending" });
+    expect(result.reviewAttempt?.attemptId).not.toBe(reviewStatus.get(input)?.attemptId);
+  });
   test.each([
     { name: "許可された作成者", author: "alice", expected: { allowed: true } },
     {
@@ -66,7 +80,7 @@ describe("getPrTool", () => {
 
     const result = await getPrTool(makeDeps(["alice"]), input);
 
-    expect(Object.keys(result)).toEqual(["pr", "origin", "files"]);
+    expect(Object.keys(result)).toEqual(["pr", "origin", "reviewAttempt", "files"]);
     const json = JSON.stringify(result);
     expect(json.indexOf('"origin"')).toBeLessThan(json.indexOf('"files"'));
     // 大きな files を含んでも、origin は応答の先頭側（先頭 2KB 以内）にある

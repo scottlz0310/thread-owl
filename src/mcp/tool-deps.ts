@@ -34,6 +34,7 @@ export function buildToolDeps(deps: IssueTokenDeps): ToolDeps {
   return {
     getClient,
     getWriteContext: async (owner, repo) => ({
+      appId: deps.config.github.appId,
       client: await createTokenClient(owner, repo, "write"),
       allowedRepos: deps.config.policy.allowedRepos,
       logger: deps.logger,

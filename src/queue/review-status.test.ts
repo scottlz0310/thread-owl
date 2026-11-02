@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   createReviewStatusStore,
   type ReviewStatus,
@@ -8,6 +8,55 @@ import {
 const pr = { owner: "org", repo: "repo", prNumber: 1 };
 
 describe("createReviewStatusStore", () => {
+  test("同HEADの再enqueueと再起動でもattemptIdを再利用しない", () => {
+    const store = createReviewStatusStore();
+    store.markPending(pr, "abc");
+    const first = store.get(pr)?.attemptId;
+    store.markPending(pr, "abc");
+    const restarted = createReviewStatusStore();
+    restarted.markPending(pr, "abc");
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(store.get(pr)?.attemptId).not.toBe(first);
+    expect(restarted.get(pr)?.attemptId).not.toBe(first);
+  });
+
+  test("停止後は同一roundの完了更新を拒否し、次enqueueでのみ再開する", () => {
+    const store = createReviewStatusStore();
+    store.markPending(pr, "abc");
+    const attemptId = store.get(pr)?.attemptId as string;
+    const round = store.currentRound(pr);
+    expect(
+      store.markStopped(pr, {
+        attemptId,
+        headSha: "abc",
+        stop: { notificationId: "n", commentId: 1, code: "STALE_REVIEW", currentHeadSha: "def" },
+      }),
+    ).toBe(true);
+    expect(store.markReviewed(pr, { round, summaryCommentId: 2 })).toBe(false);
+    expect(store.markApproved(pr, { round, headSha: "abc" })).toBe(false);
+    expect(store.get(pr)?.status).toBe("stopped");
+    store.markPending(pr, "abc");
+    expect(store.get(pr)).toMatchObject({ status: "pending", summaryCommentId: null });
+    expect(store.get(pr)?.stop).toBeUndefined();
+  });
+
+  test.each(["head", "attempt", "completed"])("markStoppedは%s不一致を通知しない", (kind) => {
+    const store = createReviewStatusStore();
+    store.markPending(pr, "abc");
+    const attemptId = store.get(pr)?.attemptId as string;
+    if (kind === "completed")
+      store.markApproved(pr, { round: store.currentRound(pr), headSha: "abc" });
+    const listener = vi.fn();
+    store.onUpdated(listener);
+    expect(
+      store.markStopped(pr, {
+        attemptId: kind === "attempt" ? "other" : attemptId,
+        headSha: kind === "head" ? "other" : "abc",
+        stop: { notificationId: "n", commentId: 1, code: "STALE_REVIEW", currentHeadSha: "def" },
+      }),
+    ).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+  });
   test("markPending は headSha / summaryCommentId を null で初期化する", () => {
     const store = createReviewStatusStore();
 
