@@ -38,10 +38,11 @@ async function readOrigin(
   owner: string,
   repo: string,
   prNumber: number,
-): Promise<PullRequestOrigin> {
-  if (deps.allowedAuthors.length === 0) return { authorLogin: null, fork: null };
+): Promise<{ origin: PullRequestOrigin; headSha?: string }> {
+  if (deps.allowedAuthors.length === 0) return { origin: { authorLogin: null, fork: null } };
   const client = await deps.getClient(owner, repo);
-  return pullRequestOrigin(await getPR(client, owner, repo, prNumber));
+  const pr = await getPR(client, owner, repo, prNumber);
+  return { origin: pullRequestOrigin(pr), headSha: pr.head.sha };
 }
 
 export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: EnqueueReviewInput) {
@@ -53,7 +54,7 @@ export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: Enqu
 
   // queue に載せる前に、PR を取得して作成者・fork を照合する。allowlist が空（未設定）なら、PR を取得せずに拒否する。
   // 取得に失敗したら例外のまま伝播し、enqueue しない（fail-closed）。
-  const origin = await readOrigin(deps, owner, repo, prNumber);
+  const { origin, headSha } = await readOrigin(deps, owner, repo, prNumber);
   const { authorLogin } = origin;
   const decision = evaluatePullRequestOrigin(deps.allowedAuthors, origin);
   if (!decision.allowed) {
@@ -71,6 +72,8 @@ export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: Enqu
 
   const installationId = await deps.resolveInstallationId(owner, repo);
 
+  // enqueue listener が新しいラウンドを観測できるよう、通知より先に初期化する。
+  deps.reviewStatus?.markPending({ owner, repo, prNumber }, headSha);
   deps.queue.enqueue({
     owner,
     repo,
@@ -80,7 +83,6 @@ export async function enqueueReviewTool(deps: EnqueueReviewToolDeps, input: Enqu
     reason,
     ...(reason === "re-review-requested" && requestedBy !== undefined ? { requestedBy } : {}),
   });
-  deps.reviewStatus?.markPending({ owner, repo, prNumber });
 
   return { ok: true };
 }

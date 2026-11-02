@@ -27,6 +27,11 @@ import {
   postInlineCommentTool,
 } from "./tools/post-inline-comment.js";
 import {
+  POST_REVIEW_STOP_TOOL_NAME,
+  postReviewStopInputSchema,
+  postReviewStopTool,
+} from "./tools/post-review-stop.js";
+import {
   POST_REVIEW_VERDICT_TOOL_NAME,
   postReviewVerdictInputSchema,
   postReviewVerdictTool,
@@ -161,6 +166,16 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
   );
 
   server.registerTool(
+    POST_REVIEW_STOP_TOOL_NAME,
+    {
+      description:
+        "検証可能なreviewer中断をAppコメントとstoppedで通知する。通常完了ではない。結果不明時は再送しない",
+      inputSchema: z.strictObject(postReviewStopInputSchema),
+    },
+    (args) => runTool(() => postReviewStopTool(deps, args)),
+  );
+
+  server.registerTool(
     POST_INLINE_COMMENT_TOOL_NAME,
     {
       description: "PR にインラインレビューコメントを投稿する（allowlist 内のみ）",
@@ -238,7 +253,7 @@ export function createMcpServer(deps: McpServerDeps, options: McpServerOptions):
           uriTemplate: REVIEW_STATUS_URI_TEMPLATE,
           name: "Review Status",
           description:
-            "PR 単位のレビュー状態。enqueue_review で pending に初期化され、post_summary_comment（reviewed）/ approve_pull_request（approved）で notifications/resources/updated が push される。",
+            "PR 単位のレビュー状態。enqueue_reviewでpendingとattemptIdを初期化。summary/Verdictでreviewed、承認でapproved、中断通知でstopped。stoppedは正常完了ではない。更新をpushする。",
           mimeType: JSON_MIME_TYPE,
         },
       ],

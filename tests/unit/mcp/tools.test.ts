@@ -49,6 +49,7 @@ describe("MCP tools", () => {
     expect(pullRequests.getPR).toHaveBeenCalledWith(client, "o", "r", 7);
     expect(result).toEqual({
       pr,
+      reviewAttempt: null,
       files: [],
       origin: { allowed: false, reason: "author_allowlist_empty" },
     });

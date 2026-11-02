@@ -5,6 +5,7 @@ import type { GitHubClient } from "./client.js";
 
 // write 操作の共通コンテキスト。将来 policy / audit / dryRun を足せるよう単純に保つ。
 export interface WriteContext {
+  appId?: string;
   client: GitHubClient;
   allowedRepos: readonly string[];
   logger: Logger;

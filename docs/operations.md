@@ -498,12 +498,16 @@ bunx mcp-resource-subscriber   --url http://localhost:3000/mcp   --uri review://
 }
 ```
 
-| 呼び出し               | `status`                                             | `headSha`                         | 通知   |
-| ---------------------- | ---------------------------------------------------- | --------------------------------- | ------ |
-| `enqueue_review`       | `pending`（`summaryCommentId` も `null` にリセット） | `null`                            | しない |
-| `post_summary_comment` | `reviewed`                                           | 入力の `headSha`（省略時 `null`） | する   |
-| `post_review_verdict`  | `reviewed`                                           | 照合済みの `headSha`              | する   |
-| `approve_pull_request` | `approved`（直前の `summaryCommentId` を引き継ぐ）   | 照合済みの `expectedHeadSha`      | する   |
+| 呼び出し               | `status`                                             | `headSha`                         | 通知                          |
+| ---------------------- | ---------------------------------------------------- | --------------------------------- | ----------------------------- |
+| `enqueue_review`       | `pending`（`summaryCommentId` も `null` にリセット） | `null`                            | しない                        |
+| `post_summary_comment` | `reviewed`                                           | 入力の `headSha`（省略時 `null`） | する                          |
+| `post_review_verdict`  | `reviewed`                                           | 照合済みの `headSha`              | する                          |
+| `approve_pull_request` | `approved`（直前の `summaryCommentId` を引き継ぐ）   | 照合済みの `expectedHeadSha`      | する                          |
+| `post_review_stop`     | `stopped`（通常完了ではない）                        | 中断した対象の `reviewedHeadSha`  | queuedかつ同attemptの場合のみ |
+
+`attemptId`・`attemptHeadSha`はenqueue時に固定する追加フィールド。`get_pr.reviewAttempt`からreviewerにも開始時の値を返す。中断通知の入力・重複照合・結果不明・直接CLI・購読側の停止判断は[reviewer中断通知の契約](review-stop-contract.md)を参照する。`stopped`はレビュー完了ではなく、正常完了と同じURIに届いても待機を中断する。
+
 - **`enqueue_review` の直後に subscriber を起動する**。`resources/list` には状態を保持している PR だけが載るため、
   enqueue 前に起動すると `RESOURCE_NOT_FOUND` になる。`pending` 初期化は過去ラウンドの `reviewed` / `approved` による誤検知を防ぐ
 - `post_summary_comment` / `post_review_verdict` / `approve_pull_request` の GitHub への書き込みが終わる前に `enqueue_review` で次ラウンドが始まった場合、その完了は古いラウンドのものとして**記録も通知もしない**（新ラウンドの `pending` を上書きして誤検知させないため）

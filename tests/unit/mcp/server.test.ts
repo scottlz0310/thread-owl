@@ -107,6 +107,7 @@ describe("createMcpServer", () => {
       "read_pr_comments",
       "post_summary_comment",
       "post_review_verdict",
+      "post_review_stop",
       "post_inline_comment",
       "reply_review_thread",
       "approve_pull_request",

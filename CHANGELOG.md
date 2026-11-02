@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- reviewerの中断を通常完了と区別する`post_review_stop`と`stopped`状態を追加した。enqueue時のattemptIdとHEADを開始時metadataへ公開し、旧attempt・次enqueue・既存正常完了の保護、App投稿の重複確認と結果不明時の再送禁止を行う。利用にはMcp-Dockerの対応skillと段階配備が必要。
+
 ## [0.10.0] - 2026-11-02
 
 ### Fixed
