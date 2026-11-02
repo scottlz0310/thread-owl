@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-02
+
 ### Added
 
 - `get_pr`に`includePatch`（既定`true`）を追加した。`false`では変更ファイルのpatchを省き、`patchesOmitted: true`を返すことで、大きなPRでもmetadataとファイル一覧を小さく取得できる。
@@ -226,7 +228,8 @@
 - Internal API module stubs
 - CI workflow, Dockerfile, and configuration files
 
-[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/scottlz0310/thread-owl/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/scottlz0310/thread-owl/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/scottlz0310/thread-owl/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/scottlz0310/thread-owl/compare/v0.8.0...v0.9.0
