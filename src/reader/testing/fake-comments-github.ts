@@ -47,6 +47,7 @@ export interface FakeCommentsOptions {
   projectFile?: string | null | Error;
   // 問い合わせの種類と、その種類で何回目かから、PR の head を返す。
   headFor?: (kind: string, call: number) => string;
+  refsFor?: (kind: string, call: number) => Record<string, unknown>;
 }
 
 export interface GraphqlRequest {
@@ -57,6 +58,7 @@ export interface GraphqlRequest {
 export const HEAD_A = "1".repeat(40);
 export const HEAD_B = "3".repeat(40);
 export const BASE_A = "2".repeat(40);
+export const POLICY_A = "4".repeat(40);
 
 function strip(value: unknown): void {
   if (Array.isArray(value)) {
@@ -97,7 +99,17 @@ export function createFakeCommentsGitHub(options: FakeCommentsOptions = {}) {
           : "issues";
     const call = calls[kind] ?? 0;
     calls[kind] = call + 1;
-    const refs = { headRefOid: options.headFor?.(kind, call) ?? HEAD_A, baseRefOid: BASE_A };
+    const refs = {
+      headRefOid: options.headFor?.(kind, call) ?? HEAD_A,
+      baseRefOid: BASE_A,
+      baseRefName: "main",
+      baseRef: {
+        name: "main",
+        prefix: "refs/heads/",
+        target: { __typename: "Commit", oid: POLICY_A },
+      },
+      ...options.refsFor?.(kind, call),
+    };
 
     let data: unknown;
     if (kind === "threads") {

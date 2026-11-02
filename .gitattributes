@@ -6,4 +6,4 @@
 *.jpg binary
 *.ico binary
 # 取り込んだ契約は元のバイト列のまま扱う（改行の変換でずれ検出の sha256 が変わらないようにする）
-src/contract/v1/** -text
+src/contract/v2/** -text

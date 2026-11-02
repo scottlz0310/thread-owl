@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.review-raven.example/contracts/v1/reader/read_pr_comments.error.schema.json",
+  "$id": "https://schemas.review-raven.example/contracts/v2/reader/read_pr_comments.error.schema.json",
   "title": "ReadPRCommentsError",
   "description": "reader のゲートが止まったときのエラー応答。コメント本文は含めない。details.comments は、止めたコメントの種別・ID・投稿者・URL だけ。",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "error"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "error": {
       "type": "object",
       "additionalProperties": false,
@@ -19,7 +19,8 @@
             "AUTHOR_CHECK_FAILED",
             "TRUSTED_AUTHORS_NOT_CONFIGURED",
             "PROJECT_ALLOWLIST_INVALID",
-            "SNAPSHOT_CHANGED"
+            "SNAPSHOT_CHANGED",
+            "POLICY_REF_UNAVAILABLE"
           ]
         },
         "message": { "type": "string", "minLength": 1, "maxLength": 500 },

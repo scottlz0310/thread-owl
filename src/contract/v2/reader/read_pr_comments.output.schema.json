@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.review-raven.example/contracts/v1/reader/read_pr_comments.output.schema.json",
+  "$id": "https://schemas.review-raven.example/contracts/v2/reader/read_pr_comments.output.schema.json",
   "title": "ReadPRCommentsOutput",
   "description": "投稿者検証を通過した PR のコメント本文。メタデータ全ページ→canonical allowlist 照合→本文取得をツール側で強制した結果だけを返し、検証後に追加・編集されたコメントを含む snapshot は返さない。",
   "type": "object",
@@ -10,6 +10,8 @@
     "snapshotId",
     "headSha",
     "baseSha",
+    "baseRefName",
+    "policyBaseSha",
     "allowlist",
     "threads",
     "reviews",
@@ -18,14 +20,16 @@
     "pagination"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "snapshotId": {
-      "description": "検証した snapshot の識別子（SHA-256 の 16 進）。後の再読で値が変われば、コメント・投稿者・編集・head のいずれかが変わっている。",
+      "description": "検証したsnapshotの識別子（SHA-256の16進）。コメント・投稿者・編集・PR参照・宣言元の変化を検出する。",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
     "headSha": { "$ref": "#/$defs/sha" },
     "baseSha": { "$ref": "#/$defs/sha" },
+    "baseRefName": { "type": "string", "minLength": 1 },
+    "policyBaseSha": { "$ref": "#/$defs/sha" },
     "allowlist": {
       "description": "適用した allowlist の件数。login 自体は含めない。",
       "type": "object",

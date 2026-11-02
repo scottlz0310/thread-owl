@@ -13,7 +13,7 @@ if (!source || !/^[0-9a-f]{40}$/.test(commit ?? "")) {
   process.exit(2);
 }
 
-const target = fileURLToPath(new URL("../src/contract/v1", import.meta.url));
+const target = fileURLToPath(new URL("../src/contract/v2", import.meta.url));
 rmSync(target, { recursive: true, force: true });
 mkdirSync(target, { recursive: true });
 

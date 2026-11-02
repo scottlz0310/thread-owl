@@ -1,0 +1,13 @@
+{
+  "source": {
+    "repository": "scottlz0310/review-raven",
+    "path": "docs/design/contracts",
+    "commit": "55912e36edd841578e557fa6888345d73537ac61"
+  },
+  "files": {
+    "reader/README.md": "9379913c0deb22f030a28a26d3d5a1f447f14686b22692bf73b4e993973c3885",
+    "reader/read_pr_comments.error.schema.json": "a0dda152b41427755e47185919c8b684b4c3215bac9941af2e46c860cfb01841",
+    "reader/read_pr_comments.output.schema.json": "ec30d9f6e0a2513e5b849c3dd32fe9932b15d4da8f29405c386dd9dedbc541c3",
+    "reader/scenarios.json": "bd2245778f281e23c4b9c9e3fb93d2627bfc6472376ebbbc6a4c5584c79c9c09"
+  }
+}

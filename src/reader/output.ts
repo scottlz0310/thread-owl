@@ -31,10 +31,12 @@ export interface OutputThread {
 }
 
 export interface ReaderOutput {
-  schemaVersion: 1;
+  schemaVersion: 2;
   snapshotId: string;
   headSha: string;
   baseSha: string;
+  baseRefName: string;
+  policyBaseSha: string;
   allowlist: AllowlistInfo;
   threads: OutputThread[];
   reviews: OutputComment[];
@@ -44,7 +46,7 @@ export interface ReaderOutput {
 }
 
 export interface ErrorEnvelope {
-  schemaVersion: 1;
+  schemaVersion: 2;
   error: {
     code: string;
     message: string;
@@ -83,6 +85,8 @@ export function toOutput(result: ReaderResult): ReaderOutput {
     snapshotId: result.snapshotId,
     headSha: s.headSha,
     baseSha: s.baseSha,
+    baseRefName: s.baseRefName,
+    policyBaseSha: s.policyBaseSha,
     allowlist: result.allowlist,
     threads: s.threads.map((t) => ({
       id: t.id,

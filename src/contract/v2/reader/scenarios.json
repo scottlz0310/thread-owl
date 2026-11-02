@@ -68,7 +68,9 @@
               "line": 10,
               "path": "main.go"
             }
-          ]
+          ],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -124,7 +126,9 @@
               "line": 10,
               "path": "main.go"
             }
-          ]
+          ],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "all-trusted",
@@ -174,7 +178,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -200,7 +206,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "login-normalization",
@@ -259,7 +267,9 @@
               "line": 10,
               "path": "main.go"
             }
-          ]
+          ],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "untrusted-thread-comment",
@@ -301,7 +311,9 @@
               "url": "https://github.com/o/r/pull/1#c202"
             }
           ],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "untrusted-review-body",
@@ -342,7 +354,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "untrusted-issue-comment",
@@ -392,7 +406,9 @@
               "line": 10,
               "path": "main.go"
             }
-          ]
+          ],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "resolved-thread-is-checked",
@@ -433,7 +449,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "author-unknown",
@@ -494,7 +512,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "lookalike-logins",
@@ -554,7 +574,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -571,7 +593,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "project-allowlist-adds",
@@ -615,7 +639,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "project-allowlist-absent",
@@ -653,7 +679,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "project-allowlist-invalid",
@@ -694,7 +722,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -720,7 +750,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -746,7 +778,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -772,7 +806,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "trusted-comment-added-after-check",
@@ -813,7 +849,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -839,7 +877,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -865,7 +905,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "untrusted-comment-added-after-check",
@@ -905,7 +947,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -922,7 +966,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -939,7 +985,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -956,7 +1004,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "comment-edited-after-check",
@@ -997,7 +1047,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1014,7 +1066,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1031,7 +1085,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "author-changed-after-check",
@@ -1071,7 +1127,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1088,7 +1146,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1105,7 +1165,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1122,7 +1184,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "head-moved-during-read",
@@ -1165,7 +1229,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1182,7 +1248,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "paging-detected-pr-move",
@@ -1231,7 +1299,9 @@
               "line": 10,
               "path": "main.go"
             }
-          ]
+          ],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1257,7 +1327,9 @@
               "line": 10,
               "path": "main.go"
             }
-          ]
+          ],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "resolution-change-is-not-stale",
@@ -1295,7 +1367,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1321,7 +1395,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1338,7 +1414,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1364,7 +1442,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1381,7 +1461,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         },
         {
           "baseSha": "2222222222222222222222222222222222222222",
@@ -1407,7 +1489,9 @@
             }
           ],
           "reviews": [],
-          "threads": []
+          "threads": [],
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444"
         }
       ],
       "name": "snapshot-never-stable",
@@ -1420,7 +1504,596 @@
         "scottlz0310-user",
         "codecov"
       ]
+    },
+    {
+      "name": "現在branchで追加した投稿者を許可",
+      "description": "現在branchで追加した投稿者を許可",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "2222222222222222222222222222222222222222": {
+          "state": "present",
+          "logins": []
+        },
+        "4444444444444444444444444444444444444444": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "ok",
+        "fetchCalls": 2,
+        "bodyFetchCalls": 1,
+        "commentIds": [
+          "issue_comment:900"
+        ]
+      }
+    },
+    {
+      "name": "現在branchで取消した投稿者を本文取得前に拒否",
+      "description": "現在branchで取消した投稿者を本文取得前に拒否",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "2222222222222222222222222222222222222222": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        },
+        "4444444444444444444444444444444444444444": {
+          "state": "present",
+          "logins": []
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "error",
+        "fetchCalls": 1,
+        "bodyFetchCalls": 0,
+        "code": "UNTRUSTED_COMMENT",
+        "errorCommentIds": [
+          "issue_comment:900"
+        ]
+      }
+    },
+    {
+      "name": "方針変化後は最初から検証し取消を拒否",
+      "description": "方針変化後は最初から検証し取消を拒否",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "4444444444444444444444444444444444444444": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        },
+        "5555555555555555555555555555555555555555": {
+          "state": "present",
+          "logins": []
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "5555555555555555555555555555555555555555",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "5555555555555555555555555555555555555555",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "error",
+        "fetchCalls": 3,
+        "bodyFetchCalls": 1,
+        "code": "UNTRUSTED_COMMENT",
+        "errorCommentIds": [
+          "issue_comment:900"
+        ]
+      }
+    },
+    {
+      "name": "同じSHAでもbase branch変更を検出して再確認",
+      "description": "同じSHAでもbase branch変更を検出して再確認",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "4444444444444444444444444444444444444444": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "release/next",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "release/next",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "release/next",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "ok",
+        "fetchCalls": 4,
+        "bodyFetchCalls": 2,
+        "commentIds": [
+          "issue_comment:900"
+        ]
+      }
+    },
+    {
+      "name": "方針SHAが変わり続けると上限で停止",
+      "description": "方針SHAが変わり続けると上限で停止",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "4444444444444444444444444444444444444444": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        },
+        "5555555555555555555555555555555555555555": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        },
+        "6666666666666666666666666666666666666666": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        },
+        "7777777777777777777777777777777777777777": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "5555555555555555555555555555555555555555",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "5555555555555555555555555555555555555555",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "6666666666666666666666666666666666666666",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "6666666666666666666666666666666666666666",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        },
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "7777777777777777777777777777777777777777",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "error",
+        "fetchCalls": 6,
+        "bodyFetchCalls": 3,
+        "code": "SNAPSHOT_CHANGED",
+        "errorCommentIds": []
+      }
+    },
+    {
+      "name": "base branch不明は旧baseSHAへ代替せず停止",
+      "description": "base branch不明は旧baseSHAへ代替せず停止",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "2222222222222222222222222222222222222222": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "",
+          "policyBaseSha": "4444444444444444444444444444444444444444",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "error",
+        "fetchCalls": 1,
+        "bodyFetchCalls": 0,
+        "code": "POLICY_REF_UNAVAILABLE",
+        "errorCommentIds": []
+      }
+    },
+    {
+      "name": "宣言SHA不明は旧baseSHAへ代替せず停止",
+      "description": "宣言SHA不明は旧baseSHAへ代替せず停止",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "2222222222222222222222222222222222222222": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "error",
+        "fetchCalls": 1,
+        "bodyFetchCalls": 0,
+        "code": "POLICY_REF_UNAVAILABLE",
+        "errorCommentIds": []
+      }
+    },
+    {
+      "name": "不正な宣言SHAは本文取得前に停止",
+      "description": "不正な宣言SHAは本文取得前に停止",
+      "serverAllowlist": [
+        "thread-owl"
+      ],
+      "projectAllowlists": {
+        "2222222222222222222222222222222222222222": {
+          "state": "present",
+          "logins": [
+            "project-bot"
+          ]
+        }
+      },
+      "fetches": [
+        {
+          "headSha": "1111111111111111111111111111111111111111",
+          "baseSha": "2222222222222222222222222222222222222222",
+          "baseRefName": "main",
+          "policyBaseSha": "short",
+          "threads": [],
+          "reviews": [],
+          "issueComments": [
+            {
+              "id": "900",
+              "author": "project-bot",
+              "authorType": "Bot",
+              "url": "https://example.invalid/comment/900",
+              "createdAt": "2026-11-02T00:00:00Z",
+              "editedAt": null,
+              "body": "検証前に返してはいけない本文"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "error",
+        "fetchCalls": 1,
+        "bodyFetchCalls": 0,
+        "code": "POLICY_REF_UNAVAILABLE",
+        "errorCommentIds": []
+      }
     }
   ],
-  "schemaVersion": 1
+  "schemaVersion": 2
 }

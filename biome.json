@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!src/contract/v1"]
+    "includes": ["**", "!src/contract/v2"]
   },
   "assist": {
     "actions": {
