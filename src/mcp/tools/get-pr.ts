@@ -12,9 +12,10 @@ export const getPrInputSchema = {
   owner: z.string().min(1),
   repo: z.string().min(1),
   prNumber: z.number().int().positive(),
+  includePatch: z.boolean().default(true),
 };
 
-type GetPrInput = z.infer<z.ZodObject<typeof getPrInputSchema>>;
+type GetPrInput = z.input<z.ZodObject<typeof getPrInputSchema>>;
 
 export async function getPrTool(
   deps: ToolDeps & { reviewStatus?: ReviewStatusStore },
@@ -35,5 +36,19 @@ export async function getPrTool(
   const reviewAttempt = attempt?.attemptId
     ? { attemptId: attempt.attemptId, headSha: attempt.attemptHeadSha, status: attempt.status }
     : null;
+  if (input.includePatch === false) {
+    return {
+      pr,
+      origin,
+      reviewAttempt,
+      patchesOmitted: true,
+      files: files.map(({ filename, status, additions, deletions }) => ({
+        filename,
+        status,
+        additions,
+        deletions,
+      })),
+    };
+  }
   return { pr, origin, reviewAttempt, files };
 }
