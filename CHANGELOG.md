@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-02
+
 ### Fixed
 
 - 投稿者検証済みreaderの宣言をPR比較元SHAではなく現在のbase branch先頭から取得する。review-ravenの共有契約v2を固定して取り込み、baseRefName/policyBaseShaの出力・snapshotId・参照消失時の停止・取得中変動時の再検証を揃えた。両readerと両skillの対応版での移行が必要。
@@ -214,5 +216,6 @@
 - Internal API module stubs
 - CI workflow, Dockerfile, and configuration files
 
-[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/scottlz0310/thread-owl/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/scottlz0310/thread-owl/compare/v0.8.0...v0.9.0
