@@ -88,6 +88,45 @@ async function setupServerAndClient(
 }
 
 describe("createMcpServer", () => {
+  test.each([true, false])("get_prのincludePatch=%sがMCP経由で適用される", async (includePatch) => {
+    const github = makeTrustedPullRequestClient();
+    github.rest.paginate = vi
+      .fn()
+      .mockResolvedValue([
+        { filename: "a.ts", status: "modified", additions: 1, deletions: 0, patch: "+code" },
+      ]);
+    github.rest.pulls.listFiles = vi.fn();
+    const server = createMcpServer(
+      { ...makeDeps(), allowedAuthors: ["alice"], getClient: async () => github },
+      { name: "test", version: "0.0.0" },
+    );
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const result = await client.callTool({
+        name: "get_pr",
+        arguments: { owner: "org", repo: "repo", prNumber: 1, includePatch },
+      });
+      expect(result.isError, JSON.stringify(result.content)).not.toBe(true);
+      const content = result.content as { type: string; text: string }[];
+      const output = JSON.parse(content[0]?.text ?? "{}");
+      expect(output.origin).toEqual({ allowed: true });
+      expect(output.files[0]).toEqual({
+        filename: "a.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        ...(includePatch ? { patch: "+code" } : {}),
+      });
+      expect(output.patchesOmitted).toBe(includePatch ? undefined : true);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("transport に依存しない McpServer インスタンスを返す", () => {
     const server = createMcpServer(makeDeps(), { name: "thread-owl", version: "0.1.0" });
 

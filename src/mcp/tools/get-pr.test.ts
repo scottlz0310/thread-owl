@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { z } from "zod";
 import type { GitHubClient } from "../../github/client.js";
 import { getPR, getPRFiles } from "../../github/pull-requests.js";
 import { createReviewStatusStore } from "../../queue/review-status.js";
 import type { ToolDeps } from "../tool-deps.js";
-import { getPrTool } from "./get-pr.js";
+import { getPrInputSchema, getPrTool } from "./get-pr.js";
 
 vi.mock("../../github/pull-requests.js");
 
@@ -44,6 +45,62 @@ function makeDeps(allowedAuthors: readonly string[]): ToolDeps {
 const input = { owner: "org", repo: "repo", prNumber: 1 };
 
 describe("getPrTool", () => {
+  test.each([undefined, true])(
+    "includePatch=%sでは既存の応答とpatchを保持する",
+    async (includePatch) => {
+      vi.mocked(getPR).mockResolvedValue(makePR("alice"));
+      vi.mocked(getPRFiles).mockResolvedValue(largeFiles);
+      const result = await getPrTool(makeDeps(["alice"]), { ...input, includePatch });
+      expect(Object.keys(result)).toEqual(["pr", "origin", "reviewAttempt", "files"]);
+      expect(result.files).toEqual(largeFiles);
+    },
+  );
+
+  test("patchを省略してもmetadataと開始時attemptを保持し、元のファイルを変更しない", async () => {
+    const reviewStatus = createReviewStatusStore();
+    reviewStatus.markPending(input, "headsha");
+    const files = [...largeFiles, { ...largeFiles[0], filename: "binary.png", patch: undefined }];
+    vi.mocked(getPR).mockResolvedValue(makePR("alice"));
+    vi.mocked(getPRFiles).mockResolvedValue(files);
+    const result = await getPrTool(
+      { ...makeDeps(["alice"]), reviewStatus },
+      { ...input, includePatch: false },
+    );
+    expect(Object.keys(result)).toEqual([
+      "pr",
+      "origin",
+      "reviewAttempt",
+      "patchesOmitted",
+      "files",
+    ]);
+    expect(result.patchesOmitted).toBe(true);
+    expect(result.pr).toEqual(makePR("alice"));
+    expect(result.origin).toEqual({ allowed: true });
+    expect(result.reviewAttempt).toEqual({
+      attemptId: reviewStatus.get(input)?.attemptId,
+      headSha: "headsha",
+      status: "pending",
+    });
+    expect(result.files).toEqual(
+      files.map((file) => ({
+        filename: file.filename,
+        status: file.status,
+        additions: file.additions,
+        deletions: file.deletions,
+      })),
+    );
+    expect(result.files.every((file) => !Object.hasOwn(file, "patch"))).toBe(true);
+    expect(JSON.stringify(result).length).toBeLessThan(2_048);
+    expect(files[0]?.patch).toHaveLength(50_000);
+  });
+
+  test("入力schemaは既定trueと明示falseを受理し、文字列を拒否する", () => {
+    const schema = z.object(getPrInputSchema);
+    expect(schema.parse(input).includePatch).toBe(true);
+    expect(schema.parse({ ...input, includePatch: false }).includePatch).toBe(false);
+    expect(schema.safeParse({ ...input, includePatch: "false" }).success).toBe(false);
+  });
+
   test("開始時のattemptをfilesより前に公開し、read中の次enqueueに置換しない", async () => {
     const reviewStatus = createReviewStatusStore();
     reviewStatus.markPending(input, "headsha");

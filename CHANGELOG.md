@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `get_pr`に`includePatch`（既定`true`）を追加した。`false`では変更ファイルのpatchを省き、`patchesOmitted: true`を返すことで、大きなPRでもmetadataとファイル一覧を小さく取得できる。
+
 ## [0.11.0] - 2026-11-02
 
 ### Added
