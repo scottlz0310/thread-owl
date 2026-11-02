@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-02
+
 ### Added
 
 - reviewerの中断を通常完了と区別する`post_review_stop`と`stopped`状態を追加した。enqueue時のattemptIdとHEADを開始時metadataへ公開し、旧attempt・次enqueue・既存正常完了の保護、App投稿の重複確認と結果不明時の再送禁止を行う。利用にはMcp-Dockerの対応skillと段階配備が必要。
@@ -220,6 +222,7 @@
 - Internal API module stubs
 - CI workflow, Dockerfile, and configuration files
 
-[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/thread-owl/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/scottlz0310/thread-owl/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/scottlz0310/thread-owl/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/scottlz0310/thread-owl/compare/v0.8.0...v0.9.0
