@@ -1,4 +1,4 @@
-// PR の base ref にあるプロジェクト固有の allowlist ファイルの検証。
+// PRの現在のbase branch先頭にあるプロジェクト固有allowlistの検証。
 //
 // PR の head や作業ツリーは参照しない。PR が、自分のコメントに適用される allowlist を広げられないようにするため。
 

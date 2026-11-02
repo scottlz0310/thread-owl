@@ -174,4 +174,4 @@ Claude Code / agent workflow
 
 利用者決定により、review-ravenとの認証付き内部候補受付・台帳・outbox・結果配送・相関マーカーは廃案とし撤去した。App名義のPR投稿とreaderでの投稿者検証、Squirrelの同一PC公開状態、既存queue/review statusによる待機を維持する。gateway向けの既存token-source（internal-api）とwebhook受信は別機能のため残す。新アカウントやサービス用資格情報を要求しない。
 
-共通契約は投稿者検証済みreaderだけをsrc/contract/v1/readerへ固定し、既存のsource commit/hash検証を維持する。旧内部連携契約のschema/fixtureは撤去した。
+共通契約は投稿者検証済みreaderだけをsrc/contract/v2/readerへ固定し、既存のsource commit/hash検証を維持する。旧内部連携契約のschema/fixtureは撤去した。

@@ -1,7 +1,7 @@
 // reviewer 側の reader: PR の review thread・review body・issue comment の本文を、
 // 「メタデータ全ページ → 投稿者検証 → 本文」の順で読む。
 //
-// 契約は review-raven の docs/design/contracts/reader（src/contract/v1/reader に固定して取り込む）。
+// 契約は review-raven の docs/design/contracts/reader（src/contract/v2/reader に固定して取り込む）。
 // review-raven の internal/reader と同じ判定で、同じ共有シナリオを実行して一致を確かめる。
 //
 // 他者が書き得るコメントは未信頼。source に本文を要求するのは、全コメントの投稿者が allowlist に含まれると
@@ -19,10 +19,11 @@ export const CODE_AUTHOR_CHECK_FAILED = "AUTHOR_CHECK_FAILED";
 export const CODE_TRUSTED_AUTHORS_NOT_CONFIGURED = "TRUSTED_AUTHORS_NOT_CONFIGURED";
 export const CODE_PROJECT_ALLOWLIST_INVALID = "PROJECT_ALLOWLIST_INVALID";
 export const CODE_SNAPSHOT_CHANGED = "SNAPSHOT_CHANGED";
+export const CODE_POLICY_REF_UNAVAILABLE = "POLICY_REF_UNAVAILABLE";
 
 // 古い snapshot を取り直す回数の上限。
 export const MAX_ATTEMPTS = 3;
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 // 契約が許す、エラーメッセージの最大長（文字数）。
 export const MAX_MESSAGE_LENGTH = 500;
 
@@ -54,6 +55,8 @@ export interface ReaderThread {
 export interface ReaderSnapshot {
   headSha: string;
   baseSha: string;
+  baseRefName: string;
+  policyBaseSha: string;
   threads: ReaderThread[];
   reviews: ReaderComment[];
   issueComments: ReaderComment[];
@@ -71,6 +74,14 @@ export class SnapshotMovedError extends Error {
   }
 }
 
+// 現在のbase branchを宣言の取得元として確認できない場合。
+export class PolicyRefUnavailableError extends Error {
+  constructor() {
+    super("base branchの現在のCommit参照を確認できません");
+    this.name = "PolicyRefUnavailableError";
+  }
+}
+
 // プロジェクトの allowlist ファイルが存在するが、読めない・壊れているときに source が投げる。
 export class ProjectAllowlistInvalidError extends Error {
   constructor(message: string) {
@@ -82,8 +93,8 @@ export class ProjectAllowlistInvalidError extends Error {
 export interface ReaderSource {
   // 全ページを返す。withBodies=false のとき、upstream へ本文を要求してはならない。
   fetch(withBodies: boolean): Promise<ReaderSnapshot>;
-  // baseSha のプロジェクト allowlist。ファイルが無ければ absent。
-  projectAllowlist(baseSha: string): Promise<ProjectAllowlist>;
+  // 現在のbase branch先頭として確認したSHAの宣言。ファイルが無ければabsent。
+  projectAllowlist(policyBaseSha: string): Promise<ProjectAllowlist>;
 }
 
 // 本文を含まないコメントの参照。
@@ -139,7 +150,7 @@ function allComments(s: ReaderSnapshot): Located[] {
   return out;
 }
 
-// serverLogins（正規化済みのサーバーの allowlist）に加え、base ref のプロジェクト allowlist を適用して、
+// serverLoginsに加え、現在のbase branch先頭のプロジェクトallowlistを適用して、
 // 検証済みの snapshot を返す。空の allowlist は誰も信頼しないため、GitHub へ問い合わせずに止める。
 export async function readComments(
   source: ReaderSource,
@@ -157,7 +168,7 @@ export async function readComments(
     if (attempt >= MAX_ATTEMPTS) {
       throw new ReaderGateError(
         CODE_SNAPSHOT_CHANGED,
-        `comments changed between the author check and the text read on ${MAX_ATTEMPTS} attempts; no text was returned`,
+        `コメントまたはPR・宣言の参照が${MAX_ATTEMPTS}回連続で変化したため、本文を返しません`,
       );
     }
   }
@@ -171,14 +182,16 @@ async function readOnce(
   try {
     meta = await source.fetch(false);
   } catch (error) {
+    if (error instanceof PolicyRefUnavailableError) throw policyRefError();
     if (error instanceof SnapshotMovedError) return "stale";
     throw new Error(`read comment metadata: ${errorMessage(error)}`, { cause: error });
   }
   validateIds(meta);
+  validatePolicyRef(meta);
 
   let project: ProjectAllowlist;
   try {
-    project = await source.projectAllowlist(meta.baseSha);
+    project = await source.projectAllowlist(meta.policyBaseSha);
   } catch (error) {
     if (error instanceof ProjectAllowlistInvalidError) {
       throw new ReaderGateError(CODE_PROJECT_ALLOWLIST_INVALID, error.message);
@@ -194,9 +207,11 @@ async function readOnce(
   try {
     full = await source.fetch(true);
   } catch (error) {
+    if (error instanceof PolicyRefUnavailableError) throw policyRefError();
     if (error instanceof SnapshotMovedError) return "stale";
     throw new Error(`read comment text: ${errorMessage(error)}`, { cause: error });
   }
+  validatePolicyRef(full);
   if (fingerprint(meta) !== fingerprint(full)) return "stale";
   requireBodies(full);
 
@@ -213,6 +228,17 @@ async function readOnce(
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function policyRefError(): ReaderGateError {
+  return new ReaderGateError(
+    CODE_POLICY_REF_UNAVAILABLE,
+    "base branch名または現在の先頭SHAを確認できないため、本文を返しません",
+  );
+}
+
+function validatePolicyRef(s: ReaderSnapshot): void {
+  if (!s.baseRefName || !/^[0-9a-f]{40}$/.test(s.policyBaseSha)) throw policyRefError();
 }
 
 function validateIds(s: ReaderSnapshot): void {
@@ -287,10 +313,16 @@ export function fingerprint(s: ReaderSnapshot): string {
       [c.kind, c.id, threadId, c.author, c.authorType, c.editedAt].join("|"),
     )
     .sort(byteOrder);
-  return [`head=${s.headSha}`, `base=${s.baseSha}`, ...lines].join("\n");
+  return [
+    `head=${s.headSha}`,
+    `base=${s.baseSha}`,
+    `baseRef=${s.baseRefName}`,
+    `policy=${s.policyBaseSha}`,
+    ...lines,
+  ].join("\n");
 }
 
-// 検証した snapshot の識別子。後の再読で値が変われば、コメント・投稿者・編集・head のいずれかが変わっている。
+// コメント・投稿者・編集・PR参照・宣言元の変化を検出する。
 export function snapshotId(s: ReaderSnapshot): string {
   return createHash("sha256").update(fingerprint(s), "utf8").digest("hex");
 }

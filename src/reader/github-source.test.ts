@@ -1,12 +1,18 @@
 import { describe, expect, test } from "vitest";
 import { createGitHubReaderSource } from "./github-source.js";
-import { ProjectAllowlistInvalidError, SnapshotMovedError } from "./reader.js";
+import {
+  PolicyRefUnavailableError,
+  ProjectAllowlistInvalidError,
+  readComments,
+  SnapshotMovedError,
+} from "./reader.js";
 import {
   BASE_A,
   createFakeCommentsGitHub,
   type FakeCommentsOptions,
   HEAD_A,
   HEAD_B,
+  POLICY_A,
   page,
   rawComment,
   rawThread,
@@ -48,6 +54,77 @@ function fullOptions(): FakeCommentsOptions {
 const ids = (comments: { id: string }[]) => comments.map((c) => c.id).join(",");
 
 describe("createGitHubReaderSource.fetch", () => {
+  test("非既定branchの宣言SHAをPR比較元と分離する", async () => {
+    const fake = createFakeCommentsGitHub({
+      ...fullOptions(),
+      refsFor: () => ({ baseRefName: "release/next", baseRef: policyRef("release/next") }),
+    });
+    const snapshot = await createGitHubReaderSource(async () => fake.client, target).fetch(false);
+    expect(snapshot).toMatchObject({
+      baseSha: BASE_A,
+      baseRefName: "release/next",
+      policyBaseSha: POLICY_A,
+    });
+    for (const req of fake.requests.filter((r) => !r.query.includes("node(id"))) {
+      expect(req.query).toContain("baseRefName");
+      expect(req.query).toContain("baseRef { name prefix target { __typename oid } }");
+    }
+  });
+
+  test.each([
+    ["branch削除", { baseRef: null }],
+    ["branch名なし", { baseRefName: "" }],
+    ["branch名不一致", { baseRef: policyRef("other") }],
+    ["tag参照", { baseRef: { ...policyRef("main"), prefix: "refs/tags/" } }],
+    [
+      "Commit以外",
+      { baseRef: { ...policyRef("main"), target: { __typename: "Tag", oid: POLICY_A } } },
+    ],
+    ["targetなし", { baseRef: { ...policyRef("main"), target: null } }],
+    ["SHAなし", { baseRef: policyRef("main", "") }],
+  ] as const)("宣言元不明で停止: %s", async (_name, refs) => {
+    const fake = createFakeCommentsGitHub({ refsFor: () => refs });
+    await expect(
+      createGitHubReaderSource(async () => fake.client, target).fetch(false),
+    ).rejects.toBeInstanceOf(PolicyRefUnavailableError);
+    expect(fake.requests).toHaveLength(1);
+    expect(fake.bodyAsked()).toBe(false);
+  });
+
+  test.each(
+    ["threads", "reviews", "issues"].flatMap((kind) => [
+      { kind, branch: false },
+      { kind, branch: true },
+    ]),
+  )("ページ中の宣言元変動: $kind / branch=$branch", async ({ kind: changeAt, branch }) => {
+    const fake = createFakeCommentsGitHub({
+      ...fullOptions(),
+      refsFor: (kind, call) => {
+        if (kind !== changeAt || (kind === "threads" && call === 0)) return {};
+        const name = branch ? "release/next" : "main";
+        return { baseRefName: name, baseRef: policyRef(name, branch ? POLICY_A : "5".repeat(40)) };
+      },
+    });
+    await expect(
+      createGitHubReaderSource(async () => fake.client, target).fetch(false),
+    ).rejects.toBeInstanceOf(SnapshotMovedError);
+  });
+
+  test("readerが現在branchの宣言だけで追加投稿者を許可する", async () => {
+    const fake = createFakeCommentsGitHub({
+      issuePages: [page(null, rawComment(1, "project-bot", "本文"))],
+      projectFile: JSON.stringify({ version: 1, additional_logins: ["project-bot"] }),
+    });
+    const result = await readComments(
+      createGitHubReaderSource(async () => fake.client, target),
+      ["thread-owl"],
+    );
+    expect(result.snapshot.policyBaseSha).toBe(POLICY_A);
+    expect(fake.getContentCalls).toEqual([
+      { path: ".review-raven/trusted-comment-authors.json", ref: POLICY_A },
+    ]);
+    expect(result.snapshot.issueComments[0].body).toBe("本文");
+  });
   test("walks every page of every kind, including a thread's continuation pages", async () => {
     const fake = createFakeCommentsGitHub(fullOptions());
     const snapshot = await createGitHubReaderSource(async () => fake.client, target).fetch(true);
@@ -129,6 +206,10 @@ describe("createGitHubReaderSource.fetch", () => {
   });
 });
 
+function policyRef(name: string, sha = POLICY_A) {
+  return { name, prefix: "refs/heads/", target: { __typename: "Commit", oid: sha } };
+}
+
 describe("createGitHubReaderSource.projectAllowlist", () => {
   const valid = JSON.stringify({ version: 1, additional_logins: ["CI-Bot[bot]"] });
 
@@ -162,9 +243,9 @@ describe("createGitHubReaderSource.projectAllowlist", () => {
     ).rejects.toBeInstanceOf(ProjectAllowlistInvalidError);
   });
 
-  test("a failed request is not read as a missing file", async () => {
+  test.each([403, 500])("取得失敗%dをファイル不在として扱わない", async (status) => {
     const fake = createFakeCommentsGitHub({
-      projectFile: Object.assign(new Error("boom"), { status: 500 }),
+      projectFile: Object.assign(new Error("boom"), { status }),
     });
     const error = await createGitHubReaderSource(async () => fake.client, target)
       .projectAllowlist(BASE_A)

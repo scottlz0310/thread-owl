@@ -6,12 +6,14 @@ import { describe, expect, test } from "vitest";
 import { clampMessage, toErrorEnvelope, toOutput } from "./output.js";
 import {
   CODE_AUTHOR_CHECK_FAILED,
+  CODE_POLICY_REF_UNAVAILABLE,
   CODE_PROJECT_ALLOWLIST_INVALID,
   CODE_SNAPSHOT_CHANGED,
   CODE_TRUSTED_AUTHORS_NOT_CONFIGURED,
   CODE_UNTRUSTED_COMMENT,
   type CommentKind,
   MAX_MESSAGE_LENGTH,
+  PolicyRefUnavailableError,
   ProjectAllowlistInvalidError,
   type ReaderComment,
   ReaderGateError,
@@ -24,7 +26,7 @@ import {
 
 // ─── 共有シナリオ（review-raven の docs/design/contracts/reader を固定して取り込んだもの） ───
 
-const contractDir = fileURLToPath(new URL("../contract/v1/reader/", import.meta.url));
+const contractDir = fileURLToPath(new URL("../contract/v2/reader/", import.meta.url));
 
 function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(`${contractDir}${file}`, "utf8")) as T;
@@ -45,6 +47,8 @@ interface FixtureFetch {
   moved?: boolean;
   headSha: string;
   baseSha: string;
+  baseRefName: string;
+  policyBaseSha: string;
   threads: {
     id: string;
     path: string;
@@ -57,11 +61,17 @@ interface FixtureFetch {
   issueComments: FixtureComment[];
 }
 
+interface FixtureProjectAllowlist {
+  state: "absent" | "present" | "invalid";
+  logins?: string[];
+}
+
 interface Scenario {
   name: string;
   description: string;
   serverAllowlist: string[];
-  projectAllowlist: { state: "absent" | "present" | "invalid"; logins?: string[] };
+  projectAllowlist?: FixtureProjectAllowlist;
+  projectAllowlists?: Record<string, FixtureProjectAllowlist>;
   fetches: FixtureFetch[];
   expect: {
     outcome: "ok" | "error";
@@ -94,6 +104,8 @@ function toSnapshot(f: FixtureFetch, withBodies: boolean): ReaderSnapshot {
   return {
     headSha: f.headSha,
     baseSha: f.baseSha,
+    baseRefName: f.baseRefName,
+    policyBaseSha: f.policyBaseSha,
     threads: f.threads.map((t) => ({
       id: t.id,
       path: t.path,
@@ -128,8 +140,12 @@ class ScriptedSource implements ReaderSource {
     return toSnapshot(entry, withBodies);
   }
 
-  async projectAllowlist() {
-    const p = this.scenario.projectAllowlist;
+  async projectAllowlist(sha: string) {
+    expect(sha).toBe(this.scenario.fetches[this.calls - 1]?.policyBaseSha);
+    const p = this.scenario.projectAllowlists
+      ? this.scenario.projectAllowlists[sha]
+      : this.scenario.projectAllowlist;
+    if (!p) throw new Error(`未定義の宣言SHA: ${sha}`);
     if (p.state === "invalid")
       throw new ProjectAllowlistInvalidError("project allowlist is invalid");
     if (p.state === "present") return { state: "present" as const, logins: p.logins ?? [] };
@@ -159,7 +175,7 @@ function allBodies(s: Scenario): string[] {
 
 describe("shared reader scenarios", () => {
   test("the pinned scenarios file is the expected version", () => {
-    expect(scenarios.schemaVersion).toBe(1);
+    expect(scenarios.schemaVersion).toBe(2);
     expect(scenarios.scenarios.length).toBeGreaterThan(0);
   });
 
@@ -225,6 +241,38 @@ describe("shared reader scenarios", () => {
 });
 
 describe("error messages stay within the contract", () => {
+  test.each([false, true])(
+    "宣言参照の消失を本文なしで返す: 本文取得時=%s",
+    async (failWithBodies) => {
+      let bodyCalls = 0;
+      let policyCalls = 0;
+      const source: ReaderSource = {
+        async fetch(withBodies) {
+          if (withBodies) bodyCalls++;
+          if (withBodies === failWithBodies) throw new PolicyRefUnavailableError();
+          return {
+            headSha: "1".repeat(40),
+            baseSha: "2".repeat(40),
+            baseRefName: "main",
+            policyBaseSha: "4".repeat(40),
+            threads: [],
+            reviews: [],
+            issueComments: [],
+          };
+        },
+        async projectAllowlist() {
+          policyCalls++;
+          return { state: "absent" };
+        },
+      };
+      const error: unknown = await readComments(source, ["thread-owl"]).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ReaderGateError);
+      const gate = error as ReaderGateError;
+      expect(gate.code).toBe(CODE_POLICY_REF_UNAVAILABLE);
+      expect(validateError(toErrorEnvelope(gate)), JSON.stringify(validateError.errors)).toBe(true);
+      expect([bodyCalls, policyCalls]).toEqual(failWithBodies ? [1, 1] : [0, 0]);
+    },
+  );
   test.each([
     ["501 ascii characters", "x".repeat(501)],
     ["2000 multibyte characters", "あ".repeat(2000)],
@@ -252,6 +300,8 @@ describe("snapshotId", () => {
   const base = (): ReaderSnapshot => ({
     headSha: "1".repeat(40),
     baseSha: "2".repeat(40),
+    baseRefName: "main",
+    policyBaseSha: "4".repeat(40),
     threads: [],
     reviews: [],
     issueComments: [
@@ -282,9 +332,26 @@ describe("snapshotId", () => {
 
   test("is 64 lowercase hex characters", () => {
     expect(snapshotId(base())).toMatch(/^[0-9a-f]{64}$/);
+    expect(snapshotId(base())).toBe(
+      "4bc36aba289e54b9dcc92a52dd8b648243a52f27fef908dad44a2dc402cbe2c7",
+    );
   });
 
   test.each([
+    [
+      "宣言SHAが変化",
+      (s: ReaderSnapshot) => {
+        s.policyBaseSha = "5".repeat(40);
+      },
+      false,
+    ],
+    [
+      "base branchが変化",
+      (s: ReaderSnapshot) => {
+        s.baseRefName = "release/next";
+      },
+      false,
+    ],
     [
       "order does not matter",
       (s: ReaderSnapshot) => {
@@ -341,16 +408,18 @@ describe("snapshotId", () => {
       { ...s.issueComments[0], id: "2", author: "あ", authorType: "Bot" },
       { ...s.issueComments[0], id: "3", author: "😀", authorType: "Bot" },
     ];
-    // 先頭 2 行 + バイト順に並べたコメント 3 行
+    // 先頭4行と、バイト順に並べたコメント3行。
     const expected = [
       `head=${"1".repeat(40)}`,
       `base=${"2".repeat(40)}`,
+      "baseRef=main",
+      `policy=${"4".repeat(40)}`,
       "issue_comment|1||a|Bot|",
       "issue_comment|2||あ|Bot|",
       "issue_comment|3||😀|Bot|",
     ].join("\n");
     expect(snapshotId(s)).toBe(createHash("sha256").update(expected, "utf8").digest("hex"));
-    // review-raven の Go 実装（internal/reader の snapshotID）で同じ入力から計算した値。
-    expect(snapshotId(s)).toBe("2bec2b0eaf46b93771d1c2dd5e985deae78010e3ef9e09575d4ec9a03d900e21");
+    // 契約v2の固定指紋（UTF-8、末尾改行なし）。
+    expect(snapshotId(s)).toBe("9caff85566ac1b9b1c3f22b2decc2f1d0616d1dd223be328a4c6be8627710c0f");
   });
 });

@@ -7,6 +7,7 @@ import type { GitHubClient } from "../github/client.js";
 import { PROJECT_FILE_PATH, parseProjectFile } from "./project-allowlist.js";
 import {
   type CommentKind,
+  PolicyRefUnavailableError,
   type ProjectAllowlist,
   ProjectAllowlistInvalidError,
   type ReaderComment,
@@ -47,7 +48,18 @@ interface ThreadNode {
 interface PullRequestRefs {
   headRefOid: string;
   baseRefOid: string;
+  baseRefName: string;
+  baseRef: {
+    name: string;
+    prefix: string;
+    target: { __typename: string; oid: string } | null;
+  } | null;
 }
+
+const POLICY_REF_FIELDS = `
+  baseRefName
+  baseRef { name prefix target { __typename oid } }
+`;
 
 const COMMENT_FIELDS = `
   databaseId
@@ -67,6 +79,7 @@ const THREADS_QUERY = `
       pullRequest(number: $pr) {
         headRefOid
         baseRefOid
+        ${POLICY_REF_FIELDS}
         reviewThreads(first: 100, after: $cursor) {
           pageInfo { hasNextPage endCursor }
           nodes {
@@ -105,6 +118,7 @@ const REVIEWS_QUERY = `
       pullRequest(number: $pr) {
         headRefOid
         baseRefOid
+        ${POLICY_REF_FIELDS}
         reviews(first: 100, after: $cursor) {
           pageInfo { hasNextPage endCursor }
           nodes { state ${COMMENT_FIELDS} }
@@ -120,6 +134,7 @@ const ISSUE_COMMENTS_QUERY = `
       pullRequest(number: $pr) {
         headRefOid
         baseRefOid
+        ${POLICY_REF_FIELDS}
         comments(first: 100, after: $cursor) {
           pageInfo { hasNextPage endCursor }
           nodes { ${COMMENT_FIELDS} }
@@ -199,20 +214,40 @@ export function createGitHubReaderSource(
     const snapshot: ReaderSnapshot = {
       headSha: "",
       baseSha: "",
+      baseRefName: "",
+      policyBaseSha: "",
       threads: [],
       reviews: [],
       issueComments: [],
     };
     let haveRefs = false;
-    // 問い合わせごとに head / base を比べる。取得中に動いたら、検証を引き継げない。
+    // PR比較元と宣言元を別々に照合し、取得中の変更を検証に引き継がない。
     const setRefs = (refs: PullRequestRefs): void => {
+      const baseRef = refs.baseRef;
+      if (
+        !refs.baseRefName ||
+        !baseRef ||
+        baseRef.name !== refs.baseRefName ||
+        baseRef.prefix !== "refs/heads/" ||
+        baseRef.target?.__typename !== "Commit" ||
+        !baseRef.target.oid
+      ) {
+        throw new PolicyRefUnavailableError();
+      }
       if (!haveRefs) {
         snapshot.headSha = refs.headRefOid;
         snapshot.baseSha = refs.baseRefOid;
+        snapshot.baseRefName = refs.baseRefName;
+        snapshot.policyBaseSha = baseRef.target.oid;
         haveRefs = true;
         return;
       }
-      if (snapshot.headSha !== refs.headRefOid || snapshot.baseSha !== refs.baseRefOid) {
+      if (
+        snapshot.headSha !== refs.headRefOid ||
+        snapshot.baseSha !== refs.baseRefOid ||
+        snapshot.baseRefName !== refs.baseRefName ||
+        snapshot.policyBaseSha !== baseRef.target.oid
+      ) {
         throw new SnapshotMovedError();
       }
     };
@@ -277,8 +312,8 @@ export function createGitHubReaderSource(
     return snapshot;
   }
 
-  // base ref のプロジェクト allowlist。存在しなければ追加なし。存在して読めなければ、ゲートを止める。
-  async function projectAllowlist(baseSha: string): Promise<ProjectAllowlist> {
+  // PR比較元ではなく、現在のbase branch先頭の宣言を読む。
+  async function projectAllowlist(policyBaseSha: string): Promise<ProjectAllowlist> {
     const client = await clientOnce();
     let data: unknown;
     try {
@@ -286,7 +321,7 @@ export function createGitHubReaderSource(
         owner,
         repo,
         path: PROJECT_FILE_PATH,
-        ref: baseSha,
+        ref: policyBaseSha,
       });
       data = response.data;
     } catch (error) {
