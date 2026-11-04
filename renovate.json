@@ -7,10 +7,7 @@
     "github>scottlz0310/renovate-config//presets/languages/docker",
     "github>scottlz0310/renovate-config//presets/package-managers/bun",
     "github>scottlz0310/renovate-config//presets/tools/biome",
-    "github>scottlz0310/renovate-config//presets/tools/lefthook",
-    "github>scottlz0310/renovate-config//presets/options/automerge",
-    "github>scottlz0310/renovate-config//presets/options/schedule",
-    "github>scottlz0310/renovate-config//presets/options/security"
+    "github>scottlz0310/renovate-config//presets/tools/lefthook"
   ],
   "packageRules": [
     {
