@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Biome 2.6.5のフォーマット結果に合わせ、Webhook運用文書を整形した。
+
 - `renovate.json` の `extends` から、中央プリセットで解除済みの非推奨プリセット（`options/automerge`・`options/schedule`・`options/security`）への参照を削除した。スケジュール・待機期間・自動マージ等は中央側で既に解除されているため更新の挙動は変わらず、Dependency Dashboard の警告表示が消える。
 
 ## [0.12.0] - 2026-11-02
