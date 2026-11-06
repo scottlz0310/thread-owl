@@ -5,6 +5,7 @@
 Thread Owl の Webhook サーバーは `--webhook` モードで起動し、`POST /webhook` で GitHub App からのイベントを受信する。
 
 本ガイドでは以下をカバーする:
+
 - ローカル開発時の疎通確認（smee.io / ngrok）
 - 本番環境への Webhook URL 設定
 - 疎通確認チェックリスト
@@ -42,6 +43,7 @@ https://smee.io/new を開き、表示された URL（例: `https://smee.io/AbCd
 **Step 2: GitHub App の Webhook URL を更新する**
 
 GitHub App の設定ページ（**Settings → Developer settings → GitHub Apps → 対象 App → Edit**）で:
+
 - **Webhook URL** を smee.io の URL に更新する
 - **Active** を有効にする
 
@@ -132,6 +134,7 @@ location /webhook {
 **Step 2: GitHub App の Webhook URL を更新する**
 
 GitHub App の設定ページで:
+
 - **Webhook URL** を `https://<公開ドメイン>/webhook` に更新する
 - **Active** が有効であることを確認する
 
