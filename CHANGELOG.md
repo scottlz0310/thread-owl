@@ -4,6 +4,8 @@
 
 ### Changed
 
+- `bunfig.toml` に `minimumReleaseAge = 259200`（3 日）を追加し、公開から 3 日未満の版を bun が新規に解決しないようにした。lock file maintenance は Renovate の minimumReleaseAge を回避するための防御で、frozen install には影響しない。
+
 - Biome 2.6.5のフォーマット結果に合わせ、Webhook運用文書を整形した。
 
 - `renovate.json` の `extends` から、中央プリセットで解除済みの非推奨プリセット（`options/automerge`・`options/schedule`・`options/security`）への参照を削除した。スケジュール・待機期間・自動マージ等は中央側で既に解除されているため更新の挙動は変わらず、Dependency Dashboard の警告表示が消える。

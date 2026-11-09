@@ -1,2 +1,6 @@
 [install]
 linker = "isolated"
+# 公開から 3 日未満の版を新規に解決しない（Renovate の minimumReleaseAge と同じ水準）。
+# lock file maintenance は Renovate 側で minimumReleaseAge が無効のため、無人の自動マージではこの設定が防御になる。
+# lockfile どおりに再現する frozen install には影響しない。
+minimumReleaseAge = 259200
