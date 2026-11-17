@@ -14,7 +14,7 @@ concurrency:
 jobs:
   draft:
     if: startsWith(github.event.head_commit.message, 'chore(release):')
-    uses: scottlz0310/release-automate/.github/workflows/reusable-publish-release.yml@3c860f1b178eb5b942d87c800153bc47887a7bfd # v3.2.1
+    uses: scottlz0310/release-automate/.github/workflows/reusable-publish-release.yml@b155081b04cae981e8ae3beeb37aa1c024866ea2 # v3.3.0
     permissions:
       contents: write
     with:
@@ -110,7 +110,7 @@ jobs:
   finalize:
     needs: [draft, build, verify-image]
     if: needs.draft.outputs.release_state == 'draft'
-    uses: scottlz0310/release-automate/.github/workflows/reusable-finalize-release.yml@3c860f1b178eb5b942d87c800153bc47887a7bfd # v3.2.1
+    uses: scottlz0310/release-automate/.github/workflows/reusable-finalize-release.yml@b155081b04cae981e8ae3beeb37aa1c024866ea2 # v3.3.0
     permissions:
       contents: write
     with:
