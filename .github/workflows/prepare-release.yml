@@ -28,7 +28,7 @@ jobs:
 
   prepare:
     needs: validate
-    uses: scottlz0310/release-automate/.github/workflows/reusable-prepare-release.yml@3c860f1b178eb5b942d87c800153bc47887a7bfd # v3.2.1
+    uses: scottlz0310/release-automate/.github/workflows/reusable-prepare-release.yml@b155081b04cae981e8ae3beeb37aa1c024866ea2 # v3.3.0
     secrets:
       RELEASE_BOT_CLIENT_ID: ${{ secrets.RELEASE_BOT_CLIENT_ID }}
       RELEASE_BOT_PRIVATE_KEY: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
