@@ -1,5 +1,5 @@
 # Bun バイナリのみを公式イメージから取得する（.bun-version と同じ version に固定する）。
-FROM oven/bun:1.4.4-alpine AS bun
+FROM oven/bun:1.4.5-alpine AS bun
 
 FROM node:26.13.1-alpine AS builder
 
